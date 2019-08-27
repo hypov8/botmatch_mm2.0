@@ -1,0 +1,2 @@
+#define for_each_player_inc_bot(doot,i)
+#define for_each_player_not_bot(doot,i)

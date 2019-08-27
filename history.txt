@@ -1,0 +1,522 @@
+Changes from comp mod 1.35 to monkey mod 1.01
+=============================================
+* self-flaming bug fixed
+  - standing in a bin or flaming yourself no longer gives you a frag.
+
+* the invprev "[" and invnext "]" keys toggle the scoreboard
+
+* suiciding (the "kill" command) disabled
+
+* password commands (setpassword/removepassword) disabled
+  - password can still be set by real admins using rcon.
+
+* "admin" command disabled
+  - admin should be elected, not grabbed.
+
+* realmode command added - setdm_realmode x (0/1 = realmode off/on)
+  - set a default "dm_realmode" value using this line in the comp.ini file:
+      default_dm_realmode x  
+
+* option to fix the game type
+  - using "fixed_gametype" in the comp.ini file disables the "setteamplay"
+    and "setdm_realmode" commands.
+
+* deaths tracked in team deathmatch games
+  - number of times each player dies is displayed in the scoreboard.
+
+* when a "custom_map_file" IS provided (in comp.ini), only the maps
+  listed in that file will be allowed with the changemap command.
+
+* when a "custom_map_file" IS NOT provided, any map on the server can
+  be loaded with the changemap command.
+
+
+Changes from monkey mod 1.01 to monkey mod 1.02
+===============================================
+* admin command back in :)
+  - use "admin_code <pass>" in comp.ini to set the admin password, if this line
+    is missing (or no password is provided) then the admin command is disabled.
+
+* password command enabling now optional
+  - use "enable_password" in comp.ini to enable the password commands.
+
+
+Changes from monkey mod 1.02 to monkey mod 1.10
+===============================================
+* personalized RCON - rconx_login/rconx
+  - use "rconx_file <file>" in comp.ini to set the file that contains the RCON
+    passwords (one password per line of the file), if this line is missing or the
+    file is empty then personalized RCON is disabled.
+
+  - use "rconx_login <pass>" to login, and then use "rconx <command>" to execute
+    the command on the server. all rconx logins and commands are logged in the
+    server console.
+
+* scoreboard sorting bug fixed
+
+
+Changes from monkey mod 1.10 to monkey mod 1.20
+===============================================
+* option to have admin status retained after map changes
+  - use "keep_admin_status" in comp.ini to avoid needing to re-elect the admin
+    after map changes.
+
+* "fixed_gametype" option now disables "setdmflags" command too
+  - prevents changing of weapon stay, etc...
+
+* players can only change team once every 2 seconds
+  - guards against malicious overflow attempts.
+
+* "permanent scoreboard when chasing" fixed
+  - can now chase spectate without scoreboard always being displayed.
+
+* "scoreboard displayed at start of game" fixed
+  - no need to press F1 to remove the scoreboard from screen at start of game.
+
+
+Changes from monkey mod 1.20 to monkey mod 1.21
+===============================================
+* team scores shown in server browsers
+  - people "watching" the game in GameSpy/PingTool/etc... can see the team scores.
+
+* respawn-point selection made more random
+
+* rconx_login status retained after map changes
+  - no need to re-login after map changes.
+
+
+Changes from monkey mod 1.21 to monkey mod 1.22
+===============================================
+* "non-dropping of $30 bags by players killed at enemy base" fixed
+
+
+Changes from monkey mod 1.22 to monkey mod 1.23
+===============================================
+* cash removed from team deathmatch
+  - players no longer drop $10 when killed.
+
+* frags rather than cash is shown in the team deathmatch HUD
+  - a player's frags is displayed in place of the pointless cash carried.
+
+* chase target's name displayed properly
+
+* player IP logging
+  - when a player connects their IP is logged in the server console.
+
+
+Changes from monkey mod 1.23 to monkey mod 1.30
+===============================================
+* time remaining shown in server browsers
+  - people "watching" the game in GameSpy/PingTool/etc... can see how long is left.
+
+* speed cheat kicking
+  - any player using the speed cheat will automatically be kicked.
+
+* "see-thru" script kicking
+  - any player using the "see-thru" script will automatically be kicked.
+
+* "ping freeze" script disabled
+  - LPBs can no longer pretend to be HPBs by raising then freezing their ping.
+
+* skin changing scripts disabled
+  - players can not cause lag by continually changing skins.
+
+* no time limit enabled
+  - "settimelimit 0" is now accepted to turn off the time limit.
+
+* random default map selection
+  - use "default_random_map" in comp.ini to have the mod choose any of the maps
+    listed in "custom_map_file" when the server is reset.
+
+* option to disable anonymous text binds
+  - use "disable_anon_text" in comp.ini to disable anonymous text binds.
+
+* "cheats" automatically set to "0" when the server resets
+  - cheats turned off with "resetserver" and when the server is left idle.
+
+
+Changes from monkey mod 1.30 to monkey mod 1.31
+===============================================
+* spectator rate restriction
+  - use "spec_maxrate <rate>" in comp.ini to set the maxrate for spectators, to
+    save more bandwidth for the players.
+
+* team-talk between spectators
+  - spectators can use team-talk to talk only to eachother
+
+* cashbag dropping disabled
+  - "drop cash" only drops the player's cash bundle, not the bag.
+
+* dropped cashbags can be picked up by same player
+  - players can now pick up any cashbag they dropped when they were killed.
+
+* new "see-thru" script kicking
+  - any player using another "see-thru" script will automatically be kicked.
+
+
+Changes from monkey mod 1.31 to monkey cds 1.32
+===============================================
+* Cheat Detection System
+  - detects if the player has ASUS see-thru drivers, a hacked KINGPIN.EXE, hacked
+    OpenGL, or hacked player models. players need the client from monkeymod.com
+
+* match starting score
+  - use "matchscore <dragscore> <nikkiscore>" in matchsetup mode to set the score
+    to start the match with.
+
+* togglecam disabled
+  - prevents any togglecam cheats.
+
+* a load of little fixes
+
+
+Changes from monkey cds 1.32 to monkey cds 1.35
+===============================================
+* new scoreboard page
+  - favourite weapon (most kills)
+  - DM: accuracy (pistol/shotgun/tommy/hmg/rocket only)
+  - bagman: stolen cash
+
+* cursing
+  - 112 male & 43 female voice samples activated by "key" or "curse" commands
+
+* spawn-point fixes
+  - kpdm5: bottom of HMG stairs *removed*
+  - kpdm4: below little GL room *removed*
+  - sickre: by shotgun *moved a bit right*
+  - team_rival: nikkis no longer spawn at drags base
+
+* colour-coded player names
+  - turquoise = logged into rconx
+  - pink = not clean
+
+* increased client response wait
+  - should reduce "client timedout" problems for laggy/low-spec players.
+
+* player connecting warning for admins
+  - anyone logged in rconx will be notified of anyone connecting to the server.
+
+* spectator rate restriction removed
+  - possible problems with it.
+
+* more little fixes
+
+
+Changes from monkey cds 1.35 to monkey cds 1.36
+===============================================
+* cash carried visible to teammates
+  - players in bagman can see how much cash a teammate is carrying by
+    aiming at them.
+
+* cursing only when facing another player
+  - the continuous cursing could cause lag
+
+* option to disable cursing
+  - use "disable_curse" in comp.ini to disable the cursing
+
+* improved name banning
+  - uses a case-indepentant sub-string match
+
+* tidier scoreboard code
+  - more players fit on the scoreboard
+
+* cashroll pickup bug fixed
+  - when over the $150 limit, the remainder is dropped, instead of it
+    disappearing.
+
+* further increased client response wait
+
+
+Changes from monkey cds 1.36 to monkey cds 1.37
+===============================================
+* custom models ignored by CDS when playing teams
+  - custom models aren't used in teamplay, so no need to check them.
+
+* "target_timer" entity
+  - players can start/stop timers built into a map.
+
+* increased spawning at own base
+  - 70% chance (was 30%) of respawning at own team's base in bagman.
+
+
+Changes from monkey cds 1.37 to monkey cds 1.37a
+================================================
+* option to disable bunnyhopping
+  - dmflag 64 disables bunnyhopping - add 64 to your normal dmflags
+    setting to disable bunnyhopping.
+
+* date logging
+  - when a map is loaded the date is logged in the server console.
+
+Changes from monkey cds 1.37a to monkey cds 1.38
+================================================
+* yellow team-talk
+
+* reduced chance of mmclient "corrupt info"
+
+* password removal rconx command
+  - "rconx nopassword"
+
+* couple of bug fixes
+
+Changes from monkey cds 1.38a to monkey cds 1.39
+================================================
+* mapname logging
+  - when a map is loaded its name is logged in the server console.
+
+* added an extra spectator mode
+  - now you can rotate freely around a player you are spectating
+
+* added server uptime cvar
+  - now in serverinfo you can see for how long the server has been up
+
+* spawn-point fixes
+  - kpdm2: underneath stairs in RL room             *removed*
+  	 : in open area opposite stairs to shotgun  *removed*
+
+* scoreboard changes
+  - added average pings for each team on scoreboard
+
+* admin commands
+  - added two new commands to enable team name changing
+    now you can change team names (Dragons, Nikki's) to
+    anything you like if you are admin (clan name etc.)
+
+Changes from monkey cds 1.39 to monkey cds 1.40
+================================================
+* map voting levelshots
+  - when voting for a map you can see its levelshot bellow the choices
+    NOTE: You need to have a levelshot for a map to see it.
+
+* weapon bug fix
+  - when the match has finished and if you had a weapon out it won't
+    stay frozen anymore. It will disappear from the screen.
+
+* fixed a crash bug in linux with teamname commands
+
+* score stays
+  - now when you switch teams your score stays
+
+* clear score
+  - to clear your score type: clearme
+
+Changes from monkey cds 1.40 to monkey cds 1.40a
+================================================
+* finally fixed a crash bug in linux with teamname commands
+
+* now you can see your killers health after you die
+
+* added support for cannons in bagman maps so you get frags if
+  you use them and kill someone
+
+Changes from monkey cds 1.40a to monkey cds 1.40b
+================================================
+* bug fixes
+  - made it so changing teamname won't lead to a memory leak
+  - fixed a bug which would crash the server on map change if map voting was disabled
+
+* item pickup restrictions
+  - can't pick up adrenaline if you have 100 health
+  - can't pick up cooler if you haven't used your old one up
+  - can't pickup flashlight if you have one
+
+* created a taunt/curse system
+  - now you can curse as many kingpin characters (male/female)
+    type curselist in console to see all the taunts
+
+* deathmatch scoreboard change
+  - in free for all mode changed 'ping' to 'deaths' on second scoreboard
+
+* made it so admin can see people connect in chat
+
+* flashlight now respawns
+
+* now if you wanna see killers health you need to enable it in comp.ini
+
+Changes from monkey cds 1.40b to monkey cds 1.40c
+================================================
+* new spectator mode (EyeCam) 
+  - lets you chase players in first person mode
+    press JUMP to change spectator modes
+
+* bug fix
+  - shooting grenade launcher shell trough walls bug fixed
+
+* rconx
+  - Now people logged in as rconx or admins (not elected) 
+    can see people connecting in chat
+
+Changes from monkey cds 1.40c to monkey cds 1.40d
+=================================================
+* chat fixes
+  - now you can type chat in console again
+    ( i made a mistake here when stopping people from
+    printing empty chat )
+  - can't type empty chat
+
+* scoreboard update
+  - now can see admin on scoreboard in red
+
+* new admin/rconx command
+  - added a command for admins and rconx to enable/disable CDS from console
+  - if you are admin (passworded) you can just type: cds on/off 
+  - if you have rconx you can type: rconx cds on/off
+  - if you are the server admin you can type directly into console: sv cds on/off
+ 
+* server settings
+  - now you can see whether the CDS is on or off when you print settings
+
+* client connect
+  - now client connecting message will be printed for all rconx and admin clients
+
+* misc bug fixes and optimizatons
+
+- http://www.monkeymod.com/
+
+Changes from monkey cds 1.40d to monkey cds 1.50
+=================================================
+ * added 2 new cvars to server
+
+   - anti_spawncamp (made it so you are invincible for 3 seconds on each spawn (anti-spawn camp))
+     * when you spawn your weapon will flash 3 times indicating the 3 seconds of immortality
+     * option in comp.ini to disable this feature (disable_asc)
+     * admins have a command called toggle_asc to toggle this on/off
+     * rcon/x users can just toggle the cvar from console
+     * this can be set in the server.cfg as well
+
+   - kick_flamehack (kick clients with hacked flames)
+     * option in comp.ini to turn this feature on 
+     * rcon/x users can just toggle the cvar from console
+     * this can be set in the server.cfg as well
+     * from now on you'll get kicked for using gl_polyblend set to 0 
+       (because it removes the flame from screen). Some people use this only to get rid off
+       those annoying flashes when you pick things up etc. All those people should use
+       a new command "polyblend" which will remove these flashes but not flames.
+
+ * improved the kick message when clients don't have mmclient.exe or have an old one 
+   or have invalid models or old version of kingpin.exe (it shuts kingpin.exe down and a popup 
+   window gives them the kick message and what to do about it)
+
+ * fixed admin status on map change (used to just made proper admins into elected admins on map 
+   change)
+
+ * made it so eyecam is the default specatator mode
+
+ * name change is printed in screen and server console
+
+ * option in comp.ini to have unlimited curse (every 7 seconds)
+   (so you don't have to face a player to curse)
+
+- http://www.monkeymod.com/
+
+Changes from monkey cds 1.50 to monkey cds 1.50a
+=================================================
+
+ * taunting as spectator bug fixed
+
+ * clearme command removed (didn't see any use in it)
+
+ * polyblend command removed
+   - now you can set gl_polyblend to 2 to get the polyblending effect
+
+ * fixed saving client info when they disconnect
+   - stolen money, accuracy and favourite weapon info is saved
+     and retrieved on rejoin 
+ 
+ * enabled anti_spawncamp in real mode 
+
+ * name change flooding stopped
+   - can only change name every 5 seconds
+
+ * yellow chat for admins/rconx clients
+   - admin/rconx normal chat is printed to all clients as yellow
+     (can still team talk)
+
+ * prints who <Name Clash> is trying to immitate
+
+ * added new cvar (idle_client)
+   - idle_client can be set to a number of seconds a client can be idle
+     for before being turned into a spectator (60 seconds is minimum/default)
+   - idle_client can be set from server console, rcon/rconx and server.cfg
+   - password admins can you setidletime command to change it
+
+ * fixed realmode deathmatch score bug
+   - now you don't get 2 deaths each time you die
+   - fixed the scoreboard so it shows hits and time not hits and score
+
+ * enabled spectator team chat in deathmatch mode
+
+
+Changes from monkey cds 1.50a to monkey cds 1.50b
+=================================================
+
+ * added new cvar (no_spec)
+   - no_spec makes the screen black for non-admin/non-rconx spectators (basically
+     stops them from seeing whats going on in the server). This is to stop voice 
+     communication cheating by using programs such as Roger Wilco and BattleCom 
+     to give away the players positions and details
+   - no_spec is 0 (off) by default, set it to 1 (on) for it to take effect
+   - no_spec can be set from server console, rcon/rconx and server.cfg
+   - admins can use disable_spec command to change it
+   - note when this is enabled if people have gl_polyblend set to 0 they will
+     get kicked for a flamehack because gl_polyblend set to 0 will remove the
+     black spectator screen
+
+ * removed kick_flamehack from comp.ini
+   - now kick_flamehack can only be set in server.cfg or by a command
+
+ * modified idle_client cvar
+   - now it will only boot players to spectator mode if a match is in progress,
+     not during pre-match, map voting or intermission time.
+   - increased default time to 120 seconds
+
+ * fixed team joining problem
+   - fixed the team joining problem during Pre-Match countdown
+
+ * chat change
+   - made the admin team talk have round brackets around the name
+     instead of pipes like in normal admin talk
+
+
+Changes from monkey cds 1.50b to monkey cds 1.50c
+=================================================
+
+ * changed the spectating disabling command for admins
+   - now admins should use toggle_spec instead of disable_spec
+
+ * added a new cvar (no_shadows)
+   - no_shadows removes the player shadows if set to 1 or enables lets the 
+     clients pick their own shadown if set to 0
+   - no_shadows is 0 (off) by default, set it to 1 (on) for it to take effect
+   - no_shadows can be set from server console, rcon/rconx and server.cfg
+   - admins can use toggle_shadows command to change it
+
+ * spectator modes change
+   - order of specator modes has changes, now eyecam is first followed by 
+     locked mode then the freelook mode
+
+ * matchstart change
+   - on matchstart all entites droped in the map will be taken out and all the entities
+     that have been picked up will be respawned
+
+ * new rconx commands
+   - added banip, banname commands to rconx clients
+   - with banip and banname the ip address or the name of the client you wish to ban
+     will be written to ip ban list file and name ban list file specified in comp.ini
+   - bans take effect on next map change
+   - please use these 2 commands cautiously as the process is only reversable manually
+   - you can ban names with partial match so be careful what words or part of words you ban
+   - also with banip you can also ban subnets (read ips.txt for more info)
+     also be extremly careful with this too
+
+ * chat fix
+   - fixed a bug where rconx normal chat looked like team chat
+
+ * team deathmatch fix
+   - now if a bagman map is loaded in team deathmatch mode there will be no safebags,
+     no cash spawns and no cash dropping.
+
+ * no footsteps fix
+   - fixed a problem where players could misuse a command to make their footsteps silent
+
+ 
