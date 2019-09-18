@@ -937,7 +937,7 @@ void SpawnGib (edict_t *self, int mdx_part, int mdx_subobject, vec3_t dir)
 	char gibname[1024];
 	int		max_rnd;
 
-#ifdef HYPODEBUG
+#if 0//def HYPODEBUG
 	return; //hypov8 overflow test?
 #endif
 	gi.sound(self, CHAN_VOICE, gi.soundindex("actors/player/bodyfalls/jibs.wav"), 1, ATTN_NORM, 0);

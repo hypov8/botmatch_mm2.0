@@ -2,9 +2,6 @@
 
 char maplist[1024][32];
 
-int vote_set[9];        // stores votes for next map
-int num_vote_set;
-
 char admincode[16];		 // the admincode
 char default_map[32];    // default settings
 char default_teamplay[16];
@@ -17,39 +14,39 @@ char default_anti_spawncamp[16];
 char default_dm_realmode[16];
 char default_bonus[16];
 char map_list_filename[32];
-char ban_name_filename[32];
-char ban_ip_filename[32];
 int allow_map_voting;
 int wait_for_players;
 int disable_admin_voting;
-int fph_scoreboard;
+int pregameframes;
 int num_maps;
-int num_netnames;
-int num_ips;
 
 int fixed_gametype;
 int enable_password;
-char rconx_file[32];
-int num_rconx_pass;
 int keep_admin_status;
 int default_random_map;
-int disable_anon_text;
 int disable_curse;
 // BEGIN HITMEN
 int enable_hitmen;
 // END
 int unlimited_curse;
+int pickup_sounds;
 int enable_killerhealth;
 
-MOTD_t	MOTD[20];
+char	MOTD[20][80];
 int		num_MOTD_lines;
 
 player_t playerlist[64];
 
-ban_t	netname[100];
-ban_t	ip[100];
+char ban_name_filename[32];
+ban_t ban_name[100];
+int num_ban_names;
+char ban_ip_filename[32];
+ban_t ban_ip[100];
+int num_ban_ips;
 
+char rconx_file[32];
 ban_t	rconx_pass[100];
+int num_rconx_pass;
 
 int manual_tagset = 0;
 int team_startcash[2] = {0, 0};
@@ -97,9 +94,9 @@ void MatchSetup () // Places the server in prematch mode
 	level.intermissiontime = 0;
 
 // ACEBOT_ADD
-	num_players = 0;
+	//num_players = 0;
 	botsRemoved = 0;
-	num_bots = 0;
+	//num_bots = 0;
 	ACESP_RemoveBot("all");
 	level.bots_spawned = false;
 // ACEBOT_END
@@ -122,6 +119,9 @@ void MatchSetup () // Places the server in prematch mode
 qboolean ResetServer (qboolean ifneeded) // completely resets the server including map
 {
 	char command[64];
+
+	// refresh config
+	proccess_ini_file();
 
 	// these things don't need a restart
 	if (default_dmflags[0])
@@ -162,9 +162,7 @@ qboolean ResetServer (qboolean ifneeded) // completely resets the server includi
 	if (default_dm_realmode[0])
 		gi.cvar_set("dm_realmode", default_dm_realmode);
 	gi.cvar_set("cheats", "0");
-// ACEBOT_ADD
-	//FreeBots();
-// ACEBOT_END
+
 
 	if (default_random_map && num_maps)
 		Com_sprintf (command, sizeof(command), "map \"%s\"\n", maplist[rand() % num_maps]);
@@ -189,9 +187,9 @@ void MatchStart()  // start the match
 	edict_t		*ent;
 
 	// ACEBOT_ADD
-	num_players = 0;
+	//num_players = 0;
 	botsRemoved = 0;
-	num_bots = 0;
+	//num_bots = 0;
 	level.bots_spawned = false;
 	// ACEBOT_END	
 		
@@ -215,7 +213,7 @@ void MatchStart()  // start the match
 			continue;
 		}
 // ACEBOT_END
-		ent->client->resp.check_idle = level.framenum;
+		ent->client->resp.idle = level.framenum;
 		ent->client->resp.time = 0;
 		ent->client->resp.scoreboard_frame = 0;
 		ent->client->pers.bagcash = 0;
@@ -231,7 +229,7 @@ void MatchStart()  // start the match
 	}
 
 	gi.WriteByte(svc_stufftext);
-	gi.WriteString("play world/cypress3.wav\n");
+	gi.WriteString("play world/cypress3\n");
 	gi.multicast(vec3_origin, MULTICAST_ALL);
 
 	// turn back on any sounds that were turned off during intermission
@@ -253,7 +251,7 @@ void SpawnPlayers ()  // spawn players - 2 per server frame (1 per team) in hope
 	team1 = false;
 	team2 = false;
 
-	for (c=i=0; i<maxclients->value; i++)
+	for (c=i=0; i<(int)maxclients->value; i++)
 	{
 		self = g_edicts + 1 + i;
 		if (!self->inuse || self->client->resp.is_spawn)
@@ -318,7 +316,7 @@ void Start_Match () // Starts the match
 	gi.dprintf("The match has begun!\n");
 
 	gi.WriteByte(svc_stufftext);
-	gi.WriteString("play world/pawnbuzz_out.wav\n");
+	gi.WriteString("play world/pawnbuzz_out\n");
 	gi.multicast(vec3_origin, MULTICAST_ALL);
 }
 
@@ -346,7 +344,7 @@ void Start_Pub () // Starts a public game
 	gi.dprintf("Let the fun begin!\n");
 
 	gi.WriteByte(svc_stufftext);
-	gi.WriteString("play world/pawnbuzz_out.wav\n");
+	gi.WriteString("play world/pawnbuzz_out\n");
 	gi.multicast(vec3_origin, MULTICAST_ALL);
 }
 
@@ -364,17 +362,17 @@ void SetupMapVote () // sets up the vote options for the next map
 	int		selection;
 
 // ACEBOT_ADD
-	ACECM_LevelEnd();
+	//ACECM_LevelEnd();
 // ACEBOT_END
 
 	// find current map index
 	i = 0;
-	vote_set[0] = -1;
+	level.vote_set[0] = -1;
 	while (i < num_maps) 
 	{	
 		if (Q_stricmp (maplist[i], level.mapname) == 0)
 		{
-			vote_set[0] = i;
+			level.vote_set[0] = i;
 			break;
 		}
 		i++;
@@ -382,15 +380,15 @@ void SetupMapVote () // sets up the vote options for the next map
 
 	if (num_maps < 9) // less than 9 maps found, just display them all
 	{
-		i = vote_set[0];
+		i = level.vote_set[0];
 		for (j=1; j<=num_maps; j++)
 		{
 			i++;
 			if (i == num_maps)
 				i=0;
-			vote_set[j] = i;
+			level.vote_set[j] = i;
 		}
-		num_vote_set = num_maps;
+		level.num_vote_set = num_maps;
 		return;
 	}
 
@@ -400,10 +398,10 @@ void SetupMapVote () // sets up the vote options for the next map
 		while (!unique)
 		{		
 			selection = rand() % num_maps;
-			vote_set[i] = selection;
+			level.vote_set[i] = selection;
 			unique = true;
 			for (k=0; k<i; k++)
-				if (vote_set[i] == vote_set[k])
+				if (level.vote_set[i] == level.vote_set[k])
 				{
 					unique = false;
 					break;
@@ -411,7 +409,7 @@ void SetupMapVote () // sets up the vote options for the next map
 		}
 	}
 
-	num_vote_set = 8;
+	level.num_vote_set = 8;
 }
 
 /*
@@ -472,9 +470,9 @@ void CheckIdleMatchSetup () // restart the server if its empty in matchsetup mod
 
 // ACEBOT_ADD
 	level.bots_spawned = 0;
-	num_players = 0;
+	//num_players = 0;
 	botsRemoved = 0;
-	num_bots = 0;
+	//num_bots = 0;
 // ACEBOT_END
 	for_each_player_not_bot(doot, i)
 	{ //hypov8 bots count??
@@ -495,25 +493,23 @@ level.modeset = TEAM_MATCH_SPAWNING;
 */
 void CheckStartMatch () // 15 countdown before matches
 {
+	int framenum = level.framenum - level.startframe;
+	
 // ACEBOT_ADD //hypov8 todo?: check this
 	level.bots_spawned = 0; //hypov8 
-	num_players = 0;
 	botsRemoved = 0;
-	num_bots = 0;
 // ACEBOT_END
-	if (level.framenum >= PRE_MATCH_TIME) //hypov8 todo: check level. //150 //PRE_MATCH_TIME_BM
+
+	if (framenum >= 150)
 	{
 		Start_Match ();
 		return;
 	}
-
-
-
-	if ((level.framenum % 10 == 0) && (level.framenum > PRE_MATCH_TIME_BM_BUZZER )) //hypov8 todo: check level. //99
+	
+	if ((framenum % 10 == 0) && (framenum > 99))
 	{
-//		safe_bprintf(PRINT_HIGH,"The match will start in %d seconds\n", (150 - framenum) / 10);
 		gi.WriteByte(svc_stufftext);
-		gi.WriteString("play world/pawnomatic/menubuzz.wav\n");
+		gi.WriteString("play world/pawnomatic/menubuzz\n");
 		gi.multicast(vec3_origin, MULTICAST_ALL);
 	}
 }
@@ -532,22 +528,19 @@ void CheckStartPub () // 35 second countdown before server starts // HYPOV8_ADD 
 {
 // ACEBOT_ADD //hypov8 todo: check this
 		level.bots_spawned = 0; //hypov8 
-		num_players = 0;
 		botsRemoved = 0;
-		num_bots = 0;
 // ACEBOT_END
 
-	if (level.framenum >= PRE_MATCH_TIME) 	//hypo global match start time PRE_MATCH_TIME
+	if (level.framenum >= level.pregameframes) 	//hypo global match start time PRE_MATCH_TIME
 	{
 		Start_Pub ();	
 		return;
 	}
 
-	if ((level.framenum % 10 == 0) && (level.framenum > PRE_MATCH_TIME_BUZZER))
+	if (level.pregameframes - level.framenum <= 40 && !((level.pregameframes - level.framenum) % 10))
 	{
-//		safe_bprintf(PRINT_HIGH,"The game will start in %d seconds\n", (350 - level.framenum) / 10);
 		gi.WriteByte(svc_stufftext);
-		gi.WriteString("play world/pawnomatic/menubuzz.wav\n");
+		gi.WriteString("play world/pawnomatic/menubuzz\n");
 		gi.multicast(vec3_origin, MULTICAST_ALL);
 	}
 }
@@ -633,9 +626,16 @@ void CheckEndVoteTime () // check the timelimit for voting next level/start next
 {
 	int		i, count = 0, votes[9];
 	edict_t *player;
-	char	command[64];
+
+	if (level.vote_winner)
+	{
+		if (level.framenum > (level.startframe + 310))
+			level.exitintermission = true;
+		return;
+	}
 
 	memset (&votes, 0, sizeof(votes));
+
 	for_each_player_not_bot(player,i)// ACEBOT_ADD
 	{
 		count++;
@@ -662,19 +662,15 @@ void CheckEndVoteTime () // check the timelimit for voting next level/start next
 		}
 	}
 
-	if (level.framenum > (level.startframe + 300))
+	if (level.framenum == (level.startframe + 300))
 	{
-		int		wining_map = 1;
-		for (i = 1; i < 9 ; i++)
+		level.vote_winner = 1;
+		for (i = 2; i <= level.num_vote_set; i++)
 		{
-			if (votes[i] > votes[wining_map])
-				wining_map = i;
+			if (votes[i] > votes[level.vote_winner])
+				level.vote_winner = i;
 		}
-// ACEBOT_ADD
-		//FreeBots();
-// ACEBOT_END
-		Com_sprintf (command, sizeof(command), "gamemap \"%s\"\n", maplist[vote_set[wining_map]]);
-		gi.AddCommandString (command);
+		level.changemap = maplist[level.vote_set[level.vote_winner]];
 	}
 }
 
@@ -686,12 +682,14 @@ void CheckEndTime() // HYPOV8 todo: check this
 
 void CheckVote() // check the timelimit for an admin or map vote
 {
+	if (level.framenum == (level.voteframe + 600))
+		safe_bprintf(PRINT_HIGH, "30 seconds left for voting\n");
 	if (level.framenum >= (level.voteframe + 900))
 	{
 		switch (level.voteset)
 		{
 			case VOTE_ON_ADMIN:
-				safe_bprintf(PRINT_HIGH, "The request for admin has failed!\n");
+				safe_bprintf(PRINT_HIGH, "The request for admin has failed\n");
 				break;
 			case VOTE_ON_MAP:
 				safe_bprintf(PRINT_HIGH, "The request for a map change has failed\n");
@@ -708,9 +706,9 @@ int	CheckNameBan (char *name)
 
 	strncpy(n, name, sizeof(n)-1);
 	kp_strlwr(n);
-	for (i=0; i<num_netnames; i++)
+	for (i=0; i<num_ban_names; i++)
 	{
-		if (strstr(n, netname[i].value))
+		if (strstr(n, ban_name[i].value))
 			return true;
 	}
 	return false;
@@ -721,18 +719,18 @@ int	CheckPlayerBan (char *userinfo)
 	char	*value;
 	int		i;
 
-	if (num_netnames)
+	if (num_ban_names)
 	{
 		value = Info_ValueForKey (userinfo, "name");
 		if (CheckNameBan(value))
 			return true;
 	}
 
-	if (num_ips)
+	if (num_ban_ips)
 	{
 		value = Info_ValueForKey (userinfo, "ip");
-		for (i=0; i<num_ips; i++)
-			if (!strncmp(value, ip[i].value, strlen(ip[i].value)))
+		for (i=0; i<num_ban_ips; i++)
+			if (!strncmp(value, ban_ip[i].value, strlen(ban_ip[i].value)))
 				return true;
 	}
 
@@ -760,12 +758,12 @@ void UpdateTime()
 		strcpy(buf, "waiting");
 	else if (level.modeset == MATCHCOUNT)
 	{
-		int t = ((PRE_MATCH_TIME_BM /*150*/ - (level.framenum - level.startframe)) / 10);
+		int t =	((150 - (level.framenum - level.startframe)) / 10);
 		sprintf(buf, "start in %d", t);
 	}
 	else if (level.modeset == PREGAME)
 	{
-		int t = ((PRE_MATCH_TIME /*350*/ - level.framenum ) / 10);
+		int t = ((350 -  level.framenum) / 10);
 		sprintf(buf, "start in %d", t);
 	}
 	else if ((level.modeset == MATCH || level.modeset == PUBLIC))

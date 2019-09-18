@@ -61,7 +61,6 @@ cvar_t	*sv_maxvelocity;
 cvar_t	*sv_gravity;
 
 // ACEBOT_ADD
-//cvar_t *sv_botcfg;
 cvar_t *sv_botskill;
 cvar_t *sv_botpath;
 cvar_t *sv_botjump;
@@ -71,9 +70,8 @@ cvar_t *sv_bot_max;
 cvar_t *sv_bot_max_players;
 cvar_t *sv_hitmen;
 cvar_t *sv_hook; //add hypov8
-cvar_t *sv_pretime;
-cvar_t *sv_pretimebm;
 // ACEBOT_END
+
 cvar_t *sv_keeppistol;//add hypov8
 cvar_t	*sv_rollspeed;
 cvar_t	*sv_rollangle;
@@ -121,12 +119,10 @@ cvar_t	*g_mapcycle_file;
 
 cvar_t	*antilag;
 cvar_t	*props;
-
+cvar_t	*shadows;
 cvar_t	*bonus;
 
 qboolean	kpded2;
-int		starttime;
-
 
 void SpawnEntities (char *mapname, char *entities, char *spawnpoint);
 void ClientThink (edict_t *ent, usercmd_t *cmd);
@@ -147,66 +143,6 @@ void G_RunFrame (void);
 
 int gameinc = 0;
 
-#if 0
-// HYPOV8_ADD
-static char *weapnames[8] = { "Pipe", "Pist", "Shot", "Tommy", " HMG", "  GL", "  RL", "Flame" }; //hypov8 duplicate p_hud.c
-
-//hypov8 dm match end results printed
-void PrintScoreMatchEnd(void)
-{
-	int i, j;
-
-
-	gi.dprintf(" \n");
-	gi.dprintf("--== results ==--\n");
-	gi.dprintf("map              : %s\n", level.mapname);
-	gi.dprintf("num score ping deaths acc fav   name           address               ver \n");
-	gi.dprintf("--- ----- ---- ------ ---- ----- -------------- --------------------- ----\n");
-	for (i = 1; i <= maxclients->value; i++)
-	{
-		if (g_edicts[i].inuse && g_edicts[i].client)
-		{
-			int fc = 0;
-			char *favWep = "   -";
-			gclient_t *c = g_edicts[i].client;
-
-			for (j = 0; j<8; j++) 		{ 
-				if (c->resp.fav[j]>fc) 		{ 
-					fc = c->resp.fav[j];
-					favWep = weapnames[j];
-				} 
-			}
-			/*
-			gi.dprintf("%3d", i - 1);				//client num
-			gi.dprintf(" %5d", c->resp.score);		//score
-			gi.dprintf(" %4d", c->ping);			//ping
-			gi.dprintf(" %6d", c->resp.deposited);	//deaths DM
-			gi.dprintf(" %4i", c->resp.accshot ? c->resp.acchit * 1000 / c->resp.accshot : 0); //acc
-			gi.dprintf(" %5s", favWep);								//fav weapon
-			gi.dprintf(" %-14s", c->pers.netname);					//player name
-			gi.dprintf(" %-23s", c->pers.ip);						//ip
-			gi.dprintf(" %.2f\n", (float)c->pers.version / 100.0);	//version
-			*/
-
-			gi.dprintf("%3d %5d %4d %6d %4i %5s %-14s %-23s %.2f\n"
-				, i - 1									//client num
-				, c->resp.score							//score
-				, c->ping								//ping
-				, c->resp.deposited						//deaths DM
-				, c->resp.accshot ? c->resp.acchit * 1000 / c->resp.accshot : 0 //acc
-				, favWep								//fav weapon
-				, c->pers.netname						//player name
-				, c->pers.ip							//ip
-				, (float)c->pers.version / 100.0);		//version
-		}
-	}
-	gi.dprintf("--==   end   ==--\n");
-	gi.dprintf(" \n");
-}
-
-#endif
-// HYPOV8_END
-
 void ShutdownGame (void)
 {
 	int			i;
@@ -219,7 +155,7 @@ void ShutdownGame (void)
 // ACEBOT_END
 
 	buf[0] = 0;
-	for (i=0 ; i<maxclients->value ; i++)
+	for (i=0 ; i< (int)maxclients->value ; i++)
 	{
 		ent = g_edicts + 1 + i;
 		if (ent->inuse && ent->client->pers.rconx[0])
@@ -327,7 +263,7 @@ void Sys_Error (char *error, ...)
 	vsprintf (text, error, argptr);
 	va_end (argptr);
 
-	gi.error (ERR_FATAL, "%s", text);
+	gi.error ("%s", text);
 }
 
 void Com_Printf (char *msg, ...)
@@ -359,10 +295,17 @@ void ClientEndServerFrames (void)
 
 	// calc the player views now that all pushing
 	// and damage has been added
+	for (i=0 ; i<(int)maxclients->value ; i++)
+	{
+		ent = g_edicts + 1 + i;
+		if (!ent->inuse || ent->client->chase_target)
+			continue;
+		ClientEndServerFrame (ent);
+	}
 	for (i=0 ; i<maxclients->value ; i++)
 	{
 		ent = g_edicts + 1 + i;
-		if (!ent->inuse || !ent->client)
+		if (!ent->inuse || !ent->client->chase_target)
 			continue;
 		ClientEndServerFrame (ent);
 	}
@@ -379,13 +322,15 @@ char *MapCycleNext( char *map )
 	static char	nextmap[MAX_QPATH];
 	int		i;
 
-	if (!num_maps) return NULL;
+	if (!num_maps) 
+		return NULL;
 
 	for (i=0; i<num_maps; i++)
 	{
 		if (!Q_stricmp(maplist[i], level.mapname))
 		{
-			if (++i == num_maps) i = 0;
+			if (++i == num_maps) 
+				i = 0;
 			strcpy(nextmap, maplist[i]);
 			return nextmap;
 		}
@@ -420,20 +365,19 @@ void EndDMLevel (void)
 		ent = G_Spawn ();
 		ent->classname = "target_changelevel";
 		ent->map = level.mapname;
-		level.startframe = level.framenum + 10; //add hypov8
+		level.startframe +=10; //add hypov8 why?
 
 		goto done;
 	}
 
-	level.startframe = level.framenum;
-	if (allow_map_voting)
+	if (level.num_vote_set)
 	{
 		level.modeset = ENDGAMEVOTE;
 		ent = NULL;
 		goto done;
 	}
 
-	if ((nextmap = MapCycleNext(level.mapname)) != 0) // HYPOV8_ADD !=0
+	if ((nextmap = MapCycleNext(level.mapname)) != 0)
 	{
 		ent = G_Spawn ();
 		ent->classname = "target_changelevel";
@@ -462,7 +406,6 @@ void EndDMLevel (void)
 	}
 
 done:
-	//for_each_player_inc_bot(player, i) //hypov8 todo: hide wep // ACEBOT_ADD
 	BeginIntermission (ent);
 }
 
@@ -475,37 +418,43 @@ void CheckDMRules (void)
 {
 	int			i;
 	gclient_t	*cl;
-// ACEBOT_ADD
-	int		count = 0;
-	edict_t	*doot;
-// ACEBOT_END
 
 	if (level.intermissiontime)
 		return;
+
 // ACEBOT_ADD
-	for_each_player_inc_bot(doot, i) //hypov8 allows to add 1 bot and rest will join. with no players
+	if (!level.bots_spawned)
 	{
+		int		count = 0;
+		edict_t	*doot;
+
+		//hypov8 allows to add 1 bot and rest will join. with no players
+		for_each_player_inc_bot(doot, i)
 		count++;
-		/*if (!doot->acebot.is_bot)
-		{
-			if (doot->velocity[2] <0.0)
-					gi.dprintf ("%5.3f\n", doot->velocity[2]);
 
-		}*/ //debug
-
-	}
-	if (count && !level.bots_spawned)
-	{
-		ACEND_InitNodes();
-		ACEND_LoadNodes();
-		ACESP_LoadBots();
-		level.bots_spawned = true;
+		if (count)		{
+			ACEND_InitNodes();
+			ACEND_LoadNodes();
+			ACESP_LoadBots();
+			level.bots_spawned = true;
+		}
 	}
 // ACEBOT_END
+
 	if (level.framenum - level.lastactive == 600)
 	{
 		// the server has been idle for a minute, reset to default settings if needed
-		if (ResetServer(true)) return;
+		if (ResetServer(true)) 
+			return;
+
+		if (wait_for_players && !(int)timelimit->value)
+		{
+			level.lastactive = -1;
+			gi.dprintf("Waiting for players\n");
+			UpdateTime();
+			if (kpded2) // enable kpded2's idle mode for reduced CPU usage while waiting for players (automatically disabled when players join)
+				gi.cvar_forceset("g_idle", "1");
+		}
 	}
 
 	if ((int)teamplay->value == 1)
@@ -533,7 +482,7 @@ void CheckDMRules (void)
 		}
 		else
 		{
-			for (i=0 ; i<maxclients->value ; i++)
+			for (i=0 ; i< (int)maxclients->value ; i++)
 			{
 				cl = game.clients + i;
 				if (!g_edicts[i+1].inuse)
@@ -577,42 +526,24 @@ void ExitLevel (void)
 	}
 
 	if (!count && ResetServer(true))
-	{
 		return; // server reset instead
+
+	if (!level.changemap)
+	{
+		safe_bprintf(PRINT_HIGH, "Map change failed, restarting current map\n");
+		level.changemap = level.mapname;
 	}
+
+
 // ACEBOT_ADD
 	ACECM_LevelEnd();
 	PrintScoreMatchEnd();
-	//FreeBots();
+	ACESP_RemoveBot("all");
 // ACEBOT_END
 
 	Com_sprintf (command, sizeof(command), "gamemap \"%s\"\n", level.changemap);
 	gi.AddCommandString (command);
 	level.changemap = NULL;
-	level.exitintermission = 0;
-	level.intermissiontime = 0;
-	ClientEndServerFrames ();
-
-// RAFAEL
-	level.speaktime = 0;
-
-	// clear some things before going to next level
-	for (i=0 ; i<maxclients->value ; i++)
-	{
-		ent = g_edicts + 1 + i;
-		if (!ent->inuse)
-			continue;
-		if (ent->health > ent->client->pers.max_health)
-			ent->health = ent->client->pers.max_health;
-
-	}
-
-// BEGIN:	Xatrix/Ridah/19-apr-1998
-	// make sure Nav data isn't carried over to next level
-	NAV_PurgeActiveNodes(level.node_data);
-	level.node_data = NULL;
-// BEGIN:	Xatrix/Ridah/19-apr-1998
-
 }
 
 /*
@@ -632,7 +563,7 @@ void G_RunFrame (void)
 	int		i;
 	edict_t	*ent;
 
-	if (level.framenum == 50 && wait_for_players && !allow_map_voting && !level.lastactive)
+	if (level.framenum == 50 && wait_for_players && !level.num_vote_set && !level.lastactive)
 	{
 		level.lastactive = -1;
 		gi.dprintf("Waiting for players\n");
@@ -641,19 +572,9 @@ void G_RunFrame (void)
 			gi.cvar_forceset("g_idle", "1");
 	}
 
-
-// ACEBOT_ADD
-	if (level.framenum == 1)
-		ACESP_RemoveBot("all");
-	if (sv_botskill->value < 0.0f) 
-		gi.cvar_set("sv_botskill", "0");
-	else if (sv_botskill->value > 4.0f)
-		gi.cvar_set("sv_botskill", "4.0");
-// ACEBOT_END
-
 	// skip frame processing if the server is waiting for players
 	if (level.lastactive < 0)
-		goto uptime;
+		return;
 
 	level.framenum++;
 	level.time = level.framenum*FRAMETIME;
@@ -662,11 +583,37 @@ void G_RunFrame (void)
 
 	// exit intermissions
 
-	if (level.exitintermission)
+	if (level.exitintermission)	
 	{
 		ExitLevel ();
 		return;
 	}
+
+
+// ACEBOT_ADD
+	//if (level.framenum == 1)
+	//	ACESP_RemoveBot("all");
+
+	if (sv_botskill->value < 0.0f) 
+		gi.cvar_set("sv_botskill", "0");
+	else if (sv_botskill->value > 4.0f)
+		gi.cvar_set("sv_botskill", "4.0");
+
+	//run each bot and calc player movement
+	ACEAI_G_RunFrame();
+
+#if HYPOBOTS
+	for (i = 1; i < (int)maxclients->value; i++)
+	{
+		ent = g_edicts + i;
+		if (ent->acebot.is_bot)
+		{		//dont run bots when not ingame
+			if (level.modeset == MATCH || level.modeset == PUBLIC)
+				ACEAI_Think(ent);
+		}
+	}
+#endif
+// ACEBOT_END
 
 	//
 	// treat each object in turn
@@ -678,17 +625,12 @@ void G_RunFrame (void)
 		if (!ent->inuse)
 			continue;
 
-// ACEBOT_ADD
-		//if ((ent->is_bot) && !((level.modeset == TEAM_MATCH_RUNNING) || (level.modeset == DM_MATCH_RUNNING)))
-		if ((ent->client) && !(level.modeset == MATCH || level.modeset == PUBLIC))
-				continue; //hypov8 todo: check this
-// ACEBOT_END
 		level.current_entity = ent;
 
 		VectorCopy (ent->s.origin, ent->s.old_origin);
 
 
-		if (ent->svflags & SVF_MONSTER || ent->client)
+		if ((ent->svflags & SVF_MONSTER) || ent->client)
 		{
 			if (ent->waterlevel > 1)
 			{
@@ -835,39 +777,13 @@ void G_RunFrame (void)
 			}
 		}
 
-		if (i > 0 && i <= maxclients->value)
+		if (i > 0 && i <= (int)maxclients->value)
 		{
-// ACEBOT_ADD
-			if (ent->acebot.is_bot)
-			{		//dont run bots when not ingame
-				if (level.modeset == MATCH || level.modeset == PUBLIC)
-				G_RunEntity(ent);
-			}
-// ACEBOT_END
 			ClientBeginServerFrame (ent);
 		}
 		else //--> end player
 		{
-// NET_ANTILAG	//et-xreal antilag
-			//start trace for non player objects
-			/*
-			qboolean antilagtotrace = 0;
-			edict_t	*owner = NULL;
-
-			if (ent->antilagToTrace && !sv_antilag_noexp->value) //item will cause damage so back trace
-			{
-				antilagtotrace = 1; //incase item is removed from world
-				owner = ent->owner;
-				G_HistoricalTraceBegin(ent, owner);
-			}*/
-// END_LAG
-
 			G_RunEntity (ent);
-
-// NET_ANTILAG	//et-xreal antilag
-			//if (antilagtotrace)
-			//	G_HistoricalTraceEnd(ent, owner);
-// END_LAG
 
 			// Ridah, fast walking speed
 			if (	(ent->cast_info.aiflags & AI_FASTWALK)
@@ -896,27 +812,25 @@ void G_RunFrame (void)
 				if (ent->client)
 					ent->s.renderfx2 |= RF2_DIR_LIGHTS;
 
-				// if single player, only calculate if it's visible to our player
-				if (	(!VectorCompare(ent->s.last_lighting_update_pos, ent->s.origin))
-					 &&	(	(ent->client && !deathmatch_value)
-						||	(	(VectorDistance( ent->s.origin, ent->s.last_lighting_update_pos ) > (deathmatch_value ? 128 : 64))
-							 &&	(	(deathmatch_value)
-								 ||	(	(gi.inPVS( g_edicts[1].s.origin, ent->s.origin))
-									 &&	(infront( &g_edicts[1], ent ) ))))))
+				if (!VectorCompare(ent->s.last_lighting_update_pos, ent->s.origin)
+					&& VectorDistance( ent->s.origin, ent->s.last_lighting_update_pos ) > 64)
 				{
 					UpdateDirLights( ent );
 
 					VectorCopy( ent->s.origin, ent->s.last_lighting_update_pos );
 				}
-				else if (showlights->value && gi.inPVS( g_edicts[1].s.origin, ent->s.origin))
+				else if (showlights->value && ent->client)
 				{
 					UpdateDirLights( ent );
 				}
 
+				if (!ent->s.model_lighting.num_dir_lights)
+					ent->s.renderfx2 &= ~RF2_DIR_LIGHTS;
 			}
 		}
 
 	}
+
 // ACEBOT_ADD //debug with showing local nodes. use "localnode"
 	ACEND_DebugNodesLocal();
 // ACEBOT_END
@@ -927,19 +841,17 @@ void G_RunFrame (void)
 		int		i, count = 0;
 		edict_t *player;
 
-		for_each_player_not_bot(player, i)	{
+		for_each_player_not_bot(player, i)
 			count++;
-		}
+
 
 		if (!count)
 		{
 			char	command[64];
-
 // ACEBOT_ADD
 			ACECM_LevelEnd();
 			PrintScoreMatchEnd();
-			//FreeBots();
-
+			ACESP_RemoveBot("all");
 // ACEBOT_END
 
 			Com_sprintf (command, sizeof(command), "gamemap \"%s\"\n", level.mapname);
@@ -991,25 +903,5 @@ void G_RunFrame (void)
 		gi.cvar_set("idle_client", "60");
 
 	if (!(level.framenum % 10))
-	{
 		UpdateTime();
-uptime:
-		if (starttime)
-		{
-			char buf[32];
-			int secs = (int)time(NULL) - starttime;
-			int mins = secs / 60;
-			int hours = mins / 60;
-			int days = hours / 24;
-			if (days)
-				sprintf(buf, "%dd %dh %dm", days, hours % 24, mins % 60);
-			else if (hours)
-				sprintf(buf, "%dh %dm", hours, mins % 60);
-			else if (mins)
-				sprintf(buf, "%dm", mins);
-			else
-				sprintf(buf, "%ds", secs);
-			gi.cvar_set("uptime", buf);
-		}
-	}
 }

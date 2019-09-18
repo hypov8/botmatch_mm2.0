@@ -72,7 +72,16 @@ int num_items_tmp = 0;				//add hypov8 store old item ammount, needed???
 qboolean num_items_changed = false;	//add hypov8 changed when an item it droped etc
 
 item_table_t item_table[MAX_EDICTS];
-edict_t *players[MAX_CLIENTS];		// pointers to all players in the game
+//edict_t *players[MAX_CLIENTS];		// pointers to all players in the game
+
+
+void ACEIT_checkIfGoalEntPickedUp(edict_t *self)
+{
+	ACEAI_Reset_Goal_Node(self, 0.0, "Found Goal Early.");
+	//self->acebot.node_ent = NULL;
+	//ACEAI_PickLongRangeGoal(self); // Pick a new goal
+}
+
 
 //hypov8
 //has item been picked up?
@@ -88,7 +97,8 @@ qboolean ACEIT_CheckIfItemExists(edict_t *self)
 
 	//add hypov8 chect if item is still valid
 	for (i = 0; i < num_items; i++)	{
-		if (item_table[i].node == self->acebot.node_goal){
+		if (item_table[i].node == self->acebot.node_goal)
+		{
 			if (item_table[i].ent && !item_table[i].ent->solid)
 				return false;
 			return true; //found. still exist
@@ -102,26 +112,21 @@ void ACEIT_PlayerCheckCount()
 {
 	edict_t	*bot;
 	int i;
-	int countBot = 0, countPlayer = 0;
 	char botname[16];
 
 	if ((int)sv_bot_max_players->value != 0)
 	{
-		for_each_player_inc_bot(bot, i)
+		if (num_bots > 0 && num_players > 1)
 		{
-			if (bot->acebot.is_bot)
-				countBot++;
-			else
-				countPlayer++;
-		}
-
-		if (countBot > 0 && countPlayer > 1)
-		{
-			//for (i = 1; i <= botsRemoved; i++)
-			if ((countBot + countPlayer) > (int)sv_bot_max_players->value)
+			int total = num_bots + num_players;
+			if (total > (int)sv_bot_max_players->value)
 			{
-				for_each_player_inc_bot(bot, i)
+				for (i = 1; i <= (int) maxclients->value; i++) //num_players
 				{
+					bot = g_edicts + i;
+					if (!bot->acebot.is_validTarget)
+						continue;
+
 					if (!bot->acebot.is_bot) 
 						continue;
 
@@ -131,7 +136,6 @@ void ACEIT_PlayerCheckCount()
 						ACESP_RemoveBot(botname);
 						botsRemoved++;
 						return;
-
 					}
 				}
 			}
@@ -141,23 +145,16 @@ void ACEIT_PlayerCheckCount()
 
 void ACEIT_PlayerCheckAddCount()
 {
-	edict_t	*bot;
-	int i;
-	int countBot = 0, countPlayer = 0;
+	int count;
+	// countBot = 0, countPlayer = 0;
 
 	if (botsRemoved > 0)
 	{
 		if (sv_bot_max_players->value > 0)
 		{
-			for_each_player_inc_bot(bot, i)
-			{
-				if (bot->acebot.is_bot)
-					countBot++;
-				else
-					countPlayer++;
-			}
+			count = num_bots + num_players;
 
-			if ((int)sv_bot_max_players->value > (countBot + countPlayer))
+			if ((int)sv_bot_max_players->value > count)
 			{
 				botsRemoved--;
 				if (botsRemoved < 0) botsRemoved = 0;
@@ -165,34 +162,38 @@ void ACEIT_PlayerCheckAddCount()
 			}
 		}
 	}
-
 }
 ///////////////////////////////////////////////////////////////////////
 // Add the player to our list
 ///////////////////////////////////////////////////////////////////////
+
 void ACEIT_PlayerAdded(edict_t *ent)
 {
-	players[num_players++] = ent;
+	//players[num_players++] = ent;
 
-
-
-	gi.dprintf(" Added: %s, Bot Enemy = %i\n", ent->client->pers.netname, num_players);
+	//gi.dprintf(" Added: %s, Bot Enemy = %i\n", ent->client->pers.netname, num_players+1); //add +1
 	//safe_bprintf(PRINT_HIGH, "Working ... 1\n");
 
 	if (!ent->acebot.is_bot)
 		ACEIT_PlayerCheckCount();
+#if HYPOBOTS
 	else
 		num_bots++;
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////
 // Remove player from list
 ///////////////////////////////////////////////////////////////////////
+
 void ACEIT_PlayerRemoved(edict_t *ent)
 {
-	int i;
+	//int i;
 	int pos =0;
+	
+	//gi.dprintf(" Removed: %s, Inuse = %i\n", ent->client->pers.netname, num_players-1);
 
+#if HYPOBOTS
 	// watch for 0 players
 	if(num_players == 0)
 		return;
@@ -218,6 +219,7 @@ void ACEIT_PlayerRemoved(edict_t *ent)
 	gi.dprintf(" Removed: %s, Inuse = %i\n", ent->client->pers.netname, num_players);
 
 	//hypo add back in a bot if it was removed
+#endif
 	if (!ent->acebot.is_bot)
 		ACEIT_PlayerCheckAddCount();
 }

@@ -31,6 +31,18 @@ static void playerskin(int playernum, char *s)
 	}
 }
 
+char *ChatName(char *name)
+{
+	static char buf[20];
+	if (name[0] == ':' || name[0] == '>')
+	{
+		// add a space so that it isn't confused for chat or yellow text
+		Com_sprintf(buf, sizeof(buf) - 1, " %s", name);
+		return buf;
+	}
+	return name;
+}
+
 /*QUAKED info_player_start (1 0 0) (-16 -16 -24) (16 16 48)
 The normal starting point for a level.
 */
@@ -106,6 +118,7 @@ void ClientObituary (edict_t *self, edict_t *inflictor, edict_t *attacker)
 	char		*message;
 	char		*message2;
 	qboolean	ff;
+	int			cashreturn = 0;
 
 	{
 		ff = meansOfDeath & MOD_FRIENDLY_FIRE;
@@ -142,11 +155,7 @@ void ClientObituary (edict_t *self, edict_t *inflictor, edict_t *attacker)
 		case MOD_LAVA:
 			message = "does a back flip into the lava";
 			if(self->client->fakeThief > 0)
-			{
-				self->client->resp.stole -= self->client->fakeThief;
-				if (self->client->pers.team == 1) team_cash[2] += self->client->fakeThief;
-				else if (self->client->pers.team == 2) team_cash[1] += self->client->fakeThief;
-			}
+				cashreturn = self->client->fakeThief;
 			break;
 		/*case MOD_EXPLOSIVE:
 		case MOD_BARREL:
@@ -166,11 +175,7 @@ void ClientObituary (edict_t *self, edict_t *inflictor, edict_t *attacker)
 		case MOD_TRIGGER_HURT:
 			message = "was in the wrong place";
 			if(self->client->fakeThief > 0)
-			{
-				self->client->resp.stole -= self->client->fakeThief;
-				if (self->client->pers.team == 1) team_cash[2] += self->client->fakeThief;
-				else if (self->client->pers.team == 2) team_cash[1] += self->client->fakeThief;
-			}
+				cashreturn = self->client->fakeThief;
 			break;
     // RAFAEL
 		case MOD_GEKK:
@@ -231,7 +236,9 @@ void ClientObituary (edict_t *self, edict_t *inflictor, edict_t *attacker)
 		{
 			safe_bprintf(PRINT_MEDIUM, "%s %s.\n", self->client->pers.netname, message);
 			{
+// HYPOV8_ADD
 				if (mod != MOD_BOT_SUICIDE) //add hypov8 stop stuck bots loosinbg frags
+// HYPOV8_END
 					self->client->resp.score--;
 
 				// BEGIN HITMEN
@@ -257,6 +264,17 @@ void ClientObituary (edict_t *self, edict_t *inflictor, edict_t *attacker)
 				}
 			}
 			self->enemy = NULL;
+
+			if (cashreturn)
+			{
+				int otherteam = 3 - self->client->pers.team;
+				self->client->resp.stole -= cashreturn;
+				self->client->pers.bagcash -= cashreturn;
+				team_cash[otherteam] += cashreturn;
+				UpdateScore();
+				last_safe_deposit[otherteam] = level.time;
+				safe_bprintf (PRINT_MEDIUM, "$%d was returned to %s's safe\n", cashreturn, team_names[otherteam]);
+			}
 			return;
 		}
 
@@ -551,7 +569,7 @@ void player_die (edict_t *self, edict_t *inflictor, edict_t *attacker, int damag
 	self->s.sound = 0;
 	self->client->weapon_sound = 0;
 
-	self->maxs[2] = -8;
+	self->maxs[2] = -4;
 
 //	self->solid = SOLID_NOT;
 	self->svflags |= SVF_DEADMONSTER;
@@ -641,9 +659,12 @@ void player_die (edict_t *self, edict_t *inflictor, edict_t *attacker, int damag
 	if (damage >= 50 && self->health < -30 && !inflictor->client)
 	{	// gib
 		GibEntity( self, inflictor, damage );
+		self->svflags |= SVF_NOCLIENT;
 		self->s.renderfx2 |= RF2_ONLY_PARENTAL_LOCKED;
+		VectorClear(self->velocity);
 	}
 
+	else
 	{	// normal death
 		if (!self->deadflag)
 		{
@@ -795,13 +816,8 @@ void InitClientResp (gclient_t *client)
 	client->resp.enterframe = level.framenum;
 
 	// no need to reset cl_nodelta when it's disabled by kpded2
-	if (kpded2 && !(int)gi.cvar("sv_allownodelta", "0", 0)->value)
-		client->resp.checkdelta = 0x7fffffff;
-	else
-		client->resp.checkdelta = level.framenum + 15;
-	client->resp.checktex = level.framenum + 20;
-	client->resp.checkpvs = level.framenum + 25;
-	client->resp.check_idle = level.framenum;
+	if (kpded2 && !(int)gi.cvar("sv_allownodelta", "", 0)->value)
+		client->resp.checkframe[0] = 0x7fffffff;
 }
 
 
@@ -840,7 +856,7 @@ float	PlayersRangeFromSpot (edict_t *spot)
 
 	bestplayerdistance = 9999;
 
-	for (n = 1; n <= maxclients->value; n++)
+	for (n = 1; n <= (int)maxclients->value; n++)
 	{
 		player = &g_edicts[n];
 
@@ -942,6 +958,10 @@ edict_t *SelectFarthestDeathmatchSpawnPoint (edict_t *ent, qboolean team_spawnba
 	edict_t	*bestspot;
 	float	bestdistance, bestplayerdistance;
 	edict_t	*spot;
+
+	// prevent respawning where they died
+	if (ent->deadflag)
+		ent->health = 1;
 
 spotagain:
 
@@ -1056,6 +1076,7 @@ void InitBodyQue (void)
 	{
 		ent = G_Spawn();
 		ent->classname = "bodyque";
+		ent->svflags = SVF_NOCLIENT;
 	}
 }
 
@@ -1069,15 +1090,16 @@ void body_die (edict_t *self, edict_t *inflictor, edict_t *attacker, int damage,
 		gi.WriteByte (TE_GIBS);
 		gi.WritePosition (self->s.origin);
 		gi.WriteDir (vec3_origin);
-		gi.WriteByte ( 4 );	// number of gibs
+		gi.WriteByte ( dm_realmode->value == 3 ? 8 : 16 );	// number of gibs
 		gi.WriteByte ( 0 );	// scale of direction to add to velocity
 		gi.WriteByte ( 16 );	// random offset scale
-		gi.WriteByte ( 200 );	// random velocity scale
+		gi.WriteByte ( 100 );	// random velocity scale
 		gi.multicast (self->s.origin, MULTICAST_PVS);
 
-		self->s.origin[2] -= 48;
-		ThrowClientHead (self, damage);
-		self->takedamage = DAMAGE_NO;
+		// done with this body
+		self->solid = SOLID_NOT;
+		self->svflags |= SVF_NOCLIENT;
+		self->nextthink = 0;
 	}
 #endif
 }
@@ -1117,16 +1139,24 @@ void Body_Animate( edict_t *ent )
 	if (ent->s.frame >= ent->cal)
 	{
 		ent->s.frame = ent->cal;
+
+		if (!(ent->flags & FL_SPAWNED_BLOODPOOL) && ent->groundentity)
+		{
+			SpawnBloodPool (ent);
+			ent->flags |= FL_SPAWNED_BLOODPOOL;
+		}
 	}
 
 	// sink into ground
-	if ((ent->timestamp < (level.time - 5)) && ((int)(10.0*level.time) & 1))
+	if ((ent->timestamp < (level.time - 5)) && (level.framenum & 1))
 	{
 		ent->s.origin[2] -= 0.5;
+		ent->s.renderfx2 |= RF2_NOSHADOW;
 
-		if (ent->s.origin[2] + 20 < ent->take_cover_time)
+		if (ent->timestamp < (level.time - 12))
 		{
 			// done with this body
+			ent->solid = SOLID_NOT;
 			ent->svflags |= SVF_NOCLIENT;
 			return;
 		}
@@ -1138,6 +1168,7 @@ void Body_Animate( edict_t *ent )
 void CopyToBodyQue (edict_t *ent)
 {
 	edict_t		*body;
+	trace_t		tr;
 
 	// grab a body que and cycle to the next one
 	body = &g_edicts[(int)maxclients->value + level.body_que + 1];
@@ -1151,18 +1182,30 @@ void CopyToBodyQue (edict_t *ent)
 	body->s = ent->s;
 	body->s.number = body - g_edicts;
 
+	if (!(body->svflags & SVF_NOCLIENT))
+		body->s.event = EV_OTHER_TELEPORT;
+
 	body->cal = ent->client->anim_end;
 
 	body->svflags = ent->svflags;
 //	VectorCopy (ent->mins, body->mins);
 //	VectorCopy (ent->maxs, body->maxs);
 
-	VectorSet (body->mins, -64, -64, -24);
-	VectorSet (body->maxs,  64,  64, -4);
+	VectorSet (body->mins, -32, -32, -24);
+	VectorSet (body->maxs,  32,  32, -4);
+
+	// don't expand bounding box if it won't fit
+	tr = gi.trace(body->s.origin, body->mins, body->maxs, body->s.origin, NULL, MASK_SOLID);
+	if (tr.startsolid)
+	{
+		body->mins[1] = body->mins[0] = -16;
+		body->maxs[1] = body->maxs[0] = 16;
+	}
 
 	VectorCopy (ent->absmin, body->absmin);
 	VectorCopy (ent->absmax, body->absmax);
 	VectorCopy (ent->size, body->size);
+	VectorCopy (ent->velocity, body->velocity);
 	body->solid = ent->solid;
 	body->clipmask = ent->clipmask;
 	body->owner = ent->owner;
@@ -1177,8 +1220,7 @@ void CopyToBodyQue (edict_t *ent)
 
 	body->s.renderfx = 0;
 	body->s.renderfx2 = (ent->s.renderfx2 & RF2_ONLY_PARENTAL_LOCKED);
-	body->s.renderfx2 |= RF2_NOSHADOW;
-	body->s.renderfx2 |= (ent->s.renderfx2 & (RF2_NOSHADOW | RF2_DIR_LIGHTS));//MH:
+	body->s.renderfx2 |= (ent->s.renderfx2 & (RF2_NOSHADOW | RF2_DIR_LIGHTS));
 
 	body->s.effects = 0;
 	body->s.angles[PITCH] = 0;
@@ -1190,16 +1232,15 @@ void CopyToBodyQue (edict_t *ent)
 
 	body->gender = ent->gender;
 	body->deadflag = ent->deadflag;
+	body->flags = ent->flags;
+	body->groundentity = ent->groundentity;
 
 	body->touch = body_touch; //MH:
 	body->die = body_die;
 	body->takedamage = DAMAGE_YES;
 
-	body->take_cover_time = body->s.origin[2];
 	body->timestamp = level.time;
 
-//	body->think = HideBody;
-//	body->nextthink = level.time + 30;
 	body->think = Body_Animate;
 	body->nextthink = level.time + 0.1;
 
@@ -1222,16 +1263,18 @@ void respawn (edict_t *self)
 		return; //hypov8 dont respawn, fixes last person dying loosing there mouse pitch
 	}
 // HYPOV8_END
-	{
-		// make sure on the last death frame
-//		self->s.frame = self->client->anim_end;
+
 
 // ACEBOT_ADD special respawning code
+#if HYPOBOTS
 		if (self->acebot.is_bot){
 			ACESP_Respawn(self);
 			return;	}
+#endif
 // ACEBOT_END
-		CopyToBodyQue (self);
+
+		if (!(self->svflags & SVF_NOCLIENT))
+			CopyToBodyQue (self);
 		PutClientInServer (self);
 
 		// EV_OTHER_TELEPORT prevents lerping (unlike EV_PLAYER_TELEPORT)
@@ -1243,11 +1286,7 @@ void respawn (edict_t *self)
 
 		self->client->respawn_time = level.time;
 
-		return;
-	}
 
-	// restart the entire server
-	//gi.AddCommandString ("menu_loadgame\n");
 }
 
 //==============================================================
@@ -1271,12 +1310,12 @@ void PutClientInServer (edict_t *ent)
 	int		i;
 	client_persistant_t	saved;
 	client_respawn_t	resp;
+
+// ACEBOT_ADD
+	//add hypov8 stop player moving to a spawnpoint
 	qboolean isUsingSpec = false;// HYPOV8_ADD
 	short		delta_anglesOld[3];
 
-
-	//add hypov8 stop player moving to a spawnpoint
-// ACEBOT_ADD
 	if (!ent->acebot.is_bot 
 		&& (ent->client->pers.spectator == SPECTATING /*|| (teamplay->value && ent->client->pers.team == 0)*/)
 		&& (level.modeset == MATCH || level.modeset == PUBLIC)) //rembers last posi
@@ -1309,7 +1348,6 @@ void PutClientInServer (edict_t *ent)
 		resp = client->resp;
 		memcpy (userinfo, client->pers.userinfo, sizeof(userinfo));
 		InitClientPersistant (client);
-		ent->client->move_frame = ent->client->resp.name_change_frame = -80;  //just to be sure
 		ClientUserinfoChanged (ent, userinfo);
 	}
 
@@ -1327,7 +1365,6 @@ void PutClientInServer (edict_t *ent)
 
 	// clear entity values
 	ent->groundentity = NULL;
-	ent->client = &game.clients[index];
 	ent->takedamage = DAMAGE_AIM;
 	if ((level.modeset == MATCHSETUP) || (level.modeset == MATCHCOUNT)
 		|| (level.modeset == PREGAME) || (ent->client->pers.spectator == SPECTATING) || level.intermissiontime)
@@ -1362,7 +1399,8 @@ void PutClientInServer (edict_t *ent)
 	ent->die = player_die;
 	ent->waterlevel = 0;
 	ent->watertype = 0;
-	ent->flags &= ~FL_NO_KNOCKBACK;
+	ent->flags &= ~(FL_NO_KNOCKBACK | FL_SPAWNED_BLOODPOOL);
+
 	ent->s.renderfx2 = 0;
 	ent->onfiretime = 0;
 	ent->cast_info.aiflags |= AI_GOAL_RUN;	// make AI run towards us if in pursuit
@@ -1377,10 +1415,13 @@ void PutClientInServer (edict_t *ent)
 	ent->hasSelectedPistol = false; // HYPOV8_ADD
 
 // ACEBOT_ADD
+#if HYPOBOTS
 	ent->acebot.is_bot = false;
+#endif
 	ent->acebot.pm_last_node = INVALID;
 	ent->acebot.is_jumping = false;
 	ent->acebot.pm_jumpPadMove = false;
+	ent->acebot.num_weps = 2;
 // ACEBOT_END
 
 	if (ent->solid)
@@ -1390,14 +1431,18 @@ void PutClientInServer (edict_t *ent)
 		if (tr.startsolid)
 		{
 			// spawn point is occupied, try next to it
-			vec3_t origin1;
+			vec3_t origin1, start, end;
+			float elev;
 			int c;
+			VectorCopy(spawn_origin, end);
+			end[2] -= 100;
+			tr = gi.trace(spawn_origin, ent->mins, ent->maxs, end, NULL, MASK_SOLID);
+			elev = tr.fraction * 100;
 			VectorCopy(spawn_origin, origin1);
 			for (c=0;;)
 			{
 				for (i=0; i<4; i++)
 				{
-					vec3_t start, end;
 					float angle = (spawn_angles[YAW] + i * 90 - 45) / 360 * M_PI * 2;
 					start[0] = spawn_origin[0] + cos(angle) * 50;
 					start[1] = spawn_origin[1] + sin(angle) * 50;
@@ -1436,7 +1481,7 @@ void PutClientInServer (edict_t *ent)
 	else
 	{
 		client->ps.fov = atoi(Info_ValueForKey(client->pers.userinfo, "fov"));
-		if (client->ps.fov < (no_zoom->value ? 90 : 1))
+		if (client->ps.fov < 1)
 			client->ps.fov = 90;
 		else if (client->ps.fov > 160)
 			client->ps.fov = 160;
@@ -1648,7 +1693,7 @@ ent->bikestate = 0;
 	client->newweapon = client->pers.weapon;
 	ChangeWeapon (ent);
 
-	if (ent->solid != SOLID_NOT || ent->client->resp.enterframe == level.framenum)
+	if (ent->solid != SOLID_NOT || client->resp.enterframe == level.framenum)
 	{
 		// send effect
 		gi.WriteByte (svc_muzzleflash);
@@ -1674,7 +1719,7 @@ deathmatch mode, so clear everything out before starting them.
   NOTE: called every level load/change in deathmatch
 =====================
 */
-extern void Teamplay_AutoJoinTeam( edict_t *self );
+void Teamplay_AutoJoinTeam( edict_t *self );
 
 void ClientBeginDeathmatch (edict_t *ent)
 {
@@ -1715,6 +1760,7 @@ void ClientBeginDeathmatch (edict_t *ent)
 #endif
 		// locate ent at a spawn point
 		PutClientInServer (ent);
+		ent->client->pers.idle = curtime;
 	}
 	else
 	{
@@ -1749,11 +1795,9 @@ void ClientBegin (edict_t *ent)
 {
 	char *a;
 
-	ent->client = game.clients + (ent - g_edicts - 1);
-
 // Papa - either show rejoin or MOTD scoreboards
 	if (ent->client->showscores != SCORE_REJOIN || !level.player_num)
-		ent->client->showscores = SCORE_MOTD;
+		ent->client->showscores = (level.modeset == ENDGAMEVOTE ? SCORE_MAP_VOTE : SCORE_MOTD);
 // ACEBOT_ADD //new kpded.exe
 	if (ent->acebot.is_bot)
 		ent->client->showscores = NO_SCOREBOARD;
@@ -1829,16 +1873,9 @@ The game can override any of the settings in place
 */
 void ClientUserinfoChanged (edict_t *ent, char *userinfo)
 {
-	char	*s;
+	char	*s, *s2;
 	char	*extras;
 	int		a, update;
-
- 	// client exe version
-	s = Info_ValueForKey (userinfo, "ver");
-	if (s[0])
-		ent->client->pers.version = atoi(s);
-	else	// assume client is old version
-		ent->client->pers.version = 100;
 
 	// check for malformed or illegal info strings
 	if (!Info_Validate(userinfo))
@@ -1852,12 +1889,12 @@ void ClientUserinfoChanged (edict_t *ent, char *userinfo)
 
 	// set name
 	s = Info_ValueForKey (userinfo, "name");
-	update = false;
-	if (strcmp(s, NAME_CLASH_STR))
+	if (ent->client->pers.netname[0] || !ent->client->resp.enterframe)
 	{
+	update = false;
 		if (strchr(s, '%')) 
 		{
-			char *s2 = s;
+			s2 = s;
 			while ((s2 = strchr(s2, '%')) != 0) // HYPOV8_ADD !=0
 				*s2 = ' ';
 			update = true;
@@ -1872,6 +1909,9 @@ void ClientUserinfoChanged (edict_t *ent, char *userinfo)
 		}
 		if (a < 0) // blank name
 		{
+			if (ent->client->pers.netname[0])
+				s = ent->client->pers.netname; // keep the existing name
+			else
 			s = NAME_BLANK_STR;
 			update = true;
 		}
@@ -1889,7 +1929,7 @@ void ClientUserinfoChanged (edict_t *ent, char *userinfo)
 			{
 				// stop name clashes
 				edict_t		*cl_ent;
-				unsigned int i;
+				int i;
 				for (i=0 ; i<game.maxclients ; i++)
 				{
 					cl_ent = g_edicts + 1 + i;
@@ -1905,7 +1945,10 @@ void ClientUserinfoChanged (edict_t *ent, char *userinfo)
 							safe_bprintf(PRINT_HIGH, "A new player is trying to use %s's name\n", s);
 						}
 						else
-							cprintf(ent, PRINT_HIGH, "Another player on the server is already using this name\n");
+							safe_cprintf(ent, PRINT_HIGH, "Another player on the server is already using this name\n");
+						if (ent->client->pers.netname[0])
+							s = ent->client->pers.netname; // keep the existing name
+						else
 						s = NAME_CLASH_STR;
 						update = true;
 						break;
@@ -1920,35 +1963,34 @@ void ClientUserinfoChanged (edict_t *ent, char *userinfo)
 		if (strcmp(ent->client->pers.netname, s))
 		{
 			// stop flooding
-			if (level.framenum < (ent->client->resp.name_change_frame + 20))
+			if (level.framenum < ent->client->resp.name_change_frame)
 			{
-				cprintf(ent, PRINT_HIGH, "Overflow protection: Unable to change name yet\n");
+				safe_cprintf(ent, PRINT_HIGH, "Overflow protection: Unable to change name yet\n");
 				s = ent->client->pers.netname; // keep the existing name
 				update = true;
 			}
 			else
 			{
 				safe_bprintf(PRINT_HIGH, "%s changed name to %s\n", ent->client->pers.netname, s);
-				ent->client->resp.name_change_frame = level.framenum;
+				ent->client->resp.name_change_frame = level.framenum+20;
 			}
 		}
+		if (update)
+			Info_SetValueForKey(userinfo, "name", s);
 	}
-	if (update) Info_SetValueForKey(userinfo, "name", s);
-	if (s != ent->client->pers.netname) strcpy(ent->client->pers.netname, s);
+	if (s != ent->client->pers.netname)
+		strcpy(ent->client->pers.netname, s);
 
 	// set skin
-	if (level.framenum < (ent->client->move_frame + 10) || ent->client->pers.spectator == SPECTATING)
+	if (level.framenum < (ent->client->move_frame + 10))
 	{
 		s = Info_ValueForKey(ent->client->pers.userinfo, "skin");
 		if (s[0])
-		{
 			Info_SetValueForKey(userinfo, "skin", s);
-			goto skipskin;
-		}
 	}
 	s = Info_ValueForKey (userinfo, "skin");
+	kp_strlwr(s);
 
-	// Ridah, HACK for teamplay demo, set skins manually
 	if (teamplay->value)
 	{
 		// NOTE: skin order is "HEAD BODY LEGS"
@@ -2062,15 +2104,9 @@ void ClientUserinfoChanged (edict_t *ent, char *userinfo)
 		body = &skin[4];
 		legs = &skin[8];
 
-		i = (ent->client->pers.team ? ent->client->pers.team - 1 : rand() % 2);
-		if (Q_stricmp( body, valid_skinsets[model_index][i][1] )
-			|| Q_stricmp( legs, valid_skinsets[model_index][i][0] ))
-		{
-			if (!ent->client->pers.team)
-				i ^= 1;
+		i = (ent->client->pers.team ? ent->client->pers.team - 1 : rand() & 1);
 			strcpy( body, valid_skinsets[model_index][i][1] );
 			strcpy( legs, valid_skinsets[model_index][i][0] );
-		}
 
 		skin[3] = skin[7] = ' ';
 
@@ -2079,22 +2115,21 @@ void ClientUserinfoChanged (edict_t *ent, char *userinfo)
 		strcat( tempstr, skin );
 
 		Info_SetValueForKey( userinfo, "skin", tempstr );
+		s = Info_ValueForKey (userinfo, "skin");
 	}
 
-	// now check it again after the filtering, and set the Gender accordingly
-	s = Info_ValueForKey (userinfo, "skin");
-	if ((strstr(s, "female") == s))
+	// set the gender accordingly
+	if (!strncmp(s, "female", 6))
 		ent->gender = GENDER_FEMALE;
-	else if ((strstr(s, "male") == s) || (strstr(s, "thug")))
+	else if (!strncmp(s, "male", 4))
 		ent->gender = GENDER_MALE;
 	else
 		ent->gender = GENDER_NONE;
 
-skipskin:
-
 	extras = Info_ValueForKey (userinfo, "extras");
 
 	// combine name and skin into a configstring
+	if (ent->client->pers.spectator != SPECTATING || !level.playerskins[ent - g_edicts - 1][0])
 	playerskin(ent - g_edicts - 1, va("%s\\%s %s", ent->client->pers.netname, s, extras));
 
 	// fov
@@ -2106,21 +2141,57 @@ skipskin:
 	{
 		ent->client->ps.fov = atoi(Info_ValueForKey(userinfo, "fov"));
 		if (ent->client->ps.fov < (no_zoom->value ? 90 : 1))
+		{
+			if (no_zoom->value && ent->client->resp.enterframe)
+				safe_cprintf(ent, PRINT_HIGH, "FOV zooming is not allowed\n");
+			Info_SetValueForKey(userinfo, "fov", "90");
 			ent->client->ps.fov = 90;
+		}
 		else if (ent->client->ps.fov > 160)
 			ent->client->ps.fov = 160;
 	}
 
 	// handedness
 	s = Info_ValueForKey (userinfo, "hand");
-	if (s[0]) ent->client->pers.hand = atoi(s);
+	if (s[0])
+		ent->client->pers.hand = atoi(s);
+
+	// screen width
+	s = Info_ValueForKey(userinfo, "gl_mode");
+	s2 = strchr(s, '(');
+	if (s2)
+	{
+		// resolution set by patch
+		ent->client->pers.screenwidth = atoi(s2 + 1);
+	}
+	else
+	{
+		switch (atoi(s))
+		{
+			case 0:
+				ent->client->pers.screenwidth = 640;
+				break;
+			case 1:
+				ent->client->pers.screenwidth = 800;
+				break;
+			case 2:
+				ent->client->pers.screenwidth = 960;
+				break;
+			case 3:
+				ent->client->pers.screenwidth = 1024;
+				break;
+			case 4:
+				ent->client->pers.screenwidth = 1152;
+				break;
+			default:
+				// assuming anything else is at least 1280
+				ent->client->pers.screenwidth = 1280;
+				break;
+		}
+	}
 
 	// save off the userinfo in case we want to check something later
 	strncpy (ent->client->pers.userinfo, userinfo, sizeof(ent->client->pers.userinfo)-1);
-
-	ent->s.renderfx2 |= RF2_NOSHADOW;
-	ent->s.renderfx2 |= RF2_PASSALPHA;
-	ent->s.effects = 64;
 
 }
 
@@ -2144,58 +2215,36 @@ qboolean ClientConnect (edict_t *ent, char *userinfo)
 	edict_t	*doot;
 	int j;
 
-// ACEBOT_ADD
-	char *bestWepName = '\0';
 
-	if (!ent->acebot.is_bot)
+	ent->client = NULL;
+	ent->inuse = false;
+	ent->flags = 0;
+
+	// check to see if they are on the banned IP list
+	value = Info_ValueForKey (userinfo, "ip");
+	if (!value[0]) return false;
+	if (SV_FilterPacket(value))
 	{
-// ACEBOT_END
-		ent->client = NULL;
-		ent->inuse = false;
-		ent->flags = 0;
+		if (kpded2)
+			Info_SetValueForKey(userinfo, "rejmsg", "Banned."); // reason to give the client
+		return false;
+	}
 
-		// check to see if they are on the banned IP list
-		value = Info_ValueForKey (userinfo, "ip");
-		if (!value[0]) return false;
-		if (SV_FilterPacket(value))
-		{
-			if (kpded2)
-				Info_SetValueForKey(userinfo, "rejmsg", "Banned."); // reason to give the client
+	// check for a password
+	if (password->string[0])
+	{
+		value = Info_ValueForKey (userinfo, "password");
+		if (strcmp(password->string, value) != 0)
 			return false;
-		}
-
-		// check for a password
-		if (password->string[0])
-		{
-			value = Info_ValueForKey (userinfo, "password");
-			if (strcmp(password->string, value) != 0)
-				return false;
-		}
+	}
 	
-		if (CheckPlayerBan (userinfo))
-		{
-			if (kpded2)
-				Info_SetValueForKey(userinfo, "rejmsg", "Banned."); // reason to give the client
-			return false;
-		}
-// ACEBOT_ADD
-	}
-	else //is_bot	//hypov8 add randomness to best wep when connected. each map
+	if (CheckPlayerBan (userinfo))
 	{
-		ent->acebot.randomWeapon = rand() % 3;
-
-		//hypo another random, try make hmg more domanant
-		if (ent->acebot.randomWeapon != 0)
-			ent->acebot.randomWeapon = rand() % 3;
-
-		switch (ent->acebot.randomWeapon)
-		{
-			case 0: bestWepName = "Heavy machinegun"; break;
-			case 1: bestWepName = "Bazooka"; break;
-			case 2: bestWepName = "Tommygun"; break;
-		}
+		if (kpded2)
+			Info_SetValueForKey(userinfo, "rejmsg", "Banned."); // reason to give the client
+		return false;
 	}
-// ACEBOT_END
+
 
 	// they can connect
 	ent->client = game.clients + (ent - g_edicts - 1);
@@ -2227,19 +2276,18 @@ qboolean ClientConnect (edict_t *ent, char *userinfo)
 
 
 // ACEBOT_ADD
-	//dont send joined info if they are bots connecting
-	if (ent->acebot.is_bot)
-		gi.dprintf("%s (BOT) connected. BestWep = \"%s\"\n", ent->client->pers.netname, bestWepName);
-	else
+	if (!ent->acebot.is_bot || (ent->acebot.is_bot && level.bots_spawned))
 	{
 // ACEBOT_END
 
+		//print in develope console
 		if (ent->client->pers.country[0]) //GeoIP2
 			gi.dprintf("%s (%s) connected from %s\n", ent->client->pers.netname, ent->client->pers.ip, ent->client->pers.country);
 		else
 			gi.dprintf("%s (%s) connected\n", ent->client->pers.netname, ent->client->pers.ip);
 
-		for_each_player_not_bot(doot, j)// ACEBOT_ADD
+		//print in clients console
+		for_each_player_inc_bot(doot, j)// ACEBOT_ADD
 		{
 			if ((doot->client->pers.admin == ADMIN) || doot->client->pers.rconx[0])
 			{
@@ -2256,11 +2304,11 @@ qboolean ClientConnect (edict_t *ent, char *userinfo)
 					safe_cprintf(doot, PRINT_CHAT, "%s connected\n", ent->client->pers.netname);
 			}
 		}
-
 // ACEBOT_ADD
 	}
-
+#if HYPOBOTS
 	if (!ent->acebot.is_bot)
+#endif
 	{
 // ACEBOT_END
 		if (teamplay->value)
@@ -2278,35 +2326,16 @@ qboolean ClientConnect (edict_t *ent, char *userinfo)
 		ent->client->pers.spectator = SPECTATING;
 	}
 
+	ent->client->pers.idle = curtime;
 	ent->client->pers.lastpacket = curtime;
 	level.lastactive = level.framenum;
-// ACEBOT_ADD
-		if (ent->acebot.is_bot)
-			ent->client->showscores = NO_SCOREBOARD;
-// ACEBOT_END
 
 // ACEBOT_ADD
-#if 0 //hypov8 rebind a new key to menu, crashing??
-
-	if (!ent->acebot.is_bot)
+	if (ent->acebot.is_bot)
 	{
-		char *tmpString="";
-
-		cprintf(ent, PRINT_MEDIUM, "ƒƒƒƒƒƒƒƒƒƒƒƒƒƒƒƒƒƒƒƒƒƒƒ \n");
-		cprintf(ent, PRINT_HIGH, "Key \"0\" Rebound to \"MENU\" \n");
-		cprintf(ent, PRINT_MEDIUM, "ƒƒƒƒƒƒƒƒƒƒƒƒƒƒƒƒƒƒƒƒƒƒƒ \n");
-
-		//sprintf(tmpString, "bind 0 menu\n");
-		tmpString= "bind 0 menu\n";
-
-		//Com_sprintf(tmpString, sizeof(tmpString), "bind 0 menu\n");
-
-		gi.WriteByte(svc_stufftext);
-		gi.WriteString(tmpString);
-		gi.unicast(ent, true);
+		ent->client->pers.is_bot = true;
+		ent->client->showscores = NO_SCOREBOARD;
 	}
-#endif
-
 // ACEBOT_END
 
 	return true;
@@ -2364,7 +2393,7 @@ void ClientDisconnect (edict_t *ent)
 
 skiplist:
 		// inform any chasers
-		for (i=1; i<=maxclients->value; i++)
+		for (i=1; i<=(int)maxclients->value; i++)
 		{
 			if (!g_edicts[i].inuse)
 				continue;
@@ -2397,6 +2426,7 @@ skiplist:
 			if (ent->client->pers.spectator != SPECTATING)
 			ACEIT_PlayerRemoved(ent);
 		}
+	ent->acebot.is_bot = false; //bug fix
 // ACEBOT_END
 		
 		
@@ -2406,10 +2436,6 @@ skiplist:
 		safe_bprintf(PRINT_HIGH, "%s is reconnecting\n", ent->client->pers.netname);
 	else
 		safe_bprintf(PRINT_HIGH, ent->client->pers.connected < 0 ? "%s cancelled connecting\n" : "%s checked out\n", ent->client->pers.netname);
-
-	// ACEBOT_ADD
-	ent->acebot.is_bot = false; //bug fix
-	// ACEBOT_END
 
 	ent->classname = "disconnected";
 	ent->client->pers.connected = 0;
@@ -2489,7 +2515,7 @@ void ClientThink (edict_t *ent, usercmd_t *ucmd)
 		client->move_frame = level.framenum;
 
 	if (ucmd->buttons|ucmd->forwardmove|ucmd->sidemove|ucmd->upmove)
-		client->resp.check_idle = level.framenum;
+		client->pers.idle = curtime;
 
 	client->resp.cmd_angles[0] = SHORT2ANGLE(ucmd->angles[0]);
 	client->resp.cmd_angles[1] = SHORT2ANGLE(ucmd->angles[1]);
@@ -2579,7 +2605,7 @@ void ClientThink (edict_t *ent, usercmd_t *ucmd)
 
 			client->kick_angles[PITCH] = -20;
 
-			cprintf( ent, PRINT_HIGH, "Sound Todo: Thruster\n");
+			safe_cprintf( ent, PRINT_HIGH, "Sound Todo: Thruster\n");
 		}
 
 		VectorCopy( ent->velocity, bike_premove_vel );
@@ -3016,8 +3042,7 @@ car_resume:
 
 // ACEBOT_ADD 
 	// hypov8 auto generate path for bots
-	ACEND_PathMap(ent);
-
+	ACEND_PathMap(ent, true);
 	if (ent->acebot.is_bot)
 		ent->client->flashlight = false; //skip flastlight
 // ACEBOT_END
@@ -3039,13 +3064,6 @@ void ClientBeginServerFrame (edict_t *ent)
 {
 	gclient_t	*client;
 	int			buttonMask;
-// ACEBOT_ADD //hypov8 todo:
-	if (ent->acebot.is_bot && !(level.modeset == MATCH || level.modeset == PUBLIC))
-		return; /* caught bots trying to respawn after match end */
-// ACEBOT_END
-	// click to skip pregame (for testing)
-	if (developer->value && level.modeset == PREGAME && (ent->client->latched_buttons & BUTTON_ATTACK))
-		level.modeset = PUBLICSPAWN;
 
 	client = ent->client;
 
@@ -3074,7 +3092,7 @@ void ClientBeginServerFrame (edict_t *ent)
 	else if (client->pers.spectator != SPECTATING && (level.modeset == MATCH || level.modeset == PUBLIC))
 	{
 #ifndef HYPODEBUG
-		if ((level.framenum - client->resp.check_idle) > (idle_client->value * 10))
+		if (curtime - client->pers.idle > idle_client->value * 1000)
 		{
 			safe_bprintf(PRINT_HIGH, "%s has been idle for over %d seconds\n", client->pers.netname, (int)idle_client->value);
 			// make them a spectator
@@ -3082,8 +3100,9 @@ void ClientBeginServerFrame (edict_t *ent)
 		}
 		else
 #endif
-			ent->client->resp.time++;
+			client->resp.time++;
 	}
+
 
 	// Ridah, hack, make sure we duplicate the episode flags
 	ent->episode_flags |= ent->client->pers.episode_flags;
@@ -3099,6 +3118,10 @@ void ClientBeginServerFrame (edict_t *ent)
 
 	if (ent->deadflag)
 	{
+		// don't respawn if lagging-out
+		if (curtime - ent->client->pers.lastpacket > 100)
+			return;
+
 		// wait for any button just going down
 		if ( level.time > client->respawn_time)
 		{
@@ -3116,6 +3139,9 @@ void ClientBeginServerFrame (edict_t *ent)
 	}
 
 	client->latched_buttons = 0;
+
+	if (client->pers.spectator == SPECTATING)
+		return;
 
 	if (!(ent->flags & FL_JETPACK))
 	{
@@ -3138,12 +3164,13 @@ void ClientBeginServerFrame (edict_t *ent)
 		else if (!ent->client->jetpack_warned && ent->client->jetpack_power < 5.0)
 		{
 			ent->client->jetpack_warned = true;
-			cprintf( ent, PRINT_HIGH, "SOUND TODO: WARNING: Jet Pack power is LOW\n");
+			safe_cprintf( ent, PRINT_HIGH, "SOUND TODO: WARNING: Jet Pack power is LOW\n");
 		}
 	}
 }
 
-void cprintf(edict_t *ent, int printlevel, char *fmt, ...)
+#if 0
+void cprintf(edict_t *ent, int printlevel, char *fmt, ...) //hypov8 todo: not in mm2.0
 {
 	int n;
 	va_list vl;
@@ -3164,13 +3191,13 @@ void cprintf(edict_t *ent, int printlevel, char *fmt, ...)
 	if (n < 0)
 		ent->client->resp.textbuf[sizeof(ent->client->resp.textbuf) - 2] = '\n';
 
+	safe_cprintf(ent, printlevel, "%s", ent->client->resp.textbuf);
 	// kpded2 has its own buffering, so no need to keep text buffered here
 	if (kpded2)
-	{
-		safe_cprintf(ent, printlevel, "%s", ent->client->resp.textbuf);
 		ent->client->resp.textbuf[0] = 0;
-	}
+
 }
+#endif
 
 static int CheckClientRejoin(edict_t *ent)
 {
@@ -3254,7 +3281,7 @@ void DropCash(edict_t *self)
 
 	if (self->client->pers.currentcash)
 	{
-		cash = SpawnTheWeapon( self, "item_cashroll" );
+		cash = Drop_Item(self, FindItemByClassname("item_cashroll"));
 		cash->currentcash = self->client->pers.currentcash;
 		self->client->pers.currentcash = 0;
 
@@ -3270,9 +3297,9 @@ void DropCash(edict_t *self)
 	if (self->client->pers.bagcash)
 	{
 		if (self->client->pers.bagcash > 100)
-			cash = SpawnTheWeapon( self, "item_cashbaglarge" );
+			cash = Drop_Item(self, FindItemByClassname("item_cashbaglarge"));
 		else
-			cash = SpawnTheWeapon( self, "item_cashbagsmall" );
+			cash = Drop_Item(self, FindItemByClassname("item_cashbagsmall"));
 
 //		cash->nextthink = level.time + 120;
 

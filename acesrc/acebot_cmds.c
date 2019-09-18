@@ -59,6 +59,8 @@
 #include "../g_local.h" //DIR_SLASH
 #include "acebot.h"
 
+
+
 #ifndef bla//  HYPODEBUG
 qboolean debug_mode=false;
 qboolean debug_mode_origin_ents = false; //local node
@@ -66,7 +68,638 @@ qboolean debug_mode_origin_ents = false; //local node
 qboolean debug_mode=true;
 qboolean debug_mode_origin_ents = true; //local node
 #endif
-// add hypov8
+
+//hypo vote add bot
+static void Cmd_VoteAddBot_f(edict_t *ent, int teamUse)
+{
+	int i, count;
+	edict_t *dude;
+	char	*s = '\0';
+	char *team = '\0';
+
+
+	if (!sv_bot_allow_add->value)
+	{
+		safe_cprintf(ent, PRINT_HIGH, "Clients NOT allowed to add bots\n");
+		return;
+	}
+
+	if (num_bots >= (int)sv_bot_max->value)
+	{
+		safe_cprintf(ent, PRINT_HIGH, "Maximum Bots Reached\n");
+		return;
+	}
+
+
+	if (teamplay->value)
+	{
+		if (teamUse)
+		{
+			if (teamUse == 1){
+				team = "d";
+				s = "d";
+			}
+			else if (teamUse == 2){
+				team = "n";
+				s = "n";
+			}
+			else team = '\0';
+		}
+		else
+		{
+			s = gi.args();
+			if (s[0])
+				team = s;
+		}
+	}
+
+	if (level.voteset == NO_VOTES)
+	{
+		count = 0;
+		for_each_player_not_bot(dude, i)
+		{
+			dude->client->resp.vote = 0;
+			count++;
+		}
+
+		if (count == 1)
+		{
+			//safe_bprintf(PRINT_HIGH, "%s alowed to change map.\n", ent->client->pers.netname);
+			gi.dprintf("Vote AddBot by: %s accepted.\n", ent->client->pers.netname);
+			safe_cprintf(ent, PRINT_CHAT, "＃%s alowed to add bot.\n", ent->client->pers.netname);
+			//ACESP_SpawnBot(team, "\0", "\0", NULL);
+			ACESP_SpawnBot_Random(team, "\0", "\0", NULL);
+			return;
+		}						//﹜ㄓ它夾帚型限
+		safe_bprintf(PRINT_CHAT, "%s has requested to add a bot.\n\nPLEASE VOTE\n\n", ent->client->pers.netname);
+		ent->client->resp.vote = CALLED_VOTE;
+		level.voteframe = level.framenum;
+		level.voteset = VOTE_ADDBOT;
+
+		if (teamplay->value)
+			strcpy(voteAddBot, s);
+
+		gi.WriteByte(svc_stufftext);
+		gi.WriteString("play misc/talk.wav");
+		gi.multicast(vec3_origin, MULTICAST_ALL);
+	}
+	else if (level.voteset != NO_VOTES)
+		safe_cprintf(ent, PRINT_HIGH, "Vote is allready in progress.\n");
+
+}
+
+//hypo vote remove bot
+void Cmd_VoteRemoveBot_f(edict_t *ent, qboolean isMenu, char botnames[32]) //VOTE_REMOVEBOT;
+{
+	int i, count;
+	edict_t *dude;
+	char		*s;
+	char *name = '\0';
+
+	if (!sv_bot_allow_add->value)
+	{
+		safe_cprintf(ent, PRINT_HIGH, "Bot Vote Disabled.\n", ent->client->pers.netname);
+		return;
+	}
+
+	if (!isMenu)
+	{
+		s = gi.args();
+		if (s[0])
+			name = s;
+		else if (s[0] == '\0')
+		{
+			safe_cprintf(ent, PRINT_HIGH, "INVALID BOT NAME.\n", ent->client->pers.netname);
+			return;
+		}
+	}
+	else
+	{
+		if (botnames == NULL || !botnames[0])		
+		{
+			safe_cprintf(ent, PRINT_HIGH, "INVALID BOT NAME.\n", ent->client->pers.netname);
+			return;
+		}
+		s = botnames;
+		name = botnames;
+	}
+
+
+	if (level.voteset == NO_VOTES)
+	{
+		count = 0;
+		for_each_player_inc_bot(dude, i)
+		{
+			if (!dude->acebot.is_bot)
+				continue;
+			if (_strcmpi(dude->client->pers.netname, s) == 0)
+				count++;
+		}
+
+		if (count == 0)
+		{
+			safe_cprintf(ent, PRINT_HIGH, "INVALID BOT NAME.\n", ent->client->pers.netname);
+			return;
+		}
+	}
+
+	if (level.voteset == NO_VOTES)
+	{
+		count = 0;
+		for_each_player_not_bot(dude, i)
+		{
+			dude->client->resp.vote = 0;
+			count++;
+		}
+
+		if (count == 1)
+		{
+			gi.dprintf("Vote BotRemove accepted. by: %s\n", ent->client->pers.netname);
+			//safe_bprintf(PRINT_HIGH, "%s alowed to change map.\n", ent->client->pers.netname);
+			safe_cprintf(ent, PRINT_CHAT, "%s alowed to remove bot.\n", ent->client->pers.netname);
+			ACESP_RemoveBot(s);
+			return;
+		}						//﹜ㄓ它夾帚型限
+		safe_bprintf(PRINT_CHAT, "%s has requested to remove bot %s.\n\nPLEASE VOTE\n\n", ent->client->pers.netname, name);
+		ent->client->resp.vote = CALLED_VOTE;
+		level.voteframe = level.framenum;
+		level.voteset = VOTE_REMOVEBOT;
+
+		strcpy(voteRemoveBot, s);
+
+		gi.WriteByte(svc_stufftext);
+		gi.WriteString("play misc/talk.wav");
+		gi.multicast(vec3_origin, MULTICAST_ALL);
+	}
+	else if (level.voteset != NO_VOTES)
+		safe_cprintf(ent, PRINT_HIGH, "Vote is allready in progress.\n");
+
+}
+
+//hypo vote skill
+void Cmd_VoteSkill_f(edict_t *ent, qboolean usedMenu) //VOTE_BOTSKILL;
+
+{
+	int i, count;
+	edict_t *dude;
+	char		*s;
+	float skill_f;
+
+	if (!sv_bot_allow_skill->value)	{
+		safe_cprintf(ent, PRINT_HIGH, "Bot-Skill Voting Disabled.\n", ent->client->pers.netname);
+		return;
+	}
+
+	if (!usedMenu) 
+	{
+		int skill;
+		s = gi.args();
+		skill = atoi(s);
+
+		if (s[0] == '\0' || skill < 0 || skill > 10)
+		{
+			cprintf(ent, PRINT_HIGH, "INVALID BOT SKILL. VALUE= 0 to 10.(current: %d)\n",
+				ent->client->pers.netname, ACECM_ReturnBotSkillWeb());
+			return;
+		}
+		skill_f = ACECM_ReturnBotSkillFloat(skill);
+	}
+	else
+		skill_f = menuBotSkill;
+
+
+	if (level.voteset == NO_VOTES)
+	{
+		count = 0;
+		for_each_player_not_bot(dude, i)
+		{
+			dude->client->resp.vote = 0;
+			count++;
+		}
+
+		if (count == 1)
+		{
+			char sSkill[16];
+			Com_sprintf(sSkill, sizeof(sSkill), "%1.1f", skill_f);
+			sv_botskill = gi.cvar_set("sv_botskill", sSkill);
+			safe_bprintf(PRINT_HIGH, "Bot-Skill set to %d of 10 (sv_botskill %s)\n", ACECM_ReturnBotSkillWeb(), sv_botskill->string);
+			cprintf(ent, PRINT_HIGH, "This setting takes effect immediately\n");
+			return;
+		}						//﹜ㄓ它夾帚型限
+
+		safe_bprintf(PRINT_CHAT, "%s has requested to change bot skill to %d of 10.\n\nPLEASE VOTE\n\n", ent->client->pers.netname, ACECM_ReturnBotSkillWeb_var(skill_f));
+		ent->client->resp.vote = CALLED_VOTE;
+		level.voteframe = level.framenum;
+		level.voteset = VOTE_BOTSKILL;
+
+		voteBotSkill = skill_f;
+
+
+		gi.WriteByte(svc_stufftext);
+		gi.WriteString("play misc/talk.wav");
+		gi.multicast(vec3_origin, MULTICAST_ALL);
+	}
+	else if (level.voteset != NO_VOTES)
+		cprintf(ent, PRINT_HIGH, "Vote is allready in progress.\n");
+
+}
+
+
+
+
+
+qboolean ACECM_G_Activate_f(edict_t *ent)
+{
+	if (ent->client->showscores == SCORE_BOT_VOTE)
+	{
+		switch (ent->menu)
+		{
+		case 1:ent->client->showscores = SCORE_BOT_ADD; ent->menu = 0; break;
+		case 2:ent->client->showscores = SCORE_BOT_REMOVE; ent->menu = 0; break;
+		case 3:ent->client->showscores = SCORE_BOT_SKILL; ent->menu = 0; break;
+		case 4:	if (ent->client->pers.noantilag) 
+					Cmd_AntiLag_f(ent, "1"); //ent->client->pers.noantilag = 0;
+				else	
+					Cmd_AntiLag_f(ent, "0"); //ent->client->pers.noantilag = 1;
+				ent->menu = 4; break;
+
+	
+		case 5:Cmd_Yes_f(ent); ent->client->showscores = NO_SCOREBOARD; ent->menu = 0; break;
+		case 6:Cmd_No_f(ent); ent->client->showscores = NO_SCOREBOARD; ent->menu = 0;	break;
+
+		default: ent->client->showscores = NO_SCOREBOARD; ent->menu = 0; break;
+			
+
+		}
+		//ent->menu = 0;
+		DeathmatchScoreboard(ent);
+		return true;
+	}
+	
+	if (ent->client->showscores == SCORE_BOT_ADD)
+	{
+		if (level.modeset == MATCH || level.modeset == PUBLIC)
+		{
+			switch (ent->menu)
+			{
+			case 1: Cmd_VoteAddBot_f(ent,1) ; break;
+			case 2: Cmd_VoteAddBot_f(ent, 2); break;
+			case 3:Cmd_VoteAddBot_f(ent, 0); break;
+			default: ; break;
+
+			}
+		}
+		//ent->client->showscores = NO_SCOREBOARD;
+		ent->client->showscores = SCORE_BOT_VOTE;
+		ent->menu = 0;
+		DeathmatchScoreboard(ent);
+		return true;
+	}
+
+
+	if (ent->client->showscores == SCORE_BOT_REMOVE)
+	{
+		if (level.modeset == MATCH || level.modeset == PUBLIC)
+		{
+			switch (ent->menu)
+			{
+			case 1: Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[0]); break;
+			case 2: Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[1]); break;
+			case 3: Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[2]); break;
+			case 4: Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[3]); break;
+			case 5: Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[4]); break;
+			case 6: Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[5]); break;
+			case 7: Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[6]); break;
+			case 8: Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[7]); break;
+			default: Cmd_VoteRemoveBot_f(ent, true, ""); break; //invalid!!!
+
+			}
+		}
+		//ent->client->showscores = NO_SCOREBOARD;
+		ent->client->showscores = SCORE_BOT_VOTE;
+		ent->menu = 0;
+		DeathmatchScoreboard(ent);
+		return true;
+	}
+
+	if (ent->client->showscores == SCORE_BOT_SKILL)
+	{
+		if (level.modeset == MATCH || level.modeset == PUBLIC)
+		{
+			switch (ent->menu)
+			{
+			case 1: menuBotSkill = 0.0; Cmd_VoteSkill_f(ent, 1); break;
+			case 2: menuBotSkill = 0.4; Cmd_VoteSkill_f(ent, 1); break;
+			case 3: menuBotSkill = 0.8; Cmd_VoteSkill_f(ent, 1); break;
+			case 4: menuBotSkill = 1.2; Cmd_VoteSkill_f(ent, 1); break;
+			case 5: menuBotSkill = 1.6; Cmd_VoteSkill_f(ent, 1); break;
+			case 6: menuBotSkill = 2.0; Cmd_VoteSkill_f(ent, 1); break;
+			case 7: menuBotSkill = 2.4; Cmd_VoteSkill_f(ent, 1); break;
+			case 8: menuBotSkill = 2.8; Cmd_VoteSkill_f(ent, 1); break;
+			case 9: menuBotSkill = 3.2; Cmd_VoteSkill_f(ent, 1); break;
+			case 10: menuBotSkill = 3.6; Cmd_VoteSkill_f(ent, 1); break;
+			case 11: menuBotSkill = 4.0; Cmd_VoteSkill_f(ent, 1); break;
+			//default:Cmd_VoteSkill_f(ent, 1); break;
+
+			}
+		}
+		ent->client->showscores = NO_SCOREBOARD;
+		ent->menu = 0;
+		DeathmatchScoreboard(ent);
+		return true;
+	}
+
+	return false;
+}
+
+qboolean ACECM_G_PutAway_f(edict_t *ent)
+{
+
+	if (ent->client->showscores == SCORE_BOT_ADD
+		|| ent->client->showscores == SCORE_BOT_REMOVE
+		|| ent->client->showscores == SCORE_BOT_SKILL)
+	{
+		ent->client->showscores = SCORE_BOT_VOTE;
+		//ent->client->showhelp = false;
+		ent->client->showinventory = false;
+		ent->client->resp.vote = 0;
+		ent->menu = 0;
+		DeathmatchScoreboard(ent); //hypov8 add, update scoreboard straight away
+		return true;
+	}
+	return false;
+}
+
+qboolean ACECM_G_Use_f(edict_t *ent, char *s)
+{
+	if (ent->client->showscores == SCORE_BOT_VOTE)
+	{
+		if (s)
+		{
+
+			if (!strcmp(s, "pipe")){
+				ent->client->showscores = SCORE_BOT_ADD; ent->menu = 0;		}
+			else if (!strcmp(s, "pistol")){
+				ent->client->showscores = SCORE_BOT_REMOVE; ent->menu = 0;		}
+			else if (!strcmp(s, "shotgun")){
+				ent->client->showscores = SCORE_BOT_SKILL; ent->menu = 0;		}
+			else if (!strcmp(s, "tommygun")){
+				if (ent->client->pers.noantilag)
+					Cmd_AntiLag_f(ent, "1");	//ent->client->pers.noantilag = 0;
+				else								
+					Cmd_AntiLag_f(ent, "0");	//ent->client->pers.noantilag = 1;
+				ent->menu = 4;
+			}
+			else if (!strcmp(s, "heavy machinegun")){
+				Cmd_Yes_f(ent); ent->client->showscores = NO_SCOREBOARD; ent->menu = 0;}
+			else if (!strcmp(s, "grenade launcher")){
+				Cmd_No_f(ent); ent->client->showscores = NO_SCOREBOARD;	ent->menu = 0;}
+			else if (!strcmp(s, "bazooka")){
+				ent->client->showscores = NO_SCOREBOARD; ent->menu = 0;}
+			else if (!strcmp(s, "flamethrower")){
+				ent->client->showscores = NO_SCOREBOARD; ent->menu = 0;}
+
+		}
+
+
+		ent->client->resp.switch_teams_frame = level.framenum;
+		DeathmatchScoreboard (ent);
+		return true;
+	}
+
+	if (ent->client->showscores == SCORE_BOT_ADD)
+	{
+		if (level.modeset == MATCH || level.modeset == PUBLIC)
+		{
+			if (s)
+			{
+				if (!strcmp(s, "pipe"))
+					Cmd_VoteAddBot_f(ent, 1);
+				else if (!strcmp(s, "pistol"))
+					Cmd_VoteAddBot_f(ent, 2);
+				else if (!strcmp(s, "shotgun"))
+					Cmd_VoteAddBot_f(ent, 3);
+				else if (!strcmp(s, "tommygun"))
+					Cmd_VoteAddBot_f(ent, 3);
+				else if (!strcmp(s, "heavy machinegun"))
+					Cmd_VoteAddBot_f(ent, 3);
+				else if (!strcmp(s, "grenade launcher"))
+					Cmd_VoteAddBot_f(ent, 3);
+				else if (!strcmp(s, "bazooka"))
+					Cmd_VoteAddBot_f(ent, 3);
+				else if (!strcmp(s, "flamethrower"))
+					Cmd_VoteAddBot_f(ent, 3);
+			}
+			//ent->client->showscores = NO_SCOREBOARD;
+			ent->client->showscores = SCORE_BOT_VOTE;
+			ent->menu = 0;
+			DeathmatchScoreboard(ent);
+			return true;
+		}
+	}
+
+
+	if (ent->client->showscores == SCORE_BOT_REMOVE)
+		{
+			if (level.modeset == MATCH || level.modeset == PUBLIC)
+			{
+				if (s)
+				{
+					if (!strcmp(s, "pipe"))
+						Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[0]);
+					else if (!strcmp(s, "pistol"))
+						Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[1]);
+					else if (!strcmp(s, "shotgun"))
+						Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[2]);
+					else if (!strcmp(s, "tommygun"))
+						Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[3]);
+					else if (!strcmp(s, "heavy machinegun"))
+						Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[4]);
+					else if (!strcmp(s, "grenade launcher"))
+						Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[5]);
+					else if (!strcmp(s, "bazooka"))
+						Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[6]);
+					else if (!strcmp(s, "flamethrower"))
+						Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[7]);
+				}
+				//ent->client->showscores = NO_SCOREBOARD;
+				ent->client->showscores = SCORE_BOT_VOTE;
+				ent->menu = 0;
+				DeathmatchScoreboard(ent);
+				return true;
+			}
+		}
+
+
+	if (ent->client->showscores == SCORE_BOT_SKILL)
+		{
+			if (level.modeset == MATCH || level.modeset == PUBLIC)
+			{
+				if (s)
+				{
+					if (!strcmp(s, "pipe")){
+						menuBotSkill = 0.4;
+						Cmd_VoteSkill_f(ent, 1);
+					}
+					else if (!strcmp(s, "pistol")){
+						menuBotSkill = 0.8;
+						Cmd_VoteSkill_f(ent, 1);
+					}
+					else if (!strcmp(s, "shotgun")){
+						menuBotSkill = 1.2;
+						Cmd_VoteSkill_f(ent, 1);
+					}
+					else if (!strcmp(s, "tommygun")){
+						menuBotSkill = 1.6;
+						Cmd_VoteSkill_f(ent, 1);
+					}
+					else if (!strcmp(s, "heavy machinegun")){
+						menuBotSkill = 2.0;
+						Cmd_VoteSkill_f(ent, 1);
+					}
+					else if (!strcmp(s, "grenade launcher")){
+						menuBotSkill = 2.4;
+						Cmd_VoteSkill_f(ent, 1);
+					}
+					else if (!strcmp(s, "bazooka")){
+						menuBotSkill = 2.8;
+						Cmd_VoteSkill_f(ent, 1);
+					}
+					else if (!strcmp(s, "flamethrower")){
+						menuBotSkill = 3.2;
+						Cmd_VoteSkill_f(ent, 1);
+					}
+				}
+				ent->client->showscores = NO_SCOREBOARD;
+				ent->menu = 0;
+				DeathmatchScoreboard(ent);
+				return true;
+			}
+		}
+	return false;
+}
+
+qboolean ACECM_G_SelectNextItem(edict_t *ent)
+{
+	if (ent->client->showscores == SCORE_BOT_VOTE)
+	{
+
+		if (level.framenum > (ent->client->resp.scoreboard_frame + 1))
+		{
+			ent->menu++;
+			if (ent->menu > 7)
+				ent->menu = 1;
+			ent->client->resp.scoreboard_frame = level.framenum;
+			DeathmatchScoreboard (ent);
+		}
+		return true;
+	}
+
+	if (ent->client->showscores == SCORE_BOT_ADD)
+	{
+
+		if (level.framenum > (ent->client->resp.scoreboard_frame + 1))
+		{
+			ent->menu++;
+			if (ent->menu > 3)
+				ent->menu = 1;
+			ent->client->resp.scoreboard_frame = level.framenum;
+			DeathmatchScoreboard (ent);
+		}
+		return true;
+	}
+
+	if (ent->client->showscores == SCORE_BOT_REMOVE)
+	{
+
+		if (level.framenum > (ent->client->resp.scoreboard_frame + 1))
+		{
+			ent->menu++;
+			if (ent->menu > 8)
+				ent->menu = 1;
+			ent->client->resp.scoreboard_frame = level.framenum;
+			DeathmatchScoreboard (ent);
+		}
+		return true;
+	}
+
+	if (ent->client->showscores == SCORE_BOT_SKILL)
+	{
+
+		if (level.framenum > (ent->client->resp.scoreboard_frame + 1))
+		{
+			ent->menu++;
+			if (ent->menu > 11)
+				ent->menu = 1;
+			ent->client->resp.scoreboard_frame = level.framenum;
+			DeathmatchScoreboard (ent);
+		}
+		return true;
+	}
+
+	return false;
+}
+
+qboolean ACECM_G_SelectPrevItem(edict_t *ent)
+{
+	if (ent->client->showscores == SCORE_BOT_VOTE)
+	{
+		if (level.framenum >(ent->client->resp.scoreboard_frame + 1))
+		{
+			ent->menu--;
+			if (ent->menu < 1)
+				ent->menu = 7;
+			ent->client->resp.scoreboard_frame = level.framenum;
+			DeathmatchScoreboard (ent);
+		}
+		return true;
+	}
+
+	if (ent->client->showscores == SCORE_BOT_ADD)
+	{
+		if (level.framenum > (ent->client->resp.scoreboard_frame + 1))
+		{
+			ent->menu--;
+			if (ent->menu < 1)
+				ent->menu = 3;
+			ent->client->resp.scoreboard_frame = level.framenum;
+			DeathmatchScoreboard (ent);
+		}
+		return true;
+	}
+
+	if (ent->client->showscores == SCORE_BOT_REMOVE)
+	{
+		if (level.framenum > (ent->client->resp.scoreboard_frame + 1))
+		{
+			ent->menu--;
+			if (ent->menu < 1)
+				ent->menu = 8;
+			ent->client->resp.scoreboard_frame = level.framenum;
+			DeathmatchScoreboard (ent);
+		}
+		return true;
+	}
+	if (ent->client->showscores == SCORE_BOT_SKILL)
+	{
+		if (level.framenum >(ent->client->resp.scoreboard_frame + 1))
+		{
+			ent->menu--;
+			if (ent->menu < 1)
+				ent->menu = 11;
+			ent->client->resp.scoreboard_frame = level.framenum;
+			DeathmatchScoreboard(ent);
+		}
+		return true;
+	}
+
+	return false;
+
+}
+
+
+
+
 
 int ACECM_ReturnBotSkillWeb(void)
 {
@@ -189,9 +822,9 @@ void ACECM_BotAdd(char *name, char *skin, char *team, char *skill)
 #if HYPODEBUG
 	int i;
 	edict_t	*ent;
-	for (i = 0; i<(int)maxclients->value; i++)
+	for (i = 1; i<=(int)maxclients->value; i++)
 	{
-		ent = g_edicts + 1 + i;
+		ent = g_edicts + i;
 		if (!ent->inuse || ent->acebot.is_bot)
 			continue;
 
@@ -218,6 +851,59 @@ void ACECM_BotAdd(char *name, char *skin, char *team, char *skill)
 }
 //end hypov8
 
+void ACECM_Menu_f(edict_t *ent)
+{
+
+	ent->client->showinventory = false;
+	//ent->client->showhelp = false; //hypov8 todo?: check this
+
+	if (ent->client->showscores == SCORE_BOT_VOTE
+		|| ent->client->showscores == SCORE_BOT_ADD
+		|| ent->client->showscores == SCORE_BOT_REMOVE
+		|| ent->client->showscores == SCORE_BOT_SKILL)
+		ent->client->showscores = NO_SCOREBOARD;
+	else
+		ent->client->showscores = SCORE_BOT_VOTE;
+
+	DeathmatchScoreboard(ent);
+}
+// ACEBOT_END
+
+// ACEBOT_ADD
+void ACECM_SetBotSkill_f(edict_t *ent, char *value) //add hypov8
+{
+	if (ent->client->pers.admin > NOT_ADMIN)
+	{
+		int skill = atoi(value);
+		if (Q_stricmp(value, "") == 0){
+			cprintf(ent, PRINT_HIGH, "Invalid value. Current botskill is %d of 10 (sv_botskill %s)\n", ACECM_ReturnBotSkillWeb(), sv_botskill->string);
+			return;
+		}
+		switch (skill)
+		{
+		default:
+		case 0: value = "0.0"; break;
+		case 1: value = "0.4"; break;
+		case 2: value = "0.8"; break;
+		case 3: value = "1.2"; break;
+		case 4: value = "1.6"; break;
+		case 5: value = "2.0"; break;
+		case 6: value = "2.4"; break;
+		case 7: value = "2.8"; break;
+		case 8: value = "3.2"; break;
+		case 9: value = "3.6"; break;
+		case 10: value = "4.0"; break;
+		}
+
+		sv_botskill = gi.cvar_set("sv_botskill", value);
+		safe_bprintf(PRINT_HIGH, "Bot-Skill set to %d of 10 (sv_botskill %s)\n", ACECM_ReturnBotSkillWeb(), sv_botskill->string);
+		cprintf(ent, PRINT_HIGH, "This setting takes effect immediately\n");
+	}
+	else
+		cprintf(ent, PRINT_HIGH, "You do not have admin, but botskill is %d of 10 (sv_botskill %s)\n", ACECM_ReturnBotSkillWeb(), sv_botskill->string);
+}
+// ACEBOT_END
+
 
 ///////////////////////////////////////////////////////////////////////
 // Special command processor
@@ -227,41 +913,56 @@ qboolean ACECM_Commands(edict_t *ent)
 	char	*cmd;
 	short	node = INVALID;
 
-	if (!debug_mode)
-		return false;
+	//hypo bot wont use console
+	if (ent->acebot.is_bot)
+		return true;
 
 	cmd = gi.argv(0);
 
-	//hypov8 also addnodelinked?
-	if (Q_stricmp(cmd, "addnode") == 0)
+	//client commands
+	if (Q_stricmp(cmd, "votebotadd") == 0)
+		Cmd_VoteAddBot_f(ent, 0);
+	else if (Q_stricmp(cmd, "votebotremove") == 0)
+		Cmd_VoteRemoveBot_f(ent, false, NULL);
+	else if (Q_stricmp(cmd, "votebotskill") == 0)
+		Cmd_VoteSkill_f(ent, false);
+	else if (Q_stricmp(cmd, "menu") == 0)
+		ACECM_Menu_f(ent);
+	else if (Q_stricmp(cmd, "botskill") == 0)
+		ACECM_SetBotSkill_f(ent, gi.argv(1));
+	//else if (Q_stricmp(cmd, "votebotcount") == 0)		//hypo todo:
+	//	Cmd_VoteBotCount_f(ent);  
+
+
+	if (!debug_mode)
+		return false;
+
+
+
+	//dev commands
+	else if (Q_stricmp(cmd, "addnode") == 0)
 	{
 		ent->acebot.pm_last_node = ACEND_AddNode(ent, atoi(gi.argv(1)));
-		if (!sv_botpath->value) 
+		if (!sv_botpath->value)
 			ent->acebot.pm_last_node = INVALID; //prevent bug when re'enable sv_botpath
 	}
-	
-	else if(Q_stricmp (cmd, "removelink") == 0)
-		ACEND_RemoveNodeEdge(ent,atoi(gi.argv(1)), atoi(gi.argv(2)));
-
+	else if (Q_stricmp(cmd, "removelink") == 0){
+		ACEND_RemoveNodeEdge(ent, atoi(gi.argv(1)), atoi(gi.argv(2)));
+		return true;
+	}
 	else if(Q_stricmp (cmd, "addlink") == 0)
 		ACEND_UpdateNodeEdge(atoi(gi.argv(1)), atoi(gi.argv(2)), false, false, false, false);
-	
 	else if(Q_stricmp (cmd, "showpath") == 0)
     	ACEND_ShowPath(ent,atoi(gi.argv(1)));
-
 	else if (Q_stricmp(cmd, "localnode") == 0) //hypov8 add. show nodes close by
 	{
 		if (!dedicated->value)
 		{
-			//arg1 = gi.argv(1);
-			//if (Q_stricmp(arg1, "on") == 0)
-			if (debug_mode_origin_ents == 0)
-			{
+			if (debug_mode_origin_ents == 0){
 				safe_cprintf(ent, PRINT_MEDIUM, "findlocalnode ON\n");
 				debug_mode_origin_ents = 1;
 			}
-			else
-			{
+			else{
 				safe_cprintf(ent, PRINT_MEDIUM, "findlocalnode OFF\n");
 				debug_mode_origin_ents = 0;
 			}
@@ -288,7 +989,6 @@ qboolean ACECM_Commands(edict_t *ent)
 		gi.WriteString(strWrite);
 		gi.unicast(ent, true);
 	}
-
 	else if (Q_stricmp(cmd, "movenode") == 0)
 	{
 		float x, y, z;
@@ -335,17 +1035,13 @@ qboolean ACECM_Commands(edict_t *ent)
 			gi.dprintf("node: %d moved to x: %f y: %f z %f\n", node, x, y, z);
 			safe_cprintf(ent, PRINT_MEDIUM, "node: %d moved to x: %f y: %f z %f\n", node, x, y, z);
 		}
-
 	}
 	else if (Q_stricmp(cmd, "clearnode") == 0) //add hypov8 clear all paths to a node(cant be removed?)
 		ACEND_RemovePaths(ent, (short)atoi(gi.argv(1)));
-
 	else if (Q_stricmp(cmd, "clearallpaths") == 0) //add hypov8 clear all paths
 		ACEND_RemoveallPaths(ent);
-
 	else if (Q_stricmp(cmd, "nodefinal") == 0) //add hypov8 finalise node table
 		stopNodeUpdate = 1;
-
 	else
 		return false;
 
@@ -356,12 +1052,12 @@ qboolean ACECM_Commands(edict_t *ent)
 ///////////////////////////////////////////////////////////////////////
 // Called when the level changes, store maps and bots (disconnected)
 ///////////////////////////////////////////////////////////////////////
-void ACECM_LevelEnd()
+void ACECM_LevelEnd(void)
 {
 	ACEND_SaveNodes();
-	num_players = 0;
+	//num_players = 0;
 	botsRemoved = 0;
-	num_bots = 0;
+	//num_bots = 0;
 }
 
 ///////////////////////////////////////////////////////////////////////

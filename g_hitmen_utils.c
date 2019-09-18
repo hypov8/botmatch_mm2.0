@@ -379,7 +379,7 @@ void hm_CheckWeaponTimer( void )
 			// warning sound before switching weapon
 
 			// warn all clients that the weapon is about to change even if they are dead
-    		for (i=1; i<=maxclients->value; i++)
+    		for (i=1; i<=(int)maxclients->value; i++)
 			{
 				ent = g_edicts + i;
 				if (!ent->inuse)
@@ -412,7 +412,7 @@ void hm_ChangeWeapon( void )
 	hm_next_weapon();
 
 	// get all current clients to change to new weapon
-	for (i=1; i<=maxclients->value; i++)
+	for (i=1; i<=(int)maxclients->value; i++)
         {
 		ent = g_edicts + i;
 

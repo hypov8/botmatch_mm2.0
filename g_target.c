@@ -1450,7 +1450,7 @@ void target_timer_use (edict_t *self, edict_t *other, edict_t *activator)
             // was _not_ started
             else
             {
-                cprintf(activator, PRINT_HIGH, "you haven't started timer %i yet!\n", TeamID);
+                safe_cprintf(activator, PRINT_HIGH, "you haven't started timer %i yet!\n", TeamID);
             }
         }
         else

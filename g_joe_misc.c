@@ -662,7 +662,7 @@ void SP_props_tablesetA (edict_t *self)
 	self->s.renderfx2 |= RF2_DIR_LIGHTS;
 
 	// JOSEPH 5-FEB-99-B
-	self->s.renderfx2 |= RF2_NOSHADOW;
+	self->s.renderfx2 |= RF2_NOSHADOW; // needed for unpatched client
 	self->surfacetype = SURF_FABRIC;
 	gi.linkentity (self);
 }
@@ -3250,7 +3250,7 @@ void SP_props_mattressA (edict_t *self)
 	VectorSet (self->mins, -36, -28, -38);
 	VectorSet (self->maxs, 36, 28, 38);		
 
-	self->s.renderfx2 |= RF2_NOSHADOW;	
+//	self->s.renderfx2 |= RF2_NOSHADOW;	
 	self->s.renderfx2 |= RF2_DIR_LIGHTS;
 
 	self->surfacetype = SURF_FABRIC;
@@ -3280,7 +3280,7 @@ void SP_props_mattressB (edict_t *self)
 	VectorSet (self->mins, -8, -34, -38);
 	VectorSet (self->maxs, 8, 34, 38);		
 
-	self->s.renderfx2 |= RF2_NOSHADOW;	
+//	self->s.renderfx2 |= RF2_NOSHADOW;	
 	self->s.renderfx2 |= RF2_DIR_LIGHTS;
 
 	self->surfacetype = SURF_FABRIC;
@@ -3310,7 +3310,7 @@ void SP_props_mattressC (edict_t *self)
 	VectorSet (self->mins, -34, -38, -8);
 	VectorSet (self->maxs, 34, 38, 8);		
 
-	self->s.renderfx2 |= RF2_NOSHADOW;	
+//	self->s.renderfx2 |= RF2_NOSHADOW;	
 	self->s.renderfx2 |= RF2_DIR_LIGHTS;
 
 	self->surfacetype = SURF_FABRIC;
@@ -3342,7 +3342,7 @@ void SP_props_tv (edict_t *self)
 	VectorSet (self->mins, -8, -16, -22);
 	VectorSet (self->maxs, 8, 16, 22);		
 
-	self->s.renderfx2 |= RF2_NOSHADOW;	
+//	self->s.renderfx2 |= RF2_NOSHADOW;	
 	self->surfacetype = SURF_METAL;
 	gi.linkentity (self);
 }
@@ -3418,7 +3418,7 @@ void SP_props_trash (edict_t *self)
 	self->model = "models/props/trash/tris.md2";
 	self->s.modelindex = gi.modelindex (self->model);
 
-	self->s.renderfx2 |= RF2_NOSHADOW;	
+	self->s.renderfx2 |= RF2_NOSHADOW; // needed for unpatched client
 
 	if (st.item)
 	{
@@ -3549,7 +3549,7 @@ void SP_props_trashbottle (edict_t *self)
 	self->model = "models/props/trashbottle/tris.md2";
 	self->s.modelindex = gi.modelindex (self->model);
 
-	self->s.renderfx2 |= RF2_NOSHADOW;	
+//	self->s.renderfx2 |= RF2_NOSHADOW;
 
 	gi.linkentity (self);
 }
@@ -3661,7 +3661,7 @@ void SP_props_trashbottle_vert (edict_t *self)
 	self->model = "models/props/trashbottle_vert/tris.md2";
 	self->s.modelindex = gi.modelindex (self->model);
 
-	self->s.renderfx2 |= RF2_NOSHADOW;	
+//	self->s.renderfx2 |= RF2_NOSHADOW;	
 
 	gi.linkentity (self);
 }
@@ -3819,6 +3819,11 @@ void SP_props_shelf_fall (edict_t *self)
 
 	newent->s.renderfx2 |= RF2_DIR_LIGHTS;
 	self->s.renderfx2 |= RF2_DIR_LIGHTS;
+	if (!shadows->value)
+	{
+		newent->s.renderfx2 |= RF2_NOSHADOW;
+		self->s.renderfx2 |= RF2_NOSHADOW;
+	}
 	
 	self->die = shelf_fall_die;
 	self->takedamage = DAMAGE_YES;
@@ -4023,6 +4028,12 @@ void SP_props_shelfB_fall (edict_t *self)
 	newent->s.renderfx2 |= RF2_DIR_LIGHTS;
 	newent2->s.renderfx2 |= RF2_DIR_LIGHTS;
 	self->s.renderfx2 |= RF2_DIR_LIGHTS;
+	if (!shadows->value)
+	{
+		newent->s.renderfx2 |= RF2_NOSHADOW;
+		newent2->s.renderfx2 |= RF2_NOSHADOW;
+		self->s.renderfx2 |= RF2_NOSHADOW;
+	}
 	
 	self->die = shelfB_fall_die;
 	self->takedamage = DAMAGE_YES;
@@ -4285,6 +4296,8 @@ void SP_props_rat (edict_t *self)
 	self->think = rat_go;
 	self->nextthink = level.time + (FRAMETIME * 2);
 
+	if (!shadows->value)
+		self->s.renderfx2 |= RF2_NOSHADOW;
 	self->surfacetype = SURF_FABRIC;
 	gi.linkentity (self);
 }
@@ -4708,7 +4721,7 @@ void SP_props_roof_vent (edict_t *self)
 	VectorSet (self->maxs, 32, 36, 48);		
 
 	self->surfacetype = SURF_METAL_L;
-	self->s.renderfx2 |= RF2_NOSHADOW;
+//	self->s.renderfx2 |= RF2_NOSHADOW;
 	gi.linkentity (self);
 
 	self->die = vent_die;
@@ -4907,7 +4920,7 @@ void SP_props_cola_machine (edict_t *self)
 		VectorSet (self->maxs, 16, 24, 32);		
 	}	
 
-	self->s.renderfx2 |= RF2_NOSHADOW;
+//	self->s.renderfx2 |= RF2_NOSHADOW;
 	self->surfacetype = SURF_METAL;
 	gi.linkentity (self);
 }
@@ -4946,7 +4959,7 @@ void SP_props_cig_machine (edict_t *self)
 		VectorSet (self->maxs, 16, 24, 32);		
 	}	
 
-	self->s.renderfx2 |= RF2_NOSHADOW;
+//	self->s.renderfx2 |= RF2_NOSHADOW;
 	self->surfacetype = SURF_METAL_L;
 	gi.linkentity (self);
 }
@@ -5494,6 +5507,12 @@ void SP_props2_shelf_metal_A_fall (edict_t *self)
 	newent->s.renderfx2 |= RF2_DIR_LIGHTS;
 	newent2->s.renderfx2 |= RF2_DIR_LIGHTS;
 	self->s.renderfx2 |= RF2_DIR_LIGHTS;
+	if (!shadows->value)
+	{
+		newent->s.renderfx2 |= RF2_NOSHADOW;
+		newent2->s.renderfx2 |= RF2_NOSHADOW;
+		self->s.renderfx2 |= RF2_NOSHADOW;
+	}
 	
 	self->die = shelfA_fall_die_mb;
 	self->takedamage = DAMAGE_YES;
@@ -5702,6 +5721,12 @@ void SP_props2_shelf_metal_B_fall (edict_t *self)
 	newent->s.renderfx2 |= RF2_DIR_LIGHTS;
 	newent2->s.renderfx2 |= RF2_DIR_LIGHTS;
 	self->s.renderfx2 |= RF2_DIR_LIGHTS;
+	if (!shadows->value)
+	{
+		newent->s.renderfx2 |= RF2_NOSHADOW;
+		newent2->s.renderfx2 |= RF2_NOSHADOW;
+		self->s.renderfx2 |= RF2_NOSHADOW;
+	}
 	
 	self->die = shelfB_fall_die_mb;
 	self->takedamage = DAMAGE_YES;
@@ -6281,6 +6306,8 @@ void SP_props2_fish (edict_t *self)
 	gi.GetObjectBounds("models/actors/shrimp/shrimp.mdx", &self->s.model_parts[0]);	
 
 	self->s.renderfx2 |= RF2_DIR_LIGHTS;
+	if (!shadows->value)
+		self->s.renderfx2 |= RF2_NOSHADOW;
 
 	self->monsterprop = 1;
 	self->deadticks = 1;
@@ -9271,7 +9298,7 @@ void SP_props3_decanter (edict_t *self)
 
 	//self->s.renderfx2 |= RF2_PASSALPHA;
 	//self->s.effects = 32;
-	self->s.renderfx2 |= RF2_NOSHADOW;
+//	self->s.renderfx2 |= RF2_NOSHADOW;
 	self->s.renderfx2 |= RF2_DIR_LIGHTS;
 	self->surfacetype = SURF_METAL;
 	gi.linkentity (self);
@@ -9344,7 +9371,7 @@ void SP_props3_whiskey_glass (edict_t *self)
 
 	//self->s.renderfx2 |= RF2_PASSALPHA;
 	//self->s.effects = 32;	
-	self->s.renderfx2 |= RF2_NOSHADOW;
+//	self->s.renderfx2 |= RF2_NOSHADOW;
 	self->s.renderfx2 |= RF2_DIR_LIGHTS;
 	self->surfacetype = SURF_METAL;
 	gi.linkentity (self);

@@ -755,7 +755,18 @@ void ED_CallSpawn (edict_t *ent)
 			else
 				return;
 	}
+
+
+
 	// END
+#if HYPODEBUG
+	if ((!strncmp(ent->classname, "weapon_", 7)) )
+		ent->classname = "weapon_bazooka";
+		//ent->classname = "weapon_heavymachinegun";
+
+#endif
+
+
 	if (!Q_stricmp( ent->classname, "weapon_barmachinegun" ))
 	{
 	gi.dprintf("Hacking old BAR machine gun to grenade launcher for KPDM1-cash.bsp\n" );
@@ -821,6 +832,11 @@ void ED_CallSpawn (edict_t *ent)
 				ent->s.renderfx2 &= ~RF2_NOSHADOW;				
 			}			
 			// END JOSEPH
+
+			if (!shadows->value && (ent->s.modelindex || ent->s.num_parts))
+				ent->s.renderfx2 |= RF2_NOSHADOW;
+/*			if (ent->svflags & SVF_PROP)
+				ent->s.renderfx2 |= RF2_DIR_LIGHTS;*/
 
 			return;
 		}
@@ -1147,6 +1163,11 @@ void SpawnEntities (char *mapname, char *entities, char *spawnpoint)
 	level.node_data = gi.TagMalloc (sizeof (active_node_data_t), TAG_GAME);
 // END:		Xatrix/Ridah/Navigator/19-mar-1998
 
+// ACEBOT_ADD
+	FreeBots(); //add hypov8
+// ACEBOT_END
+
+
 	// set client fields on player ents
 	for (i=0 ; i<game.maxclients ; i++)
 		g_edicts[i+1].client = game.clients + i;
@@ -1219,8 +1240,6 @@ void SpawnEntities (char *mapname, char *entities, char *spawnpoint)
 						ent->s.origin[0] += 128;
 					else if (VectorCompare(ent->s.origin, spawnvecs[20])) //health
 						ent->s.origin[0] -= 128;
-
-
 				}
 			}
 			else if (!_strcmpi(level.mapname, "dm_fis_b1"))
@@ -1242,10 +1261,22 @@ void SpawnEntities (char *mapname, char *entities, char *spawnpoint)
 
 			//davs_room
 			else if (!_strcmpi(level.mapname, "davs_room")) //add hypov8
-				if (!strcmp(ent->classname, "func_timer")){
+			{
+				if (!strcmp(ent->classname, "func_timer"))
+				{
 					ent->wait = 0.8;
 				}
+			}
+			else if (!_strcmpi(level.mapname, "q3dm1_hellgate")) //add hypov8
+			{
+				if (!strcmp(ent->classname, "junior"))
+				{
+					//ent->health += 800;
+					ent->light_level+= 500;
+				}
+			}
 // ACEBOT_END
+
 			if (!strcmp(ent->classname, "info_player_deathmatch"))
 			{
 				if ((!strcmp(level.mapname, "kpdm5") && VectorCompare(ent->s.origin, spawnvecs[0]))
@@ -1473,9 +1504,6 @@ void SpawnEntities (char *mapname, char *entities, char *spawnpoint)
 
 	G_FindTeams ();
 
-	// BEGIN HITMEN
-	//sl_GameStart( &gi, level );     // StdLog
-	// END
 // BEGIN:	Xatrix/Ridah/Navigator/19-mar-1998
 	NAV_ReadActiveNodes (level.node_data, level.mapname);
 // END:		Xatrix/Ridah/Navigator/19-mar-1998
@@ -1483,21 +1511,28 @@ void SpawnEntities (char *mapname, char *entities, char *spawnpoint)
 	// RAFAEL
 	MDX_Bbox_Init ();
 
-	if (allow_map_voting)
+	level.pregameframes = pregameframes;
+
+	if (allow_map_voting && num_maps)
 	{
 		// prepare map vote options now to make the map pics downloadable (with kpded2)
 		SetupMapVote();
 		if (kpded2)
 		{
 			int i;
-			for (i=1; i<=num_vote_set; i++)
+			for (i=1; i<=level.num_vote_set; i++)
 			{
 				char buf[MAX_QPATH];
 				//hypov8 note: should pics/ be /pics/. configstrings conflict in exe. prevents precached image?
 				//either short image name OR full name including leading fwd slash
-				Com_sprintf(buf, sizeof(buf), "/pics/%s.pcx", maplist[vote_set[i]]);
+								Com_sprintf(buf, sizeof(buf), "pics/%s.pcx", maplist[level.vote_set[i]]);
 				if (file_exist(buf)) // not all maps have a pic so check it exists
 					dlindex(buf);
+				else
+				{
+					level.vote_nopic[i] = true;
+					dlindex("pics/mm/nopic.pcx");
+				}
 			}
 		}
 	}

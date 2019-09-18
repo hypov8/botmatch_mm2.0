@@ -306,7 +306,7 @@ short ACEND_FindClosestNode(edict_t *self, int range, short type)
 ///////////////////////////////////////////////////////////////////////
 // Set up the goal
 ///////////////////////////////////////////////////////////////////////
-void ACEND_SetGoal(edict_t *self, short goal_node)
+void ACEND_SetGoal(edict_t *self, short goal_node, edict_t *goal_ent)
 {
 	short node;
 
@@ -319,7 +319,7 @@ void ACEND_SetGoal(edict_t *self, short goal_node)
 	if (debug_mode && !debug_mode_origin_ents) //add hypo stop console nag when localnode is on )
 		debug_printf("%s new start node selected %d\n",self->client->pers.netname,node);
 	
-	
+	self->acebot.node_ent = goal_ent;//ahh hypov8 
 	self->acebot.node_current = node;
 	self->acebot.node_next = self->acebot.node_current; // make sure we get to the nearest node first
 	self->acebot.node_timeout = 0;
@@ -332,11 +332,13 @@ void ACEND_SetGoal(edict_t *self, short goal_node)
 ///////////////////////////////////////////////////////////////////////
 qboolean ACEND_FollowPath(edict_t *self)
 {
-	vec3_t v, to;
-	float vLen;
+	vec3_t playerOrg, nextNodeOrig;
+	float vLen, vFlat;
 	int nodeTimeOut = 30;
 	qboolean isPlatTop = false;
 	qboolean isAtNode = false;
+	short nextNodeType = nodes[self->acebot.node_next].type;
+	VectorCopy(nodes[self->acebot.node_next].origin, nextNodeOrig);
 
 #if 1 //def HYPODEBUG //defined in project DEBUG
 	//////////////////////////////////////////
@@ -354,7 +356,7 @@ qboolean ACEND_FollowPath(edict_t *self)
 		return false;
 	//add hypov8 chect if item is still valid
 
-	if (nodes[self->acebot.node_next].type == BOTNODE_GRAPPLE)
+	if (nextNodeType == BOTNODE_GRAPPLE)
 		nodeTimeOut = 90;
 
 	// Try again?
@@ -363,7 +365,7 @@ qboolean ACEND_FollowPath(edict_t *self)
 		if(self->acebot.node_tries++ > 3)
 			return false;
 		else
-			ACEND_SetGoal(self, self->acebot.node_goal);
+			ACEND_SetGoal(self, self->acebot.node_goal, self->acebot.node_ent);
 	}
 		
 	//hypov8 check plate. fix for plate with hand rails
@@ -378,25 +380,31 @@ qboolean ACEND_FollowPath(edict_t *self)
 		}
 	}
 
-	// Are we there yet? //todo: hypov8 check plate. +8? etc
-	VectorCopy(self->s.origin, to);
-	to[2] += 8; //shift up!
+	// Are we there yet? //todo: hypov8 check teleporter
+	VectorCopy(self->s.origin, playerOrg);
+	playerOrg[2] += 8; //shift up!
+	if (nextNodeType == BOTNODE_TELEPORTER)
+		playerOrg[2] += 24; //shift player up more??
 
-	if (nodes[self->acebot.node_next].type == BOTNODE_TELEPORTER 
-	|| nodes[self->acebot.node_next].type == BOTNODE_PLATFORM)
-		to[2] += 24; //shift player up more??
 
-	VectorSubtract(to, nodes[self->acebot.node_next].origin, v);
-	vLen = VectorLength(v);
 
-	if (nodes[self->acebot.node_next].type != BOTNODE_GRAPPLE)
+	if (nextNodeType != BOTNODE_GRAPPLE)
 	{
-		if (vLen < 32)
-			isAtNode = true;
+		vFlat = VectorDistanceFlat(playerOrg, nextNodeOrig);
+		if ((vFlat < 32 && nextNodeType != BOTNODE_TELEPORTER) 
+			||(vFlat < 28 && nextNodeType == BOTNODE_TELEPORTER)) //hypov8 added for BOTNODE_TELEPORTER 28 to fix issue
+		{
+			float height = nextNodeOrig[2]-playerOrg[2];
+			if (height < 16 &&	height > -16)
+				isAtNode = true;
+			else if (height > 128 && nextNodeType != BOTNODE_PLATFORM) //did we fall?
+				return false;
+		}
 	}
 	else // TO.. hook node
 	{
 		float shrink = self->acebot.hookDistLast - self->acebot.hookDistCurrent;
+		vLen = VectorDistance(playerOrg, nextNodeOrig);
 		if (shrink <= 0.0 || vLen < (/*64 +*/ hook_min_length->value))
 		{
 			VectorCopy(vec3_origin, self->velocity);//stop velocity. drop to floor
@@ -414,8 +422,9 @@ qboolean ACEND_FollowPath(edict_t *self)
 		{
 			if (debug_mode && !debug_mode_origin_ents) //add hypo stop console nag when localnode is on 
 				debug_printf("%s reached goal!\n", self->client->pers.netname);
-			if (self->acebot.isChasingEnemy){
-				if (!ACEAI_PickShortRangeGoal_Player(self))
+			if (self->acebot.isChasingEnemy)
+			{
+				if (!ACEAI_PickShortRangeGoal_Player(self, true))
 					ACEAI_Reset_Goal_Node(self, 1.0, "Looking for Enemy Failed");
 			}
 			else
@@ -431,26 +440,16 @@ qboolean ACEND_FollowPath(edict_t *self)
 	if (self->acebot.node_current == INVALID || self->acebot.node_next == INVALID)
 		return false;
 
-	// Set bot's movement vector
-	{
-		vec3_t lookTarget;
-		//hypov8 bring bots aim down to match original node height
-		VectorCopy(nodes[self->acebot.node_next].origin, lookTarget);
-		lookTarget[2] -= BOTNODE_SHIFT;
+	//hypov8 bring bots aim down to match original node height
+	VectorCopy(nodes[self->acebot.node_next].origin, nextNodeOrig);
+	if (nextNodeType == BOTNODE_TELEPORTER)
+		nextNodeOrig[2] -= BOTNODE_TELEPORTER_32;
+	else
+		nextNodeOrig[2] -= BOTNODE_SHIFT;
 
-#if 0
-		switch (nodes[self->acebot.node_next].type)
-		{
-			case BOTNODE_MOVE:			lookTarget[2] -= BOTNODE_MOVE_8;		break;
-			case BOTNODE_ITEM:			lookTarget[2] -= BOTNODE_ITEM_16;		break;
-			case BOTNODE_TELEPORTER:	lookTarget[2] -= BOTNODE_TELEPORTER_32;	break;
-			case BOTNODE_PLATFORM:		lookTarget[2] -= BOTNODE_PLATFORM_32;	break;
-			case BOTNODE_JUMP:			lookTarget[2] -= BOTNODE_JUMP_8;		break; //hypov8 todo: was 32 ok?
-			case BOTNODE_WATER:			lookTarget[2] -= BOTNODE_WATER_8;		break;
-		}
-#endif
-		VectorSubtract(lookTarget, self->s.origin, self->acebot.move_vector);
-	}
+	// Set bot's movement vector
+	VectorSubtract(nextNodeOrig, self->s.origin, self->acebot.move_vector);
+
 	return true;
 }
 
@@ -459,23 +458,17 @@ qboolean ACEND_FollowPath(edict_t *self)
 // MAPPING CODE
 ///////////////////////////////////////////////////////////////////////
 
-//first player only
-static qboolean ACEND_PathMapIsFirstPlayer(edict_t *self)
-{
-	edict_t *dood;
-	int i;
-	for_each_player_not_bot(dood, i)
-	{
-		if (dood->inuse	&& !dood->acebot.is_bot	&& self->solid
-			&& dood->client	&& dood->client->pers.spectator == PLAYING
-			&& self->movetype == MOVETYPE_WALK)
-		{
-			if (self == dood)
-				return true;
 
-			break; //only use player#1
-		}
-	}
+//first player only
+qboolean ACEND_PathMapValidPlayer(edict_t *self)
+{
+	if (self->inuse
+		&& self->solid
+		&& self->client	
+		&& self->client->pers.spectator == PLAYING
+		&& self->movetype == MOVETYPE_WALK)
+		return true;
+
 	return false;
 }
 
@@ -528,7 +521,7 @@ void ACEND_HookActivate(edict_t *self)
 	if (self->acebot.is_bot)
 		return;
 
-	if (!sv_botpath->value || !ACEND_PathMapIsFirstPlayer(self))
+	if (!sv_botpath->value || !self->acebot.PM_firstPlayer /*ACEND_PathMapIsFirstPlayer(player)*/)
 		return;
 
 	if (self->groundentity)
@@ -553,7 +546,7 @@ void ACEND_HookDeActivate(edict_t *self)
 	if (self->acebot.is_bot)
 		return;
 
-	if (self->groundentity || !sv_botpath->value || !ACEND_PathMapIsFirstPlayer(self))
+	if (self->groundentity || !sv_botpath->value || !self->acebot.PM_firstPlayer /*ACEND_PathMapIsFirstPlayer(player)*/)
 	{
 		self->acebot.pm_hookActive = 0;
 		self->acebot.pm_last_node = INVALID;
@@ -671,16 +664,17 @@ static qboolean ACEND_PM_CheckForLadder(edict_t *self)
 // This routine is called to hook in the pathing code and sets
 // the current node if valid.
 ///////////////////////////////////////////////////////////////////////
-void ACEND_PathMap(edict_t *self)
+void ACEND_PathMap(edict_t *self, qboolean check_jump)
 {
 	short closest_node;
 	vec3_t v;
+	static int frameNum;
 
 	if (!sv_botpath->value)
 		return;
 	if (self->acebot.is_bot)
 		return;
-	if (!ACEND_PathMapIsFirstPlayer(self)) //add hypov8 only rout on 1 player.
+	if (!self->acebot.PM_firstPlayer)
 		return;
 	if (!(level.modeset == PUBLIC||level.modeset == MATCH))	
 		return;
@@ -709,22 +703,26 @@ void ACEND_PathMap(edict_t *self)
 		}
 	}
 	//catch quick jumps. touching ground
-	if (self->acebot.pm_playerJumpTime >= level.framenum && level.time < level.bot_lastUdate && self->groundentity)
-		level.bot_lastUdate = 0; //hypov8 run checks
+	if (check_jump)
+	{
+		if (self->acebot.pm_playerJumpTime >= level.framenum && self->groundentity)
+			self->acebot.pm_playerJumpTime = 0; //route to land node
+		else
+			return;
+	}
 
 
 	if (   self->deadflag
 		|| self->client->pers.spectator
 		|| self->solid == SOLID_NOT
-		|| !sv_botpath->value
 		|| self->movetype != MOVETYPE_WALK //noclip
 		|| stopNodeUpdate)//hypov8 acebot spectator??
-		return;	
-
-	if (level.time < level.bot_lastUdate)
 		return;
 
-	level.bot_lastUdate = level.time + 0.10; // slow down updates a bit
+	//if (level.time < level.bot_lastUdate)
+		//return;
+
+	//level.bot_lastUdate = level.time + 0.10; // slow down updates a bit
 
 	// Special node drawing code for debugging
 	if (show_path_to != -1)
@@ -1087,6 +1085,7 @@ short ACEND_AddNode(edict_t *self, short type)
 		{
 			VectorCopy(dest->s.origin, nodes[numnodes].origin);
 			nodes[numnodes].type = BOTNODE_MOVE;
+			ACEND_ShowNode(numnodes, 0);
 			numnodes++;
 			ACEND_UpdateNodeEdge(numnodes, numnodes - (short)1, true, false, false, false);
 		}
@@ -1098,7 +1097,7 @@ short ACEND_AddNode(edict_t *self, short type)
 
 		if (debug_mode)		{
 			debug_printf("Node added %d type: Teleporter Dest\n", numnodes - 1);
-			ACEND_ShowNode(numnodes - (short)1, 0);
+			ACEND_ShowNode(numnodes, 0);
 		}
 	}
 
@@ -1120,7 +1119,7 @@ short ACEND_AddNode(edict_t *self, short type)
 		if(debug_mode)
 		{
 			debug_printf("Node added %d type: Ladder\n",numnodes-1);
-			ACEND_ShowNode(numnodes - (short)1, 0);
+			ACEND_ShowNode(numnodes, 0);
 		}
 
 		numnodes++;
@@ -1178,7 +1177,7 @@ short ACEND_AddNode(edict_t *self, short type)
 		else if(nodes[numnodes].type == BOTNODE_GRAPPLE)
 			debug_printf("Node added %d type: Grapple\n",numnodes);
 
-		ACEND_ShowNode(numnodes - (short)1, 0);
+		ACEND_ShowNode(numnodes , 0);
 	}
 
 	numnodes++;
@@ -1193,6 +1192,7 @@ short ACEND_AddNode(edict_t *self, short type)
 void ACEND_UpdateNodeEdge(short from, short to, qboolean stopJumpNodes, qboolean stopTeleNodes, qboolean checkSight, qboolean isTrigPush)
 {
 	short i;
+	float dist;
 
 	if (stopNodeUpdate)	// map final	
 		return;
@@ -1206,6 +1206,13 @@ void ACEND_UpdateNodeEdge(short from, short to, qboolean stopJumpNodes, qboolean
 		return;
 	if (nodes[from].type == BOTNODE_LADDER && nodes[from].origin[2] > nodes[to].origin[2] + 32) //add hypov8 dont allow down on ladders
 		return;
+	if (nodes[from].type == BOTNODE_MOVE)
+	{
+		dist = VectorDistanceFlat(nodes[from].origin, nodes[to].origin);
+		if (dist > BOTNODE_DENSITY_DBL)
+			return;
+	}
+
 
 #if 1
 	///////////////////
@@ -1272,12 +1279,13 @@ void ACEND_UpdateNodeEdge(short from, short to, qboolean stopJumpNodes, qboolean
 	}
 #endif
 
+#if 0
 	if (debug_mode)
 	{
 		if (!(path_table[from][to] == to)) //hypov8 dont write created link if it existed
 			debug_printf(" *CREATED* Link %d -> %d *was-> %d\n", from, to, path_table[from][to]);
 	}
-
+#endif
 	// Add the link
 	path_table[from][to] = to;
 
@@ -1315,34 +1323,32 @@ void ACEND_RemoveNodeEdge(edict_t *self, short from, short to)
 
 ///////////////////////////////////////////////////////////////////////
 // Remove a node edge
-// hypov8 "sv clearnode #"
+// hypov8 "clearnode #"
 ///////////////////////////////////////////////////////////////////////
 void ACEND_RemovePaths(edict_t *self, short from)
 {
 	short i, j;
 
-
-
-	char *value = (gi.argv(1));
-	//atoi(gi.argv(1))
-
-	if (!value)
+	if (!from)
 		return;
-	
 	if (stopNodeUpdate)
 		return;
-	return; //hypov8 causing issues
+
+	//return; //hypov8 causing issues
 
 	if(debug_mode) 
 		debug_printf("%s: Removing paths %d\n", self->client->pers.netname, from);
 		
 	//path_table[from][to] = INVALID; // set to invalid			
 
-	// Make sure this gets updated in our path array
-	for (i = NODE0; i<numnodes; i++)
-		for (j = NODE0; j<numnodes; j++)
-			if (path_table[i][j] == from)
+	for (i = NODE0; i < numnodes; i++)
+	{
+		for (j = NODE0; j < numnodes; j++)
+		{
+			if (path_table[i][j] == from || i == from || j == from)
 				path_table[i][j] = INVALID;
+		}
+	}
 }
 
 
@@ -1569,14 +1575,14 @@ void ACEND_LoadNodes(void)
 }
 
 // hypov8
-// force link to bad teleportern.. inside brushes
+// force link to bad teleporter.. inside brushes
 void ACEND_PathToTeleporter(edict_t *player)
 {
 	short closest_node;
 	if (player->acebot.is_bot) //add hypov8 only rout on 1st player
 		return;
 
-	if (sv_botpath->value && ACEND_PathMapIsFirstPlayer(player)){
+	if (sv_botpath->value && player->acebot.PM_firstPlayer){
 
 		closest_node = ACEND_FindClosestNode(player, BOTNODE_DENSITY, BOTNODE_TELEPORTER);
 		ACEND_UpdateNodeEdge(player->acebot.pm_last_node, closest_node, true, true, false, false);
@@ -1593,7 +1599,7 @@ void ACEND_PathToTeleporterDest(edict_t *player)
 	if (player->acebot.is_bot) //add hypov8 only rout on 1st player
 		return;
 
-	if (sv_botpath->value && ACEND_PathMapIsFirstPlayer(player)){
+	if (sv_botpath->value && player->acebot.PM_firstPlayer){
 
 		closest_node = ACEND_FindClosestNode(player, BOTNODE_DENSITY, BOTNODE_ALL);
 		ACEND_UpdateNodeEdge(player->acebot.pm_last_node, closest_node, true, false, false, false);
@@ -1609,7 +1615,7 @@ void ACEND_PathToTrigPush(edict_t *player)
 	if (player->acebot.is_bot) //add hypov8 only rout on 1st player
 		return;
 
-	if (sv_botpath->value && ACEND_PathMapIsFirstPlayer(player))
+	if (sv_botpath->value && player->acebot.PM_firstPlayer)
 	{
 		short closest_node = ACEND_FindClosestNode(player, BOTNODE_DENSITY, BOTNODE_JUMP);
 		ACEND_UpdateNodeEdge(player->acebot.pm_last_node, closest_node, false, true, true, true);
@@ -1625,7 +1631,7 @@ void ACEND_PathToTrigPushDest(edict_t *player)
 	if (player->acebot.is_bot) //add hypov8 only rout on 1st player
 		return;
 
-	if (sv_botpath->value && ACEND_PathMapIsFirstPlayer(player))
+	if (sv_botpath->value && player->acebot.PM_firstPlayer)
 	{
 		short closest_node;
 		closest_node = ACEND_FindClosestNode(player, BOTNODE_DENSITY, BOTNODE_JUMP);

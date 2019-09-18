@@ -179,7 +179,7 @@ void BeginIntermission (edict_t *targ)
 	//ToDo: acebot player intermision
 // ACEBOT_END
 	// respawn any dead clients
-	for (i=0 ; i<maxclients->value ; i++)
+	for (i=0 ; i<(int)maxclients->value ; i++)
 	{
 		client = g_edicts + 1 + i;
 		if (!client->inuse)
@@ -195,7 +195,7 @@ void BeginIntermission (edict_t *targ)
 	if (strstr(level.changemap, "*"))
 	{
 		{
-			for (i=0 ; i<maxclients->value ; i++)
+			for (i=0 ; i<(int)maxclients->value ; i++)
 			{
 				client = g_edicts + 1 + i;
 				if (!client->inuse)
@@ -240,7 +240,7 @@ void BeginIntermission (edict_t *targ)
 	VectorCopy (ent->s.angles, level.intermission_angle);
 
 	// move all clients to the intermission point
-	for (i=0 ; i<maxclients->value ; i++)
+	for (i=0 ; i<(int)maxclients->value ; i++)
 	{
 		client = g_edicts + 1 + i;
 		if (!client->inuse)
@@ -300,7 +300,7 @@ void SpectatorScoreboardMessage (edict_t *ent)
 	strcpy (string + stringlength, entry);
 	stringlength += j;
 
-	for (k=i=0 ; i<maxclients->value ; i++)
+	for (k=i=0 ; i<(int)maxclients->value ; i++)
 	{
 		player = g_edicts + 1 + i;
 		if (!player->inuse || player->client->pers.spectator != SPECTATING)
@@ -343,7 +343,7 @@ void SpectatorScoreboardMessage (edict_t *ent)
 	if (k)
 		k++;
 
-	for (i=0 ; i<maxclients->value ; i++)
+	for (i=0 ; i<(int)maxclients->value ; i++)
 	{
 		player = g_edicts + 1 + i;
 		if (player->inuse || !player->client || !player->client->pers.connected || !(kpded2 || curtime - player->client->pers.lastpacket < 120000))
@@ -395,10 +395,9 @@ void SpectatorScoreboardMessage (edict_t *ent)
 void VoteMapScoreboardMessage (edict_t *ent)
 {
 	char	entry[1024];
-	char	temp[32];
 	char	string[1400];
 	int		stringlength;
-	int		i, j;
+	int		i, j, w;
 	int		yofs;
 	int		count[9];
 	edict_t *player;
@@ -424,74 +423,139 @@ void VoteMapScoreboardMessage (edict_t *ent)
 
 	string[0] = 0;
 	stringlength = 0;
-	yofs = 0;
+	yofs = -60-49;
+	if (ent->client->pers.screenwidth >= 1152)
+		yofs -= 40;
+
+	Com_sprintf (entry, sizeof(entry),"xm %i ", -5*41);
+	j = strlen(entry);
+	strcpy (string + stringlength, entry);
+	stringlength += j;
 
 	for (i=0; selectheader[i]; i++)
 	{
-		Com_sprintf (entry, sizeof(entry),"xm %i yv %i dmstr 863 \"%s\" ",
-			-5*41, yofs + -60-49, selectheader[i] );
+		Com_sprintf (entry, sizeof(entry),"yv %i dmstr 863 \"%s\" ",
+			yofs, selectheader[i] );
 		j = strlen(entry);
 		strcpy (string + stringlength, entry);
 		stringlength += j;
 		yofs += 20;
 	}
-	yofs += 10;
 
 	memset (&count, 0, sizeof(count));
 	for_each_player_not_bot(player, i)// ACEBOT_ADD
 	{
 		count[player->client->mapvote]++;
 	}
-	if (ent->client->mapvote == 0)
-		Com_sprintf (entry, sizeof(entry), "xm %i yv %i dmstr 999 \"-->      %d players have not voted\" ",
-				-5*40, yofs + -60-49, count[0]);
-	else
-		Com_sprintf (entry, sizeof(entry), "xm %i yv %i dmstr 777 \"         %d players have not voted\" ",
-				-5*40, yofs + -60-49, count[0]);
+
+	// if the screen is wide enough, show all map pics
+	if (ent->client->pers.screenwidth >= 1152)
+	{
+		yofs += 30;
+
+		w = (ent->client->pers.screenwidth - 200) / 4;
+		if (w > 270)
+			w = 270;
+
+		for (i=0; i < 8; i++)
+		{
+			int n = (i & 1 ? 5 : 1) + i / 2;
+			if (n > level.num_vote_set)
+				continue;
+			if (!(i & 1))
+			{
+				Com_sprintf (entry, sizeof(entry), "xm %i ", ((i / 2) - 2) * w + (w - 192) / 2);
+				j = strlen(entry);
+				strcpy (string + stringlength, entry);
+				stringlength += j;
+			}
+			if (level.vote_winner && n != level.vote_winner)
+			{
+				char *col = (ent->client->mapvote == n ? "770" : "777");
+				if (count[n])
+					Com_sprintf (entry, sizeof(entry), "yv %i dmstr %s \"%d. %s\" yv %i dmstr %s \"%d %s\" ",
+						yofs + (i & 1 ? 190 : 0), col, n, maplist[level.vote_set[n]],
+						yofs + (i & 1 ? 190 : 0) + 19, col, count[n], count[n] == 1 ? "vote" : "votes");
+				else
+					Com_sprintf (entry, sizeof(entry), "yv %i dmstr %s \"%d. %s\" ",
+						yofs + (i & 1 ? 190 : 0), col, n, maplist[level.vote_set[n]]);
+			}
+			else
+			{
+				char *col = (ent->client->mapvote == n ? "990" : "999");
+				if (count[n])
+					Com_sprintf (entry, sizeof(entry), "yv %i dmstr %s \"%d. %s\" yv %i dmstr %s \"%d %s\" yv %i picn %s ",
+						yofs + (i & 1 ? 190 : 0), col, n, maplist[level.vote_set[n]],
+						yofs + (i & 1 ? 190 : 0) + 19, col, count[n], count[n] == 1 ? "vote" : "votes",
+						yofs + (i & 1 ? 190 : 0) + 39, level.vote_nopic[n] ? "mm/nopic" : maplist[level.vote_set[n]]);
+				else
+					Com_sprintf (entry, sizeof(entry), "yv %i dmstr %s \"%d. %s\" yv %i picn %s ",
+						yofs + (i & 1 ? 190 : 0), col, n, maplist[level.vote_set[n]],
+						yofs + (i & 1 ? 190 : 0) + 39, level.vote_nopic[n] ? "mm/nopic" : maplist[level.vote_set[n]]);
+			}
+			j = strlen(entry);
+			strcpy (string + stringlength, entry);
+			stringlength += j;
+		}
+
+		if (count[0])
+		{
+			if (ent->client->mapvote)
+				Com_sprintf (entry, sizeof(entry), "xm %i yv %i dmstr 777 \"%d players have not voted\" ",
+						-5*24, yofs + 380, count[0]);
+			else
+				Com_sprintf (entry, sizeof(entry), "xm %i yv %i dmstr 990 \"You have not voted\" ",
+						-5*18, yofs + 380);
 	j = strlen(entry);
 	if (stringlength + j < 1024)
 	{
 		strcpy (string + stringlength, entry);
 		stringlength += j;
 	}
-	yofs += 30;
-
-	if (num_vote_set > 8) //hypo not needed but just incase :)
-		num_vote_set = 8;
-
-	for (i=1; i <= num_vote_set; i++)
+		}
+	}
+	else
 	{
-		if (count[i] == 1)
-			strcpy (temp, "1 Vote  -");
+		yofs += 10;
+
+		if (ent->client->mapvote == 0)
+			Com_sprintf (entry, sizeof(entry), "yv %i dmstr %s \"-->      %d players have not voted\" ",
+					yofs, level.vote_winner ? "770" : "990", count[0]);
+		else if (count[0])
+			Com_sprintf (entry, sizeof(entry), "yv %i dmstr 777 \"         %d players have not voted\" ",
+					yofs, count[0]);
 		else
-			Com_sprintf (temp, sizeof(temp), "%d Votes -",count[i]);
-		if (ent->client->mapvote == i)
-			Com_sprintf (entry, sizeof(entry), "yv %i dmstr 999 \"--> %s %s %s\" ",
-					yofs + -60-49, basechoice[i-1],temp,maplist[vote_set[i]]);
-		else
-			Com_sprintf (entry, sizeof(entry), "yv %i dmstr 777 \"    %s %s %s\" ",
-					yofs + -60-49, basechoice[i-1],temp,maplist[vote_set[i]]);
-		j = strlen(entry);
-		if (stringlength + j < 1024)
+			entry[0] = 0;
+		if (entry[0])
 		{
+			j = strlen(entry);
 			strcpy (string + stringlength, entry);
 			stringlength += j;
 		}
-		yofs += 20;
-	}
+	yofs += 30;
 
-	//if client has voted for a map, print this maps levelshot
-	if (ent->client->mapvote > 0)
-	{
-		yofs += 15;
-		//print the pcx levelshot on screen
-		//name of pcx must be same as bsp -- pcx files must be in pics dir
-		Com_sprintf (entry, sizeof(entry),
-			"xm %i yv %i picn %s ",
-			-5*20, yofs + -60-49, maplist[vote_set[ent->client->mapvote]]);
-		j = strlen(entry);
-		if (stringlength + j < 1024)
+
+		for (i=1; i <= level.num_vote_set; i++)
 		{
+			if (ent->client->mapvote == i)
+				Com_sprintf (entry, sizeof(entry), "yv %i dmstr %s \"--> %s %d %s - %s\" ",
+					yofs, level.vote_winner && i != level.vote_winner ? "770" : "990", basechoice[i-1], count[i], count[i] == 1 ? "vote " : "votes", maplist[level.vote_set[i]]);
+			else
+				Com_sprintf (entry, sizeof(entry), "yv %i dmstr %s \"    %s %d %s - %s\" ",
+					yofs, level.vote_winner && i != level.vote_winner ? "777" : "999", basechoice[i-1], count[i], count[i] == 1 ? "vote " : "votes", maplist[level.vote_set[i]]);
+			j = strlen(entry);
+			strcpy (string + stringlength, entry);
+			stringlength += j;
+			yofs += 20;
+		}
+
+		if (ent->client->mapvote > 0 && !level.vote_nopic[ent->client->mapvote])
+		{
+			yofs += 15;
+			Com_sprintf (entry, sizeof(entry),
+				"xm %i yv %i picn %s ",
+				-5*20, yofs, maplist[level.vote_set[ent->client->mapvote]]);
+			j = strlen(entry);
 			strcpy (string + stringlength, entry);
 			stringlength += j;
 		}
@@ -695,10 +759,6 @@ static void BotScoreboardRemove(edict_t *ent) //SCORE_BOT_REMOVE
 
 	//reset
 	memset(VoteBotRemoveName, 0, sizeof(VoteBotRemoveName));
-	//for (i = 0; i < 8; i++)
-//	{
-	//	strcpy(VoteBotRemoveName[i], "\0");
-	//}
 
 	outCount = 0;
 	for_each_player_inc_bot(bot, i)
@@ -899,7 +959,7 @@ void MOTDScoreboardMessage (edict_t *ent)
 		{
 			Com_sprintf (entry, sizeof(entry),
 				"xm %i yv %i dmstr 953 \"%s\" ",
-				-5*strlen(MOTD[i].textline), yofs + -60-49, MOTD[i].textline );
+				-5*strlen(MOTD[i]), yofs + -60-49, MOTD[i] );
 			j = strlen(entry);
 			if (stringlength + j < 1024)
 			{
@@ -1395,10 +1455,11 @@ void DeathmatchScoreboardMessage (edict_t *ent)
 		cl_ent = g_edicts + 1 + i;
 		if (!cl_ent->inuse || (cl_ent->client->pers.spectator == SPECTATING && !level.intermissiontime))
 			continue;
-
+#if 0
 		if (fph_scoreboard)
 			score = game.clients[i].resp.time ? game.clients[i].resp.score * 36000 / game.clients[i].resp.time : 0;
 		else
+#endif
 			score = (game.clients[i].resp.score<<8) - game.clients[i].resp.deposited;
 
 		for (j=0 ; j<total ; j++)
@@ -1442,11 +1503,13 @@ void DeathmatchScoreboardMessage (edict_t *ent)
 	// header
 	if (ent->client->showscores == SCOREBOARD)
 	{
+#if 0
 		if (fph_scoreboard)
 			Com_sprintf (entry, sizeof(entry),
 				"xr %i yv %i dmstr 663 \"NAME         ping hits   fph\" ",
 				-36*10 - 10, -60+-21 );
 		else
+#endif
 			Com_sprintf (entry, sizeof(entry),
 				"xr %i yv %i dmstr 663 \"NAME         ping time  hits\" ",
 				-36*10 - 10, -60+-21 );
@@ -1482,11 +1545,13 @@ void DeathmatchScoreboardMessage (edict_t *ent)
 
 		if (ent->client->showscores == SCOREBOARD)
 		{
+#if 0
 			if (fph_scoreboard)
 				Com_sprintf (entry, sizeof(entry),
 					"yv %i ds %s %i %i %i %i ",
 					-60+i*17, tag, sorted[i], cl->ping, cl->resp.score, cl->resp.time ? cl->resp.score * 36000 / cl->resp.time : 0);
 			else
+#endif
 				Com_sprintf (entry, sizeof(entry),
 					"yv %i ds %s %i %i %i %i ",
 					-60+i*17, tag, sorted[i], cl->ping, cl->resp.time/600, cl->resp.score );
@@ -1540,7 +1605,7 @@ void DeathmatchScoreboardMessage (edict_t *ent)
 
 	if (level.modeset == ENDGAMEVOTE)
 	{
-		static const char *votenote = "xm -230 yb -40 dmstr 552 \"[Hit your scoreboard key (f1) for the vote menu]\" ";
+		static const char *votenote = "xm -230 yb -40 dmstr 552 \"hit your scoreboard key (f1) for the vote menu\" ";
 		j = strlen(votenote);
 		if (stringlength + j < 1024)
 		{
@@ -1678,7 +1743,7 @@ skipscoreboard2:
 		ent->client->showscores = NO_SCOREBOARD;
 		if (teamplay->value || !level.intermissiontime)
 		{
-			for (i=0 ; i<maxclients->value ; i++)
+			for (i=0 ; i<(int)maxclients->value ; i++)
 			{
 				dood = g_edicts + 1 + i;
 				if (dood->client && ((dood->inuse && dood->client->pers.spectator == SPECTATING) || (!dood->inuse && dood->client->pers.connected && (kpded2 || curtime - dood->client->pers.lastpacket < 120000))))
@@ -1754,11 +1819,8 @@ void G_SetStats (edict_t *ent)
 		memcpy( ent->client->ps.stats, ent->client->chase_target->client->ps.stats, sizeof( ent->client->ps.stats ) );
 		ent->client->ps.stats[STAT_LAYOUTS] = true;
 
-		// keep own score //hypov8 this should be chase score!!!
-		ent->client->ps.stats[STAT_FRAGS] = ent->client->chase_target->client->resp.score;
-		//ent->client->ps.stats[STAT_FRAGS] = ent->client->resp.score;
-
-
+		// keep own score for server browsers
+		ent->client->ps.stats[STAT_FRAGS] = ent->client->resp.score;
 		ent->client->ps.stats[STAT_DEPOSITED] = ent->client->resp.deposited;
 
 		return;
@@ -1980,10 +2042,10 @@ void G_SetStats (edict_t *ent)
 // Papa - Here is the Timer for the hud
 		int framenum = level.framenum - level.startframe;
 		if (level.modeset == PREGAME)
-			ent->client->ps.stats[STAT_TIMER] = ((PRE_MATCH_TIME + 9 - framenum) / 10); //359
+			ent->client->ps.stats[STAT_TIMER] = ((level.pregameframes + 9 - framenum) / 10);
 
 		else if (level.modeset == MATCHCOUNT)
-			ent->client->ps.stats[STAT_TIMER] =	((PRE_MATCH_TIME +9 - framenum) / 10); //159 //PRE_MATCH_TIME_BM
+			ent->client->ps.stats[STAT_TIMER] =	((159 - framenum) / 10);
 
 		else if (level.modeset == ENDGAME)
 			ent->client->ps.stats[STAT_TIMER] =	((209 - framenum) / 10);
@@ -1992,10 +2054,12 @@ void G_SetStats (edict_t *ent)
 			ent->client->ps.stats[STAT_TIMER] =	((309 - framenum) / 10);
 
 		else if ((level.modeset == MATCH) || (level.modeset == PUBLIC) && (int)timelimit->value)
+		{
 			if (framenum > (((int)timelimit->value  * 600) - 600))  
 				ent->client->ps.stats[STAT_TIMER] = ((((int)timelimit->value * 600) + 9 - framenum) / 10);
 			else
 				ent->client->ps.stats[STAT_TIMER] = ((((int)timelimit->value * 600) - framenum) / 600);
+		}
 		else 
 			ent->client->ps.stats[STAT_TIMER] = 0;
 
@@ -2023,21 +2087,13 @@ void G_SetStats (edict_t *ent)
 	// layouts
 	//
 	ent->client->ps.stats[STAT_LAYOUTS] = (ent->client->pers.spectator == SPECTATING);
-
-#if 0
-	if (ent->client->pers.health <= 0 || level.intermissiontime
-		|| ent->client->showscores)
-		ent->client->ps.stats[STAT_LAYOUTS] |= 1;
-	if (ent->client->showinventory && ent->client->pers.health > 0)
-		ent->client->ps.stats[STAT_LAYOUTS] |= 2;
-#else //MH Score
 	if (ent->client->showscores || ent->deadflag)
 		ent->client->ps.stats[STAT_LAYOUTS] = 1;
 	else if (ent->client->showinventory && ent->solid != SOLID_NOT)
 		ent->client->ps.stats[STAT_LAYOUTS] = 2;
 	else if (ent->client->message_frame > level.framenum)
 		ent->client->ps.stats[STAT_LAYOUTS] = 1;
-#endif
+
 // ACEBOT_ADD
 	if (ent->acebot.is_bot)
 	ent->client->ps.stats[STAT_LAYOUTS] = 0;
@@ -2192,7 +2248,7 @@ void PrintScoreMatchEnd(void)
 	gi.dprintf("sv_botskill      : %s\n", sv_botskill->string);
 	gi.dprintf("num score ping deaths acc fav   name           address               ver \n");
 	gi.dprintf("--- ----- ---- ------ ---- ----- -------------- --------------------- ----\n");
-	for (i = 1; i <= maxclients->value; i++)
+	for (i = 1; i <= (int)maxclients->value; i++)
 	{
 		if (g_edicts[i].inuse && g_edicts[i].client)
 		{

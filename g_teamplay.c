@@ -145,6 +145,7 @@ void cashspawn_think( edict_t *self )
 	// randomize the velocity a bit
 	VectorAdd( cash->velocity, tv( crandom()*self->speed*0.3, crandom()*self->speed*0.3, crandom()*self->speed*0.15 ), cash->velocity );
 
+	if (!shadows->value)
 	cash->s.renderfx2 |= RF2_NOSHADOW;
 
 	// FIXME: doh this doesn't work, need to spawn actual item's, so the HUD is updated automatically when picking up
@@ -374,7 +375,7 @@ void safebag_think(edict_t *self)
 	#define	MAX_TIMEATSAFE		8.0
 
 	// first, check if we have any unwanted enemies around, if so, don't count
-	for (i=0; i<maxclients->value; i++)
+	for (i=0; i<(int)maxclients->value; i++)
 	{
 		trav = &g_edicts[i+1];
 
@@ -397,7 +398,7 @@ void safebag_think(edict_t *self)
 		break;
 	}
 
-	for (i=0; i<maxclients->value; i++)
+	for (i=0; i<(int)maxclients->value; i++)
 	{
 		trav = &g_edicts[i+1];
 
@@ -652,6 +653,11 @@ qboolean Teamplay_ValidateJoinTeam( edict_t *self, int teamindex )
 	if ((level.modeset != MATCHSPAWN) && (level.modeset != PUBLICSPAWN))
 	{
 		safe_bprintf(PRINT_HIGH, "%s joined %s\n", self->client->pers.netname, team_names[teamindex]);
+		if (level.modeset == PREGAME || level.modeset == MATCHSETUP)
+		{
+			self->client->showscores = SCOREBOARD; //hypov8 bot?
+			self->client->resp.scoreboard_frame = 0;
+		}
 	}
 
 	if ((level.modeset == PUBLIC) || (level.modeset == MATCH) || (level.modeset == MATCHSPAWN) || (level.modeset == PUBLICSPAWN))
@@ -688,7 +694,7 @@ void Teamplay_AutoJoinTeam( edict_t *self )
 	team_count[0] = 0;
 	team_count[1] = 0;
 
-	for (i=1; i<=maxclients->value; i++) //HYPOV8_ADD <=
+	for (i=1; i<=(int)maxclients->value; i++) //HYPOV8_ADD <=
 	{
 		if (g_edicts[i].client && g_edicts[i].client->pers.team && g_edicts[i].inuse) //add hypov8 check for players that have left
 			team_count[g_edicts[i].client->pers.team - 1]++;

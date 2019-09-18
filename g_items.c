@@ -576,7 +576,7 @@ void Drop_Ammo (edict_t *ent, gitem_t *item)
 		item->tag == AMMO_GRENADES &&
 		ent->client->pers.inventory[index] - dropped->count <= 0)
 	{
-		cprintf (ent, PRINT_HIGH, "Can't drop current weapon\n");
+		safe_cprintf (ent, PRINT_HIGH, "Can't drop current weapon\n");
 		G_FreeEdict(dropped);
 		return;
 	}
@@ -593,7 +593,7 @@ qboolean Pickup_Cash (edict_t *ent, edict_t *other)
 	int initial_cash = other->client->pers.currentcash + other->client->pers.bagcash;
 
 	if (!ent->currentcash)
-		cprintf (other, PRINT_HIGH, "Counterfeit money! 0 dollars found\n", ent->currentcash);
+		safe_cprintf (other, PRINT_HIGH, "Counterfeit money! 0 dollars found\n", ent->currentcash);
 
 	if (ent->currentcash > 0)
 	{
@@ -602,7 +602,7 @@ qboolean Pickup_Cash (edict_t *ent, edict_t *other)
 		if (other->client->pers.currentcash > MAX_CASH_PLAYER)
 		{
 			edict_t *cash;
-			cash = SpawnTheWeapon( other, "item_cashroll" );
+			cash = Drop_Item(other, FindItemByClassname("item_cashroll"));
 			cash->currentcash = (other->client->pers.currentcash - MAX_CASH_PLAYER);
 			other->client->pers.currentcash = MAX_CASH_PLAYER;
 		}
@@ -617,9 +617,9 @@ qboolean Pickup_Cash (edict_t *ent, edict_t *other)
 		{
 			edict_t *cash;
 			if ((other->client->pers.bagcash - MAX_BAGCASH_PLAYER) > 100)
-				cash = SpawnTheWeapon( other, "item_cashbaglarge" );
+				cash = Drop_Item(other, FindItemByClassname("item_cashbaglarge"));
 			else
-				cash = SpawnTheWeapon( other, "item_cashbagsmall" );
+				cash = Drop_Item(other, FindItemByClassname("item_cashbagsmall"));
 			cash->currentcash = -(other->client->pers.bagcash - MAX_BAGCASH_PLAYER);
 			other->client->pers.bagcash = MAX_BAGCASH_PLAYER;
 		}
@@ -659,23 +659,25 @@ qboolean Pickup_Pistol_Mods (edict_t *ent, edict_t *other)
 
 	if (ent->count == 1)
 	{
+		if (other->client->pers.pistol_mods & WEAPON_MOD_ROF)
+			return false;
 		other->client->pers.pistol_mods |= WEAPON_MOD_ROF;
-		//gi.dprintf ("Pistol Mod: Faster ROF\n");
 	}
 	else if (ent->count == 2)
 	{
+		if ((other->client->pers.pistol_mods & WEAPON_MOD_RELOAD) && ((int)(dmflags->value) & DF_WEAPONS_STAY))
+			return false;
 		other->client->pers.pistol_mods |= WEAPON_MOD_RELOAD;
-		//gi.dprintf ("Pistol Mod: Faster Reload\n");
 	}
 	else if (ent->count == 3)
 	{
+		if (other->client->pers.pistol_mods & WEAPON_MOD_DAMAGE)
+			return false;
 		other->client->pers.pistol_mods |= WEAPON_MOD_DAMAGE;
-		//gi.dprintf ("Pistol Mod: Damage x 2\n");
-	
 	}
 	else if (ent->count == 4)
 	{
-		if(other->client->pers.pistol_mods>=WEAPON_MOD_COOLING_JACKET)
+		if (other->client->pers.pistol_mods & WEAPON_MOD_COOLING_JACKET)
 			return false;
 		other->client->pers.pistol_mods |= WEAPON_MOD_COOLING_JACKET;
 		other->client->pers.hmg_shots = 30;
@@ -706,7 +708,12 @@ qboolean Pickup_Pistol_Mods (edict_t *ent, edict_t *other)
 	// ent->item->pickup_sound = "items/pistolmod1.wav";
 
 	if (!(ent->spawnflags & DROPPED_ITEM) && (deathmatch_value))
+	{
+		if (ent->count == 3 && dm_realmode->value && ((int)(dmflags->value) & DF_WEAPONS_STAY))
+			ent->flags |= FL_RESPAWN;
+		else
 			SetRespawn (ent, 30);
+	}
 
 	return true;
 }
@@ -1066,6 +1073,21 @@ void Touch_Item (edict_t *ent, edict_t *other, cplane_t *plane, csurface_t *surf
 			else if (ent->count == 4)
 			{
 				ent->item->icon = "/pics/h_heavymachinegun_cooling.tga";
+
+				if (pickup_sounds && other->last_talk_time < level.time - 1)
+				{
+					static const char *sounds[3] = { "mod_hmg1", "mod_hmg2", "weapon7" };
+					int n;
+					if (other->client->resp.soundplayed & 1)
+						n = 2;
+					else
+						n = rand() & 1;
+					gi.WriteByte(svc_stufftext);
+					gi.WriteString(va("play world/pawnomatic/%s\n", sounds[n]));
+					gi.unicast(other, false);
+					other->client->resp.soundplayed |= 1;
+					other->last_talk_time = level.time;
+				}
 			}
 		}
 		// END JOSEPH
@@ -1088,6 +1110,14 @@ void Touch_Item (edict_t *ent, edict_t *other, cplane_t *plane, csurface_t *surf
 		G_UseTargets (ent, other);
 		ent->spawnflags |= ITEM_TARGETS_USED;
 	}
+
+// ACEBOT_ADD
+	if (other->acebot.is_bot && other->acebot.node_ent == ent)
+			ACEAI_Reset_Goal_Node(other, 0.0, "Found Goal Early.");
+		//ACEIT_checkIfGoalEntPickedUp(other);
+// ACEBOT_END
+
+
 
 	if (!taken)
 		return;
@@ -1147,6 +1177,7 @@ edict_t *Drop_Item (edict_t *ent, gitem_t *item)
 	dropped->s.effects = item->world_model_flags;
 	dropped->s.renderfx = RF_GLOW;
 	// JOSEPH 15-MAR-99	
+	if (!shadows->value)
 	dropped->s.renderfx2 = RF2_NOSHADOW; 	
 	// END JOSEPH
 	VectorSet (dropped->mins, -15, -15, -15);
@@ -1186,6 +1217,17 @@ edict_t *Drop_Item (edict_t *ent, gitem_t *item)
 		dropped->velocity[2] = 200;		
 	}
 	// END JOSEPH
+
+	if (ent->client)
+	{
+		dropped->velocity[0] += ent->velocity[0];
+		dropped->velocity[1] += ent->velocity[1];
+	}
+	dropped->s.angles[YAW] = rand() % 360;
+
+	dropped->watertype = gi.pointcontents (dropped->s.origin);
+	if (dropped->watertype & MASK_WATER)
+		dropped->waterlevel = 1;
 
 	dropped->think = drop_make_touchable;
 	dropped->nextthink = level.time + 1;
@@ -1591,6 +1633,7 @@ void SpawnItem (edict_t *ent, gitem_t *item)
 	ent->think = droptofloor;
 	ent->s.effects = item->world_model_flags;
 	ent->s.renderfx = RF_GLOW;
+	if (!shadows->value || (ent->model && Q_stricmp(item->pickup_name, "Pistol_Mods")))
 	ent->s.renderfx2 = RF2_NOSHADOW; 
 	// END JOSEPH
 	

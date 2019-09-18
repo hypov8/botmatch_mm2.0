@@ -760,13 +760,13 @@ void Use_Weapon (edict_t *ent, gitem_t *item)
 
 		if (!ent->client->pers.inventory[ammo_index] && !ent->client->pers.weapon_clip [clip_index])
 		{
-			cprintf (ent, PRINT_HIGH, "No %s for %s.\n", ammo_item->pickup_name, item->pickup_name);
+			safe_cprintf (ent, PRINT_HIGH, "No %s for %s.\n", ammo_item->pickup_name, item->pickup_name);
 			return;
 		}
 		/*
 		if (ent->client->pers.inventory[ammo_index] < item->quantity)
 		{
-			cprintf (ent, PRINT_HIGH, "Not enough %s for %s.\n", ammo_item->pickup_name, item->pickup_name);
+			safe_cprintf (ent, PRINT_HIGH, "Not enough %s for %s.\n", ammo_item->pickup_name, item->pickup_name);
 			return;
 		}
 		*/
@@ -827,7 +827,7 @@ void Use_Weapon2 (edict_t *ent, gitem_t *item)
 
 		if (!ent->client->pers.inventory[ammo_index] && !g_select_empty->value && !ent->client->pers.weapon_clip [clip_index])
 		{
-			cprintf (ent, PRINT_HIGH, "No %s for %s.\n", ammo_item->pickup_name, item->pickup_name);
+			safe_cprintf (ent, PRINT_HIGH, "No %s for %s.\n", ammo_item->pickup_name, item->pickup_name);
 			return;
 		}
 	}
@@ -866,7 +866,7 @@ void Drop_Weapon (edict_t *ent, gitem_t *item)
 	// see if we're already using it
 	if ( ((item == ent->client->pers.weapon) || (item == ent->client->newweapon))&& (ent->client->pers.inventory[index] == 1) )
 	{
-		cprintf (ent, PRINT_HIGH, "Can't drop current weapon\n");
+		safe_cprintf (ent, PRINT_HIGH, "Can't drop current weapon\n");
 		return;
 	}
 

@@ -245,7 +245,7 @@ void InitGame (void)
 	//sv_botcfg			= gi.cvar("sv_botcfg", "1", CVAR_NOSET);
 	sv_botskill			= gi.cvar("sv_botskill", "2", CVAR_SERVERINFO);
 	sv_botpath			= gi.cvar("sv_botpath", "1", 0);
-	sv_botjump			= gi.cvar("sv_botjump", "0", 0);
+	sv_botjump			= gi.cvar("sv_botjump", "0", 0); //todo remove this
 
 	sv_bot_allow_add	= gi.cvar("sv_bot_allow_add", "0", 0); //stops players voting 
 	sv_bot_allow_skill	= gi.cvar("sv_bot_allow_skill", "0", 0); //stops players voting 
@@ -254,13 +254,6 @@ void InitGame (void)
 	sv_bot_max_players	= gi.cvar("sv_bot_max_players", "0", 0);
 	sv_hitmen			= gi.cvar("hitmen", "0", CVAR_SERVERINFO|CVAR_LATCH);
 	sv_hook				= gi.cvar("sv_hook", "0", 0); //HmHookAvailable //enable hook to work out of hitman
-#ifdef HYPODEBUG
-	sv_pretime			= gi.cvar("sv_pretime", "6", 0); //timmer countdown to game start
-	sv_pretimebm			= gi.cvar("sv_pretime", "6", 0); //timmer countdown to game start
-#else
-	sv_pretime			= gi.cvar("sv_pretime", "25", 0); //timmer countdown to game start
-	sv_pretimebm			= gi.cvar("sv_pretimebm", "15", 0); //timmer countdown to game start
-#endif
 // ACEBOT_END
 
 	// add hypov8
@@ -279,14 +272,6 @@ void InitGame (void)
 	no_zoom = gi.cvar ("no_zoom", "0", 0);
 
 	maxclients = gi.cvar ("maxclients", "4", CVAR_SERVERINFO | CVAR_LATCH);
-//	deathmatch = gi.cvar ("deathmatch", "0", CVAR_LATCH);
-//	coop = gi.cvar ("coop", "0", CVAR_LATCH);
-
-// BEGIN HITMEN
-	//if (sv_hitmen->value /*enable_hitmen*/)
-	//	deathmatch->value = true;	// Force deathmatch.
-	//gi.cvar_set("dmflags", va("%i", flagTmp)); //hypo todo??
-// END	
 
 	// JOSEPH 16-OCT-98
 	maxentities = gi.cvar ("maxentities", /*"1024"*/"2048", CVAR_LATCH);
@@ -296,23 +281,7 @@ void InitGame (void)
 	// change anytime vars
 	dmflags = gi.cvar ("dmflags", "0", CVAR_SERVERINFO|CVAR_ARCHIVE);
 
-	// BEGIN HITMEN
-#if 0
-	if (sv_hitmen->value /*enable_hitmen*/ && (int)dmflags->value & DF_INFINITE_AMMO)
-	{
-		int flagTmp;
-		flagTmp = (int)dmflags->value;
-		flagTmp &= ~(DF_INFINITE_AMMO);
-		gi.cvar_set("dmflags", va("%i", flagTmp));
-	}
-#endif
-	// END
-	// BEGIN HITMEN //hypov8 disable unlimited ammo etc??
-	//if (sv_hitmen->value /*enable_hitmen*/){
-		// 4 + 8 + 32 + 128 + 256 + 512 + 1024 + 2048 + 4096 + 32768
-	//	(int)dmflags->value &= 40876;	// Lets make sure we don't get some crap deathmatch flags
-	//}
-	// END
+
 	fraglimit = gi.cvar ("fraglimit", "0", CVAR_SERVERINFO);
 	timelimit = gi.cvar ("timelimit", "0", CVAR_SERVERINFO);
 	password = gi.cvar ("password", "", CVAR_USERINFO);
@@ -320,6 +289,9 @@ void InitGame (void)
 
 	antilag = gi.cvar("antilag", "1", CVAR_SERVERINFO);
 	props = gi.cvar("props", "0", 0);
+	shadows = gi.cvar("shadows", "1", 0);
+
+// BEGIN HITMEN
 // BEGIN HOOK
 	hook_is_homing     = gi.cvar ("hook_is_homing", "0", 0);
 	hook_homing_radius = gi.cvar ("hook_homing_radius", "200", 0);
@@ -342,19 +314,6 @@ void InitGame (void)
 		hook_hold_time->value = 30;
 // END
 	bonus = gi.cvar("bonus", "0", 0);
-
-	if (kpded2 && (int)gi.cvar("sv_uptime", "0", 0)->value)
-	{
-		// kpded2's uptime status is enabled, so disable ours
-		starttime = 0;
-	}
-	else
-	{
-		char buf[20];
-		Com_sprintf(buf, sizeof(buf), "%d", time(NULL));
-		starttime = atoi(gi.cvar("starttime", buf, 0)->string);
-		gi.cvar("uptime", "", CVAR_SERVERINFO);
-	}
 
 	g_select_empty = gi.cvar ("g_select_empty", "0", CVAR_ARCHIVE);
 
@@ -411,7 +370,7 @@ void InitGame (void)
 	globals.max_edicts = game.maxentities;
 
 	// initialize all clients for this game
-	game.maxclients = maxclients->value;
+	game.maxclients = (int)maxclients->value;
 	game.clients = gi.TagMalloc (game.maxclients * sizeof(game.clients[0]), TAG_GAME);
 	globals.num_edicts = game.maxclients+1;
 
@@ -419,35 +378,18 @@ void InitGame (void)
 	gi.cvar_set("deathmatch", "1");
 	gi.cvar_set("coop", "0");
 
-	i = proccess_ini_file();
-	if (i != OK)
-		gi.dprintf("Error opening comp ini file\n");
-	else
-		gi.dprintf("Processed comp.ini file\n");
+	// load config
+	proccess_ini_file();
 
-	if (!map_list_filename[0])
-		strcpy(map_list_filename, g_mapcycle_file->string);
-
-	if (map_list_filename[0])
-	{
-		i = read_map_file();
-		if (i != OK)
-			gi.dprintf("Error opening map list file (%s)\n", map_list_filename);
-		else
-			gi.dprintf("Processed map list file (%s)\n", map_list_filename);
-	}
-	if (!num_maps)
-		allow_map_voting = false;
-
-	cmd_check[0] = '\176';
-	for (i=1; i<7; i++)
-		cmd_check[i] = 'A'+(rand()%26)+(rand()&32);
+	cmd_check[0] = '\177';
+	for (i=1; i<3; i++)
+		cmd_check[i] = 'A'+(rand()%26);
 	cmd_check[i] = 0;
 
-		// BEGIN HITMEN
+// BEGIN HITMEN
 	if (sv_hitmen->value /*enable_hitmen*/)
 			hm_Initialise();
-		// END
+// END
 
 
 	if (kpded2)
@@ -458,6 +400,7 @@ void InitGame (void)
 			GMF_CLIENTTEAM - team info in server browsers
 			GMF_CLIENTNOENTS - removes everything when spectating is disabled
 			GMF_WANT_ALL_DISCONNECTS - cancelled connection notifications
+			GMF_WANT_COUNTRY - receive country info in ClientConnect
 		*/
 		char buf[10];
 		sprintf(buf, "%d", GMF_CLIENTPOV | GMF_CLIENTNOENTS | GMF_WANT_ALL_DISCONNECTS |

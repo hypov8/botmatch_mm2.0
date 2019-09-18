@@ -369,17 +369,12 @@ COLLISION DETECTION
 #define	CONTENTS_SLIME			16
 #define	CONTENTS_WATER			32
 #define	CONTENTS_MIST			64
-// JOSEPH 
 #define CONTENTS_ALPHA			128
 #define	LAST_VISIBLE_CONTENTS	128
-// END JOSEPH
 // remaining contents are non-visible, and don't eat brushes
-
 #define	CONTENTS_AREAPORTAL		0x8000
-
 #define	CONTENTS_PLAYERCLIP		0x10000
 #define	CONTENTS_MONSTERCLIP	0x20000
-
 // currents can be added to any other contents, and may be mixed
 #define	CONTENTS_CURRENT_0		0x40000
 #define	CONTENTS_CURRENT_90		0x80000
@@ -387,9 +382,7 @@ COLLISION DETECTION
 #define	CONTENTS_CURRENT_270	0x200000
 #define	CONTENTS_CURRENT_UP		0x400000
 #define	CONTENTS_CURRENT_DOWN	0x800000
-
 #define	CONTENTS_ORIGIN			0x1000000	// removed before bsping an entity
-
 #define	CONTENTS_MONSTER		0x2000000	// should never be on a brush, only in game
 #define	CONTENTS_DEADMONSTER	0x4000000
 #define	CONTENTS_DETAIL			0x8000000	// brushes to be added after vis leafs
@@ -398,9 +391,7 @@ COLLISION DETECTION
 
 
 #define	SURF_LIGHT		0x1		// value will hold the light strength
-
 #define	SURF_SLICK		0x2		// effects game physics
-
 #define	SURF_SKY		0x4		// don't draw, but add to skybox
 #define	SURF_WARP		0x8		// turbulent water warp
 #define	SURF_TRANS33	0x10
@@ -408,12 +399,8 @@ COLLISION DETECTION
 #define	SURF_FLOWING	0x40	// scroll towards angle
 #define	SURF_NODRAW		0x80	// don't bother referencing the texture
 #define	SURF_BURNT		0x100	// Ridah, used for rendering, marks this surface as having been burnt or charred
-// JOSEPH 29-DEC-98
 #define	SURF_SPECULAR		0x400		// Ridah, shows specular lighting from light flares
 #define	SURF_DIFFUSE		0x800		// Ridah, used with specular lighting, makes it bigger and less intense
-// END JOSEPH
-
-// JOSEPH 26-JAN-99-C
 #define SURF_ALPHA		0x1000	// wire fence effect flag
 #define SURF_WATER      0x80000
 #define SURF_CONCRETE	0x100000
@@ -424,9 +411,6 @@ COLLISION DETECTION
 #define SURF_SNOW		0x2000000
 #define SURF_TILE		0x4000000
 #define SURF_WOOD		0x8000000
-// END JOSEPH
-
-// Ridah
 #define SURF_REFLECT_FAKE	0x10000000		// Ridah, uses fast (fake) reflections
 #define SURF_REFLECT_LIGHT	0x20000000		// Ridah, only reflects SURF_LIGHT surfaces
 

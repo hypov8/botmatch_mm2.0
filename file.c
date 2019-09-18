@@ -1,7 +1,13 @@
 #include "g_local.h"
 #include "file.h"
 #include <stdio.h>
+#include <sys/stat.h>
 
+#ifdef _WIN32
+#define stat _stati64 // present in msvcrt.dll
+#endif
+
+#define		MAX_STRING_LENGTH	100
 #define		ADD_MOTD_LINE			3
 
 int fgetline (FILE* infile, char* buffer)
@@ -32,8 +38,22 @@ int proccess_ini_file()
 	int	mode = -1, c;
 	char	buffer[MAX_STRING_LENGTH];
 	char	key[64], param[64];
-	char	filename[64],dir[32];
+	char	*dir;
 	cvar_t	*game_dir;
+	struct stat st;
+	static time_t lasttime = 0;
+
+	game_dir = gi.cvar("game", "", 0);
+	dir = game_dir->string[0] ? game_dir->string : "main";
+
+	if (stat(va("%s/comp.ini", dir), &st))
+	{
+		gi.error("comp.ini file is missing");
+		return false;
+	}
+	if (st.st_mtime == lasttime)
+		goto skipini;
+	lasttime = st.st_mtime;
 
 	default_map[0]=0;
 	default_teamplay[0]=0;
@@ -52,16 +72,14 @@ int proccess_ini_file()
 
 	allow_map_voting = false;
 	disable_admin_voting = false;
-	num_maps = 0;
-	num_netnames = 0;
-	num_ips = 0;
+	pregameframes = 300;
 	fixed_gametype = false;
 	enable_password = false;
 	keep_admin_status = false;
 	default_random_map = false;
-	disable_anon_text = false;
 	disable_curse = false;
 	unlimited_curse = false;
+	pickup_sounds = false;
 	// BEGIN HITMEN
 	enable_hitmen = false;
 	//END
@@ -70,11 +88,12 @@ int proccess_ini_file()
 	num_MOTD_lines = 0;
 
 	// Open config file
-	game_dir = gi.cvar("game", "", 0);
-	strcpy(dir, game_dir->string[0] ? game_dir->string : "main");
-	Com_sprintf (filename, sizeof(filename), "%s/comp.ini", dir);
-	infile = fopen(filename, "r");
-	if (infile == NULL)	return FILE_OPEN_ERROR;
+	infile = fopen(va("%s/comp.ini", dir), "r");
+	if (infile == NULL)
+	{
+		gi.error("Failed to open comp.ini file");
+		return false;
+	}
 	
 	while (fgetline(infile, buffer))	// Retrieve line from the file
 	{
@@ -87,8 +106,11 @@ int proccess_ini_file()
 
 		if (mode == ADD_MOTD_LINE)
 		{
-			strncpy(MOTD[num_MOTD_lines].textline, buffer, sizeof(MOTD[num_MOTD_lines].textline) - 1);
+			if (num_MOTD_lines < 20)
+			{
+				strncpy(MOTD[num_MOTD_lines], buffer, sizeof(MOTD[num_MOTD_lines]) - 1);
 			num_MOTD_lines++;
+			}
 			continue;
 		}
 
@@ -113,43 +135,53 @@ int proccess_ini_file()
 		}
 		else if (!strcmp(key, "default_map"))
 		{
-			if (c==2) strncpy(default_map, param, 32);
+			if (c==2) 
+				strncpy(default_map, param, 32);
 		}
 		else if (!strcmp(key, "default_teamplay"))
 		{
-			if (c==2) strncpy(default_teamplay, param, 16);
+			if (c==2) 
+				strncpy(default_teamplay, param, 16);
 		}
 		else if (!strcmp(key, "default_dmflags"))
 		{
-			if (c==2) strncpy(default_dmflags, param, 16);
+			if (c==2) 
+				strncpy(default_dmflags, param, 16);
 		}
 		else if (!strcmp(key, "default_password"))
 		{
-			if (c==2) strncpy(default_password, param, 16);
+			if (c==2) 
+				strncpy(default_password, param, 16);
 		}
 		else if (!strcmp(key, "default_timelimit"))
 		{
-			if (c==2) strncpy(default_timelimit, param, 16);
+			if (c==2) 
+				strncpy(default_timelimit, param, 16);
 		}
 		else if (!strcmp(key, "default_fraglimit"))
 		{
-			if (c==2) strncpy(default_fraglimit, param, 16);
+			if (c==2) 
+				strncpy(default_fraglimit, param, 16);
 		}
 		else if (!strcmp(key, "default_cashlimit"))
 		{
-			if (c==2) strncpy(default_cashlimit, param, 16);
+			if (c==2) 
+				strncpy(default_cashlimit, param, 16);
 		}
 		else if (!strcmp(key, "default_dm_realmode"))
 		{
-			if (c==2) strncpy(default_dm_realmode, param, 16);
+			if (c==2) 
+				strncpy(default_dm_realmode, param, 16);
 		}
 		else if (!strcmp(key, "default_anti_spawncamp"))
 		{
-			if (c==2) strncpy(default_anti_spawncamp, param, 16);
+			if (c==2) 
+				strncpy(default_anti_spawncamp, param, 16);
 		}
 		else if (!strcmp(key, "default_bonus"))
 		{
-			if (c==2) strncpy(default_bonus, param, 16);
+			if (c==2) 
+				strncpy(default_bonus, param, 16);
 		}
 		else if (!strcmp(key, "MOTD"))
 			mode = ADD_MOTD_LINE;
@@ -157,34 +189,40 @@ int proccess_ini_file()
 			allow_map_voting = true;
 		else if (!strcmp(key, "ban_name_filename"))
 		{
-			if (c==2) strncpy(ban_name_filename, param, 32);
+			if (c==2) 
+				strncpy(ban_name_filename, param, 32);
 		}
 		else if (!strcmp(key, "ban_ip_filename"))
 		{
-			if (c==2) strncpy(ban_ip_filename, param, 32);
+			if (c==2) 
+				strncpy(ban_ip_filename, param, 32);
 		}
-		else if (!strcmp(key, "frags_per_hour_scoreboard"))
-			fph_scoreboard = true;
 		else if (!strcmp(key, "disable_admin_voting"))
 			disable_admin_voting = true;
+		else if (!strcmp(key, "pregame"))
+		{
+			if (c == 2)
+				pregameframes = atoi(param) * 10;
+		}
 		else if (!strcmp(key, "fixed_gametype"))
 			fixed_gametype = true;
 		else if (!strcmp(key, "enable_password"))
 			enable_password = true;
 		else if (!strcmp(key, "rconx_file"))
 		{
-			if (c==2) strncpy(rconx_file, param, 32);
+			if (c==2) 
+				strncpy(rconx_file, param, 32);
 		}
 		else if (!strcmp(key, "keep_admin_status"))
 			keep_admin_status = true;
 		else if (!strcmp(key, "default_random_map"))
 			default_random_map = true;
-		else if (!strcmp(key, "disable_anon_text"))
-			disable_anon_text = true;
 		else if (!strcmp(key, "disable_curse"))
 			disable_curse = true;
 		else if (!strcmp(key, "unlimited_curse"))
 			unlimited_curse = true;
+		else if (!strcmp(key, "pickup_sounds"))
+			pickup_sounds = true;
 		else if (!strcmp(key, "enable_killerhealth"))
 			enable_killerhealth = true;
 		else if (!strcmp(key, "wait_for_players"))
@@ -203,13 +241,25 @@ int proccess_ini_file()
 	// close the ini file
 	fclose(infile);
 
+	gi.dprintf("Processed comp.ini file\n");
+
+skipini:
+
 	if (ban_name_filename[0])
 	{
-		Com_sprintf (filename, sizeof(filename), "%s/%s", dir, ban_name_filename);
-		infile = fopen(filename, "r");
+		static time_t lasttime = 0;
+		if (!lasttime)
+			num_ban_names = 0;
+
+		if (stat(va("%s/%s", dir, ban_name_filename), &st) || st.st_mtime == lasttime)
+			goto skipban_name;
+		lasttime = st.st_mtime;
+
+		num_ban_names = 0;
+
+		infile = fopen(va("%s/%s", dir, ban_name_filename), "r");
 		if (infile != NULL)	
 		{
-			num_netnames = 0;
 			while (fgetline(infile, buffer))	// Retrieve line from the file
 			{
 				// Check to see if this is a comment line
@@ -217,42 +267,70 @@ int proccess_ini_file()
 					continue;
 
 				kp_strlwr(buffer);
-				strncpy(netname[num_netnames].value, buffer, 16);
-				num_netnames++;
-				if (num_netnames == 100) break;
+				strncpy(ban_name[num_ban_names].value, buffer, 16);
+				num_ban_names++;
+				if (num_ban_names == 100)
+					break;
 			}
 			fclose(infile);
+			gi.dprintf("Processed name bans file (%d bans)\n", num_ban_names);
 		}
 	}
+	else
+		num_ban_names = 0;
+
+skipban_name:
 
 	if (ban_ip_filename[0])
 	{
-		Com_sprintf (filename, sizeof(filename), "%s/%s", dir, ban_ip_filename);
-		infile = fopen(filename, "r");
+		static time_t lasttime = 0;
+		if (!lasttime)
+			num_ban_ips = 0;
+
+		if (stat(va("%s/%s", dir, ban_ip_filename), &st) || st.st_mtime == lasttime)
+			goto skipban_ip;
+		lasttime = st.st_mtime;
+
+		num_ban_ips = 0;
+
+		infile = fopen(va("%s/%s", dir, ban_ip_filename), "r");
 		if (infile != NULL)	
 		{
-			num_ips = 0;
 			while (fgetline(infile, buffer))	// Retrieve line from the file
 			{
 				// Check to see if this is a comment line
 				if (buffer[0] == '/' && buffer[1] == '/')
 					continue;
 
-				strncpy(ip[num_ips].value, buffer, 16);
-				num_ips++;
-				if (num_ips == 100) break;
+				strncpy(ban_ip[num_ban_ips].value, buffer, 16);
+				num_ban_ips++;
+				if (num_ban_ips == 100)
+					break;
 			}
 			fclose(infile);
+			gi.dprintf("Processed IP bans file (%d bans)\n", num_ban_ips);
 		}
 	}
+	else
+		num_ban_ips = 0;
+
+skipban_ip:
 
 	if (rconx_file[0])
 	{
-		Com_sprintf (filename, sizeof(filename), "%s/%s", dir, rconx_file);
-		infile = fopen(filename, "r");
+		static time_t lasttime = 0;
+		if (!lasttime)
+			num_rconx_pass = 0;
+
+		if (stat(va("%s/%s", dir, rconx_file), &st) || st.st_mtime == lasttime)
+			goto skiprconx;
+		lasttime = st.st_mtime;
+
+		num_rconx_pass = 0;
+
+		infile = fopen(va("%s/%s", dir, rconx_file), "r");
 		if (infile != NULL)	
 		{
-			num_rconx_pass = 0;
 			while (fgetline(infile, buffer))	// Retrieve line from the file
 			{
 				// Check to see if this is a comment line
@@ -261,31 +339,36 @@ int proccess_ini_file()
 
 				strncpy(rconx_pass[num_rconx_pass].value, buffer, sizeof(rconx_pass[num_rconx_pass].value) - 1);
 				num_rconx_pass++;
-				if (num_rconx_pass == 100) break;
+				if (num_rconx_pass == 100)
+					break;
 			}
 			fclose(infile);
+			gi.dprintf("Processed rconx password file (%d passwords)\n", num_rconx_pass);
 		}
 	}
+	else
+		num_rconx_pass = 0;
 
-	return OK;
-}
+skiprconx:
 
-int read_map_file()
+	if (!map_list_filename[0])
+		strcpy(map_list_filename, g_mapcycle_file->string);
+	if (map_list_filename[0])
 {
-	FILE*	infile;
-	char	buffer[MAX_STRING_LENGTH];
 	char	map[32], map2[32];
-	char	filename[64];
-	int		c;
-	cvar_t	*game_dir;
+		static time_t lasttime = 0;
+		if (!lasttime)
+			num_maps = 0;
 
-	game_dir = gi.cvar("game", "", 0);
-	Com_sprintf (filename, sizeof(filename), "%s/%s", game_dir->string[0] ? game_dir->string : "main", map_list_filename);
-	infile = fopen(filename, "r");
-	if (infile == NULL) return FILE_OPEN_ERROR;
+		if (stat(va("%s/%s", dir, map_list_filename), &st) || st.st_mtime == lasttime)
+			goto skipmaps;
+		lasttime = st.st_mtime;
 
 	num_maps = 0;
 
+		infile = fopen(va("%s/%s", dir, map_list_filename), "r");
+		if (infile != NULL)
+		{
 	while (fgetline(infile, buffer))	// Retrieve line from the file
 	{
 		// Check to see if this is a comment line
@@ -293,33 +376,38 @@ int read_map_file()
 			continue;
 
 		c = sscanf(buffer, "%s %s", map, map2);
-		if (c == 1)
+				if (c == 2 && map[0]>='1' && map[0]<='9') // old map list with rank included?
+					strncpy(maplist[num_maps], map2, sizeof(maplist[num_maps]) - 1);
+				else if (c)
 			strncpy(maplist[num_maps], map, sizeof(maplist[num_maps]) - 1);
-		else if (c == 2 && map[0]>='1' && map[0]<='9') // old map list with rank included?
-			strncpy(maplist[num_maps], map2, sizeof(maplist[num_maps]) - 1);
 		else
 			continue;
 		kp_strlwr(maplist[num_maps]); // prevent MAX_GLTEXTURES errors caused by uppercase letters in the map vote pic names
-		Com_sprintf(buffer, sizeof(buffer), "maps/%s.bsp", maplist[num_maps]);
-		if (!file_exist(buffer))
+				if (!file_exist(va("maps/%s.bsp", maplist[num_maps])))
 		{
 			if (kpded2)
 			{
 				// check for an "override" file
-				Com_sprintf(buffer, sizeof(buffer), "maps/%s.bsp.override", maplist[num_maps]);
-				if (file_exist(buffer))
-					goto ok;
+						if (file_exist(va("maps/%s.bsp.override", maplist[num_maps])))
+							goto mapok;
 			}
 			gi.dprintf("warning: \"%s\" map is missing (removed from map list)\n", maplist[num_maps]);
 			continue;
 		}
-ok:
+mapok:
 		num_maps++;
 		if (num_maps == 1024) break;
 	}
 	fclose(infile);
+			gi.dprintf("Processed map list file (%s = %d maps)\n", map_list_filename, num_maps);
+		}
+	}
+	else
+		num_maps = 0;
 
-	return OK;
+skipmaps:
+
+	return true;
 }
 
 #ifdef _WIN32

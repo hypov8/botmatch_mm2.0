@@ -3186,7 +3186,7 @@ again:
 	self->durationflag = 0;
 	
 	// JOSEPH 6-JAN-99
-	/*if ((self->name) && (!strcmp(self->name, "Joe9000")))
+	/*if ((self->name) && (!strcmp(self->name, "Joe9010")))
 	{
 		gi.dprintf ("TARGET ANGLE %s\n", vtos(self->angletarget));
 	}*/

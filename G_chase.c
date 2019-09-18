@@ -111,7 +111,7 @@ void ChaseNext(edict_t *ent)
 	do
 	{
 		i++;
-		if (i > maxclients->value)
+		if (i > (int)maxclients->value)
 			i = 1;
 		e = g_edicts + i;
 		if (!e->inuse)
@@ -141,7 +141,7 @@ void ChasePrev(edict_t *ent)
 	{
 		i--;
 		if (i < 1)
-			i = maxclients->value;
+			i = (int)maxclients->value;
 		e = g_edicts + i;
 		if (!e->inuse) 
 			continue;
@@ -166,7 +166,7 @@ void ChaseStart(edict_t *ent)
 	edict_t *e;
 	float dist, bestdist = 99999;
 
-	for (i=1; i<=maxclients->value; i++)
+	for (i=1; i<=(int)maxclients->value; i++)
 	{
 		e = g_edicts + i;
 		if (!e->inuse || e->solid == SOLID_NOT)

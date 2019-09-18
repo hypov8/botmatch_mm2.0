@@ -15,18 +15,11 @@ extern int HmStatTime;
 // END
 
 // ACEBOT_ADD
-char changeMapName[32]; // = '\0';
-
+//char changeMapName[32]; // = '\0';
 char voteAddBot[32]; //team
 char voteRemoveBot[32]; //name
 float voteBotSkill; //skill 0.0 to 4.0
-static void Cmd_VoteRemoveBot_f(edict_t *ent, qboolean isMenu, char botnames[32]);
-static void Cmd_VoteAddBot_f(edict_t *ent, int teamUse);
-static void Cmd_VoteSkill_f(edict_t *ent, qboolean skill);
-void Cmd_Yes_f(edict_t *ent);
-void Cmd_No_f(edict_t *ent);
 void EndDMLevel(void); //hypov8 add
-void Cmd_AntiLag_f(edict_t *ent, char *value); //hypov8 add
 // ACEBOT_END
 
 
@@ -49,6 +42,8 @@ void Cmd_AntiLag_f(edict_t *ent, char *value); //hypov8 add
 #define BLUNT		15
 #define BETH		16
 
+#define NEUTRAL		-1
+
 //------------------------------------------------------------------------------------
 
 
@@ -65,7 +60,8 @@ void Cmd_Spec_f (edict_t *self)
 		return;
 // ACEBOT_END
 
-	if (self->solid != SOLID_NOT) DropCash(self);
+	if (self->solid != SOLID_NOT)
+		DropCash(self);
 
 	if (teamplay->value && self->client->pers.team)
 		safe_bprintf (PRINT_HIGH, "%s left %s\n", self->client->pers.netname, team_names[self->client->pers.team]);
@@ -74,7 +70,7 @@ void Cmd_Spec_f (edict_t *self)
 
 	self->client->pers.team = 0;
 	self->client->pers.spectator = SPECTATING;
-	if (self->solid != SOLID_NOT || self->movetype == MOVETYPE_NOCLIP) // HYPOV8_ADD noclip todo: check?
+	if (self->solid != SOLID_NOT || self->deadflag || self->movetype == MOVETYPE_NOCLIP) // HYPOV8_ADD noclip todo: check?
 	{
 		// send effect
 		gi.WriteByte (svc_muzzleflash);
@@ -83,10 +79,11 @@ void Cmd_Spec_f (edict_t *self)
 		gi.multicast (self->s.origin, MULTICAST_PVS);
 
 // ACEBOT_ADD	
-	ACEIT_PlayerRemoved(self);
+		ACEIT_PlayerRemoved(self);
 // ACEBOT_END
 		ClientBeginDeathmatch( self );
-		if (!self->client->showscores) Cmd_Score_f(self);
+		if (!self->client->showscores)
+			Cmd_Score_f(self);
 		self->client->resp.scoreboard_frame = 0;
 	}
 }
@@ -97,18 +94,18 @@ void Cmd_Join_f (edict_t *self, char *teamcmd)
 	int	i;
 	char str1[MAX_QPATH], varteam[MAX_QPATH];
 
-	self->client->resp.check_idle = level.framenum;
+	self->client->pers.idle = curtime;
 
 	if (!teamplay->value)
 	{
 		if (self->client->pers.spectator != SPECTATING)
 			return;
-		if (self->client->resp.switch_teams_frame && level.framenum < (self->client->resp.switch_teams_frame + 20))
+		if (level.framenum < self->client->resp.switch_teams_frame)
 		{
-			cprintf(self, PRINT_HIGH, "Overflow protection: Unable to rejoin yet\n");
+			safe_cprintf(self, PRINT_HIGH, "Overflow protection: Unable to rejoin yet\n");
 			return;
 		}
-		self->client->resp.switch_teams_frame = level.framenum;
+		self->client->resp.switch_teams_frame = level.framenum + 20;
 		self->client->pers.spectator = PLAYING;
 		ClientBeginDeathmatch( self );
 		return;
@@ -131,13 +128,13 @@ void Cmd_Join_f (edict_t *self, char *teamcmd)
 
 				if (self->client->pers.team == i)
 				{
-					cprintf( self, PRINT_HIGH, "Already a member of %s\n", team_names[i] );
+					safe_cprintf( self, PRINT_HIGH, "Already a member of %s\n", team_names[i] );
 				}
 				else
 				{
-					if (self->client->resp.switch_teams_frame && level.framenum < (self->client->resp.switch_teams_frame + 20))
+					if (level.framenum < self->client->resp.switch_teams_frame)
 					{
-						cprintf(self, PRINT_HIGH, "Overflow protection: Unable to change team yet\n");
+						safe_cprintf(self, PRINT_HIGH, "Overflow protection: Unable to change team yet\n");
 						return;
 					}
 					self->client->resp.switch_teams_frame = level.framenum;
@@ -147,7 +144,7 @@ void Cmd_Join_f (edict_t *self, char *teamcmd)
 
 					if (!Teamplay_ValidateJoinTeam( self, i ))
 					{
-						cprintf( self, PRINT_HIGH, "Unable to join %s\n", team_names[i] );
+						safe_cprintf( self, PRINT_HIGH, "Unable to join %s\n", team_names[i] );
 					}
 				}
 
@@ -155,7 +152,7 @@ void Cmd_Join_f (edict_t *self, char *teamcmd)
 			}
 		}
 
-		cprintf( self, PRINT_HIGH, "Un-matched team: %s\n", varteam );
+		safe_cprintf( self, PRINT_HIGH, "Un-matched team: %s\n", varteam );
 	}
 }
 
@@ -166,7 +163,7 @@ void Cmd_GearUp_f (edict_t *self)
 
 	if (!self->vehicle_index)
 	{
-		cprintf( self, PRINT_HIGH, "You aren't in a vehicle, can't change gears.\n");
+		safe_cprintf( self, PRINT_HIGH, "You aren't in a vehicle, can't change gears.\n");
 		return;
 	}
 
@@ -184,7 +181,7 @@ void Cmd_GearDown_f (edict_t *self)
 
 	if (!self->vehicle_index)
 	{
-		cprintf( self, PRINT_HIGH, "You aren't in a vehicle, can't change gears.\n");
+		safe_cprintf( self, PRINT_HIGH, "You aren't in a vehicle, can't change gears.\n");
 		return;
 	}
 
@@ -210,46 +207,194 @@ edict_t	*GetKeyEnt( edict_t *ent )
 	VectorCopy( ent->s.origin, start );
 	start[2] += ent->viewheight;
 
-	if (deathmatch_value)
-		VectorMA( start, 4000, dir, end );
-	else
-		VectorMA( start, 384, dir, end );
+	VectorMA( start, 1200, dir, end );
+
+	G_DoTimeShiftFor(ent);
 
 	tr = gi.trace( start, NULL, NULL, end, ent, MASK_SHOT );
 
-	if ((tr.fraction < 1) && ((deathmatch_value && tr.ent->client) || (tr.ent->svflags & SVF_MONSTER)))
-	{
+	G_UndoTimeShiftFor(ent);
+
+	if ((tr.fraction < 1) && tr.ent->client)
 		return tr.ent;
-	}
 
 	return NULL;
 }
 // END JOSEPH
 
-void Cmd_Wave_f (edict_t *ent, edict_t *other, int who);
-
 void Cmd_Key_f (edict_t *ent, int who)
 {
 	edict_t *key_ent;
+	voice_table_t *voice_table;
+	int num_entries = 0;
 
 	if (disable_curse) 
 		return;
 
-	if (ent->client->pers.spectator == SPECTATING) 
+	if (ent->client->pers.spectator == SPECTATING || ent->deadflag)
+		return;
+
+	// can't wave when ducked
+	if (ent->client->ps.pmove.pm_flags & PMF_DUCKED)
+		return;
+
+	// nor when under water
+	if (ent->waterlevel == 3)
+		return;
+
+	if (ent->last_talk_time > (level.time - 5))
 		return;
 	
-	if (level.speaktime > level.time)
+	key_ent = ent->solid ? GetKeyEnt(ent) : NULL;
+	if (!key_ent && (!unlimited_curse || (!ent->solid && level.last_talk_time > level.time - 3)))
 		return;
 	
-	if (unlimited_curse) 
-		key_ent = NULL;
-	else if ((key_ent = GetKeyEnt(ent)) == NULL) 
-		return; // HYPOV8_ADD !=0
+	// neutral chat with teammates
+	if (!who && ent->client->team && key_ent && key_ent->client->team == ent->client->team)
+		who = NEUTRAL;
 
-	Cmd_Wave_f( ent, key_ent, who );
+	// say something
+	{
+		if (ent->gender == GENDER_MALE)
+		{
+			switch(who)
+			{
+				case 0:
+					voice_table = player_profanity_level2;
+					num_entries = NUM_PLAYER_PROFANITY_LEVEL2;
+					break;
+				case NEUTRAL:
+					if (rand() & 1)
+					{
+						voice_table = neutral_talk_player;
+						num_entries = NUM_NEUTRAL_TALK_PLAYER;
+					}
+					else
+					{
+						voice_table = neutral_talk;
+						num_entries = NUM_NEUTRAL_TALK;
+					}
+					break;
+				case KINGPIN:
+					voice_table = kingpin_random;
+					num_entries = NUM_KINGPIN_RANDOM;
+					break;
+				case LEROY:
+					voice_table = leroy_random;
+					num_entries = NUM_LEROY_RANDOM;
+					break;
+				case MJ:
+					voice_table = mj_random;
+					num_entries = NUM_MJ_RANDOM;
+					break;
+				case MOMO:
+					voice_table = momo_random;
+					num_entries = NUM_MOMO_RANDOM;
+					break;
+				case LAMONT:
+					voice_table = lamont_random;
+					num_entries = NUM_LAMONT_RANDOM;
+					break;
+				case JESUS:
+					voice_table = jesus_random;
+					num_entries = NUM_JESUS_RANDOM;
+					break;
+				case TYRONE:
+					voice_table = tyrone_random;
+					num_entries = NUM_TYRONE_RANDOM;
+					break;
+				case WILLY:
+					voice_table = willy_random;
+					num_entries = NUM_WILLY_RANDOM;
+					break;
+				case MOKER:
+					voice_table = moker_random;
+					num_entries = NUM_MOKER_RANDOM;
+					break;
+				case HEILMAN:
+					voice_table = heilman_random;
+					num_entries = NUM_HEILMAN_RANDOM;
+					break;
+			}
+		}
+		else if (ent->gender == GENDER_FEMALE)
+		{
+			switch (who)
+			{
+				case 0:
+					voice_table = f_profanity_level2;
+					num_entries = F_NUM_PROFANITY_LEVEL2;
+					break;
+				case NEUTRAL:
+					voice_table = f_neutral_talk;
+					num_entries = F_NUM_NEUTRAL_TALK;
+					break;
+				case BAMBI:
+					voice_table = bambi_random;
+					num_entries = F_NUM_BAMBI_RANDOM;
+					break;
+				case YOLANDA:
+					voice_table = yolanda_random;
+					num_entries = F_NUM_YOLANDA_RANDOM;
+					break;
+				case MONA:
+					voice_table = mona_random;
+					num_entries = F_NUM_MONA_RANDOM;
+					break;
+				case LOLA:
+					voice_table = lola_random;
+					num_entries = F_NUM_LOLA_RANDOM;
+					break;
+				case BLUNT:
+					voice_table = blunt_random;
+					num_entries = F_NUM_BLUNT_RANDOM;
+					break;
+				case BETH:
+					voice_table = beth_random;
+					num_entries = F_NUM_BETH_RANDOM;
+					break;
+			}
+		}
+		if (num_entries)
+		{
+			int n;
+			if (who > 0 && gi.argc() > 1)
+			{
+				n = atoi(gi.argv(1));
+				if (n < 1 || n > num_entries)
+				{
+					safe_cprintf(ent, PRINT_HIGH, "Invalid %s taunt number, valid range: 1 - %d\n", gi.argv(0), num_entries);
+					return;
+				}
+				n--;
+			}
+			else
+			{
+				n = rand() % num_entries;
+			}
+			Voice_Specific(ent, key_ent, voice_table, n);
+		}
+	}
 
-	if (unlimited_curse)
-		level.speaktime = level.time + 7;
+	if (ent->client->anim_priority > ANIM_WAVE)
+		return;
+
+	ent->client->anim_priority = ANIM_WAVE;
+	switch (rand() % 3)
+	{
+		case 0:
+			ent->s.frame = FRAME_tg_bird_01-1;
+			ent->client->anim_end = FRAME_tg_bird_10;
+			break;
+		case 1:
+			ent->s.frame = FRAME_tg_crch_grab_01-1;
+			ent->client->anim_end = FRAME_tg_crch_grab_16;
+			break;
+		case 2:
+			ent->s.frame = FRAME_tg_chin_flip_01-1;
+			ent->client->anim_end = FRAME_tg_chin_flip_15;
+			break;
+	}
 }
 
 //-------------------------------------------------------------------------
@@ -337,88 +482,19 @@ void SelectNextItem (edict_t *ent, int itflags)
 
 	if (ent->client->showscores == SCORE_MAP_VOTE)
 	{
-		if (level.framenum > (ent->client->resp.scoreboard_frame + 1))
-		{
+		if (level.vote_winner)
+			return;
 			ent->client->mapvote++;
-			if (ent->client->mapvote == num_vote_set+1)
+		if (ent->client->mapvote == level.num_vote_set+1)
 				ent->client->mapvote = 1;
 			ent->client->resp.scoreboard_frame = 0;
-		}
 		return;
 	}
 // ACEBOT_ADD //MENU
-	if (ent->client->showscores == SCORE_BOT_VOTE)
-	{
-
-		if (level.framenum > (ent->client->resp.scoreboard_frame + 1))
-		{
-			ent->menu++;
-			if (ent->menu > 7)
-				ent->menu = 1;
-			ent->client->resp.scoreboard_frame = level.framenum;
-			DeathmatchScoreboard (ent);
-		}
+	if (ACECM_G_SelectNextItem(ent))
 		return;
-	}
-
-	if (ent->client->showscores == SCORE_BOT_ADD)
-	{
-
-		if (level.framenum > (ent->client->resp.scoreboard_frame + 1))
-		{
-			ent->menu++;
-			if (ent->menu > 3)
-				ent->menu = 1;
-			ent->client->resp.scoreboard_frame = level.framenum;
-			DeathmatchScoreboard (ent);
-		}
-		return;
-	}
-
-	if (ent->client->showscores == SCORE_BOT_REMOVE)
-	{
-
-		if (level.framenum > (ent->client->resp.scoreboard_frame + 1))
-		{
-			ent->menu++;
-			if (ent->menu > 8)
-				ent->menu = 1;
-			ent->client->resp.scoreboard_frame = level.framenum;
-			DeathmatchScoreboard (ent);
-		}
-		return;
-	}
-
-	if (ent->client->showscores == SCORE_BOT_SKILL)
-	{
-
-		if (level.framenum > (ent->client->resp.scoreboard_frame + 1))
-		{
-			ent->menu++;
-			if (ent->menu > 11)
-				ent->menu = 1;
-			ent->client->resp.scoreboard_frame = level.framenum;
-			DeathmatchScoreboard (ent);
-		}
-		return;
-	}
-
 // ACEBOT_END //MENU
-//hypov8 todo?: check this
-/*	if (ent->client->showscores == SCORE_REJOIN)
-	{
-		if (level.framenum > (ent->client->resp.switch_teams_frame + 4))
-		{
-			if (ent->vote == 0)
-				ent->vote = 1;
-			else
-				ent->vote = 0;
-			ent->client->resp.switch_teams_frame = level.framenum;
-			DeathmatchScoreboard (ent);
-		}
-		return;
-	}
-*/
+
 	cl = ent->client;
 	
 	if (cl->chase_target)
@@ -430,7 +506,7 @@ void SelectNextItem (edict_t *ent, int itflags)
 	Cmd_Help_f (ent, 1);
 }
 
-void SelectPrevItem (edict_t *ent, int itflags)
+void SelectPrevItem (edict_t *ent, int itflags) //hypov8 flags??
 {
 	gclient_t	*cl;
 
@@ -438,84 +514,20 @@ void SelectPrevItem (edict_t *ent, int itflags)
 
 	if (ent->client->showscores == SCORE_MAP_VOTE)
 	{
-		if (level.framenum > (ent->client->resp.scoreboard_frame + 1))
-		{
+		if (level.vote_winner)
+			return;
 			ent->client->mapvote--;
 			if (ent->client->mapvote < 1)
-				ent->client->mapvote = num_vote_set;
+			ent->client->mapvote = level.num_vote_set;
 			ent->client->resp.scoreboard_frame = 0;
-		}
 		return;
 	}
 // ACEBOT_ADD //MENU
-	if (ent->client->showscores == SCORE_BOT_VOTE)
-	{
-		if (level.framenum >(ent->client->resp.scoreboard_frame + 1))
-		{
-			ent->menu--;
-			if (ent->menu < 1)
-				ent->menu = 7;
-			ent->client->resp.scoreboard_frame = level.framenum;
-			DeathmatchScoreboard (ent);
-		}
+	if (ACECM_G_SelectPrevItem(ent))
 		return;
-	}
-
-	if (ent->client->showscores == SCORE_BOT_ADD)
-	{
-		if (level.framenum > (ent->client->resp.scoreboard_frame + 1))
-		{
-			ent->menu--;
-			if (ent->menu < 1)
-				ent->menu = 3;
-			ent->client->resp.scoreboard_frame = level.framenum;
-			DeathmatchScoreboard (ent);
-		}
-		return;
-	}
-
-	if (ent->client->showscores == SCORE_BOT_REMOVE)
-	{
-		if (level.framenum > (ent->client->resp.scoreboard_frame + 1))
-		{
-			ent->menu--;
-			if (ent->menu < 1)
-				ent->menu = 8;
-			ent->client->resp.scoreboard_frame = level.framenum;
-			DeathmatchScoreboard (ent);
-		}
-		return;
-	}
-	if (ent->client->showscores == SCORE_BOT_SKILL)
-	{
-		if (level.framenum >(ent->client->resp.scoreboard_frame + 1))
-		{
-			ent->menu--;
-			if (ent->menu < 1)
-				ent->menu = 11;
-			ent->client->resp.scoreboard_frame = level.framenum;
-			DeathmatchScoreboard(ent);
-		}
-		return;
-	}
-
 // ACEBOT_END //MENU
-//hypov8 todo?: check this
-/*
-	if (ent->client->showscores == SCORE_REJOIN)
-	{
-		if (level.framenum > (ent->client->resp.switch_teams_frame + 4))
-		{
-			if (ent->vote == 0)
-				ent->vote = 1;
-			else
-				ent->vote = 0;
-			ent->client->resp.switch_teams_frame = level.framenum;
-			DeathmatchScoreboard (ent);
-		}
-		return;
-	}
-*/
+
+
 	cl = ent->client;
 
 	if (cl->chase_target)
@@ -536,7 +548,7 @@ void ValidateSelectedItem (edict_t *ent)
 	if (cl->pers.inventory[cl->pers.selected_item])
 		return;		// valid
 
-	SelectNextItem (ent, -1);
+//	SelectNextItem (ent, -1);
 }
 
 /*
@@ -560,7 +572,7 @@ void Cmd_Give_f (edict_t *ent)
 
 	if (deathmatch_value && !sv_cheats->value)
 	{
-		cprintf (ent, PRINT_HIGH, "You must run the server with '+set cheats 1' to enable this command.\n");
+		safe_cprintf (ent, PRINT_HIGH, "You must run the server with '+set cheats 1' to enable this command.\n");
 		return;
 	}
 
@@ -647,11 +659,11 @@ void Cmd_Give_f (edict_t *ent)
 			if (it->flags & IT_NOCHEATS)
 				continue;
 			Add_Ammo (ent, it, 1000);
-
+//add hypov8. fill clip?
 			item_index = QweryClipIndex(it);
 			if (item_index > 0)
 				ent->client->pers.weapon_clip[item_index] = auto_rounds[item_index];
-
+//
 		}
 		if (!give_all)
 			return;
@@ -698,14 +710,14 @@ void Cmd_Give_f (edict_t *ent)
 		it = FindItem (name);
 		if (!it)
 		{
-			cprintf (ent, PRINT_HIGH, "not a valid item\n");
+			safe_cprintf (ent, PRINT_HIGH, "not a valid item\n");
 			return;
 		}
 	}
 
 	if (!it->pickup)
 	{
-		cprintf (ent, PRINT_HIGH, "non-pickup item\n");
+		safe_cprintf (ent, PRINT_HIGH, "non-pickup item\n");
 		return;
 	}
 
@@ -751,7 +763,7 @@ void Cmd_God_f (edict_t *ent)
 
 	if (deathmatch_value && !sv_cheats->value)
 	{
-		cprintf (ent, PRINT_HIGH, "You must run the server with '+set cheats 1' to enable this command.\n");
+		safe_cprintf (ent, PRINT_HIGH, "You must run the server with '+set cheats 1' to enable this command.\n");
 		return;
 	}
 
@@ -761,7 +773,7 @@ void Cmd_God_f (edict_t *ent)
 	else
 		msg = "Immortal ON\n";
 
-	cprintf (ent, PRINT_HIGH, msg);
+	safe_cprintf (ent, PRINT_HIGH, msg);
 }
 
 
@@ -783,7 +795,7 @@ void Cmd_Notarget_f (edict_t *ent)
 
 	if (deathmatch_value && !sv_cheats->value)
 	{
-		cprintf (ent, PRINT_HIGH, "You must run the server with '+set cheats 1' to enable this command.\n");
+		safe_cprintf (ent, PRINT_HIGH, "You must run the server with '+set cheats 1' to enable this command.\n");
 		return;
 	}
 
@@ -793,7 +805,7 @@ void Cmd_Notarget_f (edict_t *ent)
 	else
 		msg = "notarget ON\n";
 
-	cprintf (ent, PRINT_HIGH, msg);
+	safe_cprintf (ent, PRINT_HIGH, msg);
 }
 
 
@@ -813,7 +825,7 @@ void Cmd_Noclip_f (edict_t *ent)
 
 	if (deathmatch_value && !sv_cheats->value)
 	{
-		cprintf (ent, PRINT_HIGH, "You must run the server with '+set cheats 1' to enable this command.\n");
+		safe_cprintf (ent, PRINT_HIGH, "You must run the server with '+set cheats 1' to enable this command.\n");
 		return;
 	}
 // HYPOV8_ADD
@@ -835,39 +847,12 @@ void Cmd_Noclip_f (edict_t *ent)
 		ent->movetype = MOVETYPE_NOCLIP;
 		msg = "noclip ON\n";
 		ent->solid = SOLID_NOT; // HYPOV8_ADD
-// ACEBOT_ADD noclip fix
-		ent->acebot.pm_last_node = INVALID;
-// ACEBOT_END
 	}
 
-	cprintf (ent, PRINT_HIGH, msg);
+	safe_cprintf (ent, PRINT_HIGH, msg);
 }
 
-// ACEBOT_ADD
-static void build_bot_list()
-{
-	int i,j,botCount,outCount;
-	edict_t	*bot;
 
-	botCount = ACESP_LoadRandomBotCFG();
-	if (botCount > 0)
-	{
-		outCount = 0;
-		for (i = 0; i <= botCount; i++)
-		{
-			for_each_player_inc_bot(bot, j)
-			{
-				//if (!bot->acebot.is_bot) continue; //hypo allow clients to use bot names?
-				if (Q_stricmp(randomBotSkins[i].name, bot->client->pers.netname) == 0)
-					continue;
-			}
-			outCount++;
-			strcpy(VoteBotRemoveName[0], randomBotSkins[i].name);
-		}
-		
-	}
-}
-// ACEBOT_END
 /*
 ==================
 Cmd_Use_f
@@ -892,23 +877,26 @@ void Cmd_Use_f (edict_t *ent)
 		if (s && level.framenum >= (ent->client->resp.scoreboard_frame + 2))
 		{
 			int vote=0;
+		if (level.vote_winner)
+			return;
 			if (!strcmp(s, "pipe"))
 				vote = 1;
-			if (!strcmp(s, "pistol"))
+		else if (!strcmp(s, "pistol"))
 				vote = 2;
-			if (!strcmp(s, "shotgun"))
+		else if (!strcmp(s, "shotgun"))
 				vote = 3;
-			if (!strcmp(s, "tommygun"))
+		else if (!strcmp(s, "tommygun"))
 				vote = 4;
-			if (!strcmp(s, "heavy machinegun"))
+		else if (!strcmp(s, "heavy machinegun"))
 				vote = 5;
-			if (!strcmp(s, "grenade launcher"))
+		else if (!strcmp(s, "grenade launcher"))
 				vote = 6;
-			if (!strcmp(s, "bazooka"))
+		else if (!strcmp(s, "bazooka"))
 				vote = 7;
-			if (!strcmp(s, "flamethrower"))
+		else if (!strcmp(s, "flamethrower"))
 				vote = 8;
-			if (vote > 0 && vote <= num_vote_set)
+		// hypov8 todo else return;
+			if (vote > 0 && vote <= level.num_vote_set)
 			{
 				ent->client->mapvote = vote;
 				ent->client->resp.scoreboard_frame = 0;
@@ -917,150 +905,8 @@ void Cmd_Use_f (edict_t *ent)
 		return;
 	}
 // ACEBOT_ADD
-	if (ent->client->showscores == SCORE_BOT_VOTE)
-	{
-		if (s)
-		{
-
-			if (!strcmp(s, "pipe")){
-				ent->client->showscores = SCORE_BOT_ADD; ent->menu = 0;		}
-			else if (!strcmp(s, "pistol")){
-				ent->client->showscores = SCORE_BOT_REMOVE; ent->menu = 0;		}
-			else if (!strcmp(s, "shotgun")){
-				ent->client->showscores = SCORE_BOT_SKILL; ent->menu = 0;		}
-			else if (!strcmp(s, "tommygun")){
-				if (ent->client->pers.noantilag)
-					Cmd_AntiLag_f(ent, "1");	//ent->client->pers.noantilag = 0;
-				else								
-					Cmd_AntiLag_f(ent, "0");	//ent->client->pers.noantilag = 1;
-				ent->menu = 4;
-			}
-			else if (!strcmp(s, "heavy machinegun")){
-				Cmd_Yes_f(ent); ent->client->showscores = NO_SCOREBOARD; ent->menu = 0;			}
-			else if (!strcmp(s, "grenade launcher")){
-				Cmd_No_f(ent); ent->client->showscores = NO_SCOREBOARD;	ent->menu = 0;			}
-			else if (!strcmp(s, "bazooka")){
-				ent->client->showscores = NO_SCOREBOARD; ent->menu = 0;		}
-			else if (!strcmp(s, "flamethrower")){
-				ent->client->showscores = NO_SCOREBOARD; ent->menu = 0;		}
-
-			}
-
-
-		ent->client->resp.switch_teams_frame = level.framenum;
-		DeathmatchScoreboard (ent);
+	if (ACECM_G_Use_f(ent, s))
 		return;
-	}
-
-	if (ent->client->showscores == SCORE_BOT_ADD)
-	{
-		if (level.modeset == MATCH || level.modeset == PUBLIC)
-		{
-			if (s)
-			{
-				if (!strcmp(s, "pipe"))
-					Cmd_VoteAddBot_f(ent, 1);
-				else if (!strcmp(s, "pistol"))
-					Cmd_VoteAddBot_f(ent, 2);
-				else if (!strcmp(s, "shotgun"))
-					Cmd_VoteAddBot_f(ent, 3);
-				else if (!strcmp(s, "tommygun"))
-					Cmd_VoteAddBot_f(ent, 3);
-				else if (!strcmp(s, "heavy machinegun"))
-					Cmd_VoteAddBot_f(ent, 3);
-				else if (!strcmp(s, "grenade launcher"))
-					Cmd_VoteAddBot_f(ent, 3);
-				else if (!strcmp(s, "bazooka"))
-					Cmd_VoteAddBot_f(ent, 3);
-				else if (!strcmp(s, "flamethrower"))
-					Cmd_VoteAddBot_f(ent, 3);
-			}
-			//ent->client->showscores = NO_SCOREBOARD;
-			ent->client->showscores = SCORE_BOT_VOTE;
-			ent->menu = 0;
-			DeathmatchScoreboard(ent);
-			return;
-		}
-	}
-
-
-	if (ent->client->showscores == SCORE_BOT_REMOVE)
-		{
-			if (level.modeset == MATCH || level.modeset == PUBLIC)
-			{
-				if (s)
-				{
-					if (!strcmp(s, "pipe"))
-						Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[0]);
-					else if (!strcmp(s, "pistol"))
-						Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[1]);
-					else if (!strcmp(s, "shotgun"))
-						Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[2]);
-					else if (!strcmp(s, "tommygun"))
-						Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[3]);
-					else if (!strcmp(s, "heavy machinegun"))
-						Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[4]);
-					else if (!strcmp(s, "grenade launcher"))
-						Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[5]);
-					else if (!strcmp(s, "bazooka"))
-						Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[6]);
-					else if (!strcmp(s, "flamethrower"))
-						Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[7]);
-				}
-				//ent->client->showscores = NO_SCOREBOARD;
-				ent->client->showscores = SCORE_BOT_VOTE;
-				ent->menu = 0;
-				DeathmatchScoreboard(ent);
-				return;
-			}
-		}
-
-
-	if (ent->client->showscores == SCORE_BOT_SKILL)
-		{
-			if (level.modeset == MATCH || level.modeset == PUBLIC)
-			{
-				if (s)
-				{
-					if (!strcmp(s, "pipe")){
-						menuBotSkill = 0.4;
-						Cmd_VoteSkill_f(ent, 1);
-					}
-					else if (!strcmp(s, "pistol")){
-						menuBotSkill = 0.8;
-						Cmd_VoteSkill_f(ent, 1);
-					}
-					else if (!strcmp(s, "shotgun")){
-						menuBotSkill = 1.2;
-						Cmd_VoteSkill_f(ent, 1);
-					}
-					else if (!strcmp(s, "tommygun")){
-						menuBotSkill = 1.6;
-						Cmd_VoteSkill_f(ent, 1);
-					}
-					else if (!strcmp(s, "heavy machinegun")){
-						menuBotSkill = 2.0;
-						Cmd_VoteSkill_f(ent, 1);
-					}
-					else if (!strcmp(s, "grenade launcher")){
-						menuBotSkill = 2.4;
-						Cmd_VoteSkill_f(ent, 1);
-					}
-					else if (!strcmp(s, "bazooka")){
-						menuBotSkill = 2.8;
-						Cmd_VoteSkill_f(ent, 1);
-					}
-					else if (!strcmp(s, "flamethrower")){
-						menuBotSkill = 3.2;
-						Cmd_VoteSkill_f(ent, 1);
-					}
-				}
-				ent->client->showscores = NO_SCOREBOARD;
-				ent->menu = 0;
-				DeathmatchScoreboard(ent);
-				return;
-			}
-		}
 // ACEBOT_END
 			
 	if (ent->client->showscores == SCORE_REJOIN) // restores players frags, time, etc after they disconnect
@@ -1078,14 +924,10 @@ void Cmd_Use_f (edict_t *ent)
 	{
 		if (s)
 		{
-			if (!strcmp(s, "pipe"))
-			{	// Kings
+			if (!strcmp(s, "pipe"))// team 1
 				Cmd_Join_f( ent, team_names[1] );
-			}
-			else if (!strcmp(s, "pistol"))
-			{	// Pins
+			else if (!strcmp(s, "pistol"))// team 2
 				Cmd_Join_f( ent, team_names[2] );
-			}
 		}
 		return;
 	}
@@ -1096,17 +938,19 @@ void Cmd_Use_f (edict_t *ent)
 		return;
 	}
 
-	if (ent->solid == SOLID_NOT) return;
+	if (ent->solid == SOLID_NOT || ent->deadflag)
+		return;
+
 
 	it = FindItem (s);
 	if (!it)
 	{
-		cprintf (ent, PRINT_HIGH, "not a valid item: %s\n", s);
+		safe_cprintf (ent, PRINT_HIGH, "not a valid item: %s\n", s);
 		return;
 	}
 	if (!it->use)
 	{
-		cprintf (ent, PRINT_HIGH, "Item is not usable.\n");
+		safe_cprintf (ent, PRINT_HIGH, "Item is not usable.\n");
 		return;
 	}
 
@@ -1114,25 +958,35 @@ void Cmd_Use_f (edict_t *ent)
 	if (!ent->client->pers.inventory[index])
 	{
 		
-		if (strcmp (it->pickup_name, "Pistol") == 0)
+		if (strcmp (it->pickup_name, "Pipe") == 0)
+		{
+			it = FindItem ("Crowbar");
+			index = ITEM_INDEX(it);
+			if (!ent->client->pers.inventory[index])
+			{
+				safe_cprintf (ent, PRINT_HIGH, "Out of item: %s\n", s);
+				return;
+			}
+		}
+		else if (strcmp (it->pickup_name, "Pistol") == 0)
 		{
 		//	gi.dprintf ("silencer_shots: %d\n", ent->client->pers.silencer_shots);
 			if (ent->client->pers.silencer_shots <= 0) //hypov8 was 0
 			{
-				cprintf (ent, PRINT_HIGH, "Out of item: %s\n", s);
+				safe_cprintf (ent, PRINT_HIGH, "Out of item: %s\n", s);
 				return;
 			}
 			it = FindItem ("SPistol");
 			index = ITEM_INDEX (it);
 			if (!ent->client->pers.inventory[index])
 			{
-				cprintf (ent, PRINT_HIGH, "Out of item: %s\n", s);
+				safe_cprintf (ent, PRINT_HIGH, "Out of item: %s\n", s);
 				return;
 			}
 		}
 		else 
 		{
-			cprintf (ent, PRINT_HIGH, "Out of item: %s\n", s);
+			safe_cprintf (ent, PRINT_HIGH, "Out of item: %s\n", s);
 			return;
 		}
 	}
@@ -1159,20 +1013,33 @@ void Cmd_Drop_f (edict_t *ent)
 	gitem_t		*it;
 	char		*s;
 
-	if (ent->solid == SOLID_NOT) return;
+	if (ent->solid == SOLID_NOT) 
+		return;
 
 	//hypov8 todo: dont dro in spec
 
 	s = gi.args();
+
+	if (!Q_stricmp (s, "cash"))
+	{
+		if (((int)(dmflags->value) & DF_DROP_CASH) && ent->client->pers.currentcash)
+		{
+			edict_t *cash = Drop_Item(ent, FindItemByClassname ("item_cashroll"));
+			cash->currentcash = ent->client->pers.currentcash;
+			ent->client->pers.currentcash = 0;
+		}
+		return;
+	}
+
 	it = FindItem (s);
 	if (!it)
 	{
-		cprintf (ent, PRINT_HIGH, "not a valid item: %s\n", s);
+		safe_cprintf (ent, PRINT_HIGH, "not a valid item: %s\n", s);
 		return;
 	}
 	if (!it->drop)
 	{
-		cprintf (ent, PRINT_HIGH, "Item is not dropable.\n");
+		safe_cprintf (ent, PRINT_HIGH, "Item is not dropable.\n");
 		return;
 	}
 
@@ -1185,7 +1052,7 @@ void Cmd_Drop_f (edict_t *ent)
 
 			if (ent->client->pers.silencer_shots <= 0)
 			{
-				cprintf (ent, PRINT_HIGH, "Out of item: %s\n", s);
+				safe_cprintf (ent, PRINT_HIGH, "Out of item: %s\n", s);
 				return;
 			}
 			
@@ -1193,13 +1060,13 @@ void Cmd_Drop_f (edict_t *ent)
 			index = ITEM_INDEX (it);
 			if (!ent->client->pers.inventory[index])
 			{
-				cprintf (ent, PRINT_HIGH, "Out of item: %s\n", s);
+				safe_cprintf (ent, PRINT_HIGH, "Out of item: %s\n", s);
 				return;
 			}
 		}
 		else 
 		{
-			cprintf (ent, PRINT_HIGH, "Out of item: %s\n", s);
+			safe_cprintf (ent, PRINT_HIGH, "Out of item: %s\n", s);
 			return;
 		}
 	}
@@ -1217,6 +1084,9 @@ void Cmd_Inven_f (edict_t *ent)
 {
 	int			i;
 	gclient_t	*cl;
+
+	if (ent->solid == SOLID_NOT || ent->deadflag || dm_realmode->value == 3)
+		return;
 
 	cl = ent->client;
 
@@ -1247,18 +1117,21 @@ void Cmd_InvUse_f (edict_t *ent)
 {
 	gitem_t		*it;
 
+	if (ent->solid == SOLID_NOT)
+		return;
+
 	ValidateSelectedItem (ent);
 
 	if (ent->client->pers.selected_item == -1)
 	{
-		cprintf (ent, PRINT_HIGH, "No item to use.\n");
+		safe_cprintf (ent, PRINT_HIGH, "No item to use.\n");
 		return;
 	}
 
 	it = &itemlist[ent->client->pers.selected_item];
 	if (!it->use)
 	{
-		cprintf (ent, PRINT_HIGH, "Item is not usable.\n");
+		safe_cprintf (ent, PRINT_HIGH, "Item is not usable.\n");
 		return;
 	}
 	it->use (ent, it);
@@ -1273,7 +1146,7 @@ void Cmd_WeapPrev_f (edict_t *ent)
 {
 	gclient_t	*cl;
 	int			i, index;
-	gitem_t		*it;
+	gitem_t		*it, *newweapon;
 	int			selected_weapon;
 
 	cl = ent->client;
@@ -1288,15 +1161,18 @@ void Cmd_WeapPrev_f (edict_t *ent)
 		return;
 
 	// Ridah, if already changing weapons, start from the next weapon, for faster cycling
-	if (ent->client->weaponstate == WEAPON_DROPPING)
+	if (cl->weaponstate == WEAPON_DROPPING)
 		selected_weapon = ITEM_INDEX(cl->newweapon);
 	else
 		selected_weapon = ITEM_INDEX(cl->pers.weapon);
 
+	newweapon = cl->newweapon;
+
 	// scan  for the next valid one
-	for (i=1 ; i<=MAX_ITEMS ; i++)
+	for (i=1 ; i<MAX_ITEMS ; i++)
 	{
-		index = (selected_weapon + i)%MAX_ITEMS;
+		index = (selected_weapon + MAX_ITEMS - i) % MAX_ITEMS;
+
 		if (!cl->pers.inventory[index])
 			continue;
 		it = &itemlist[index];
@@ -1304,22 +1180,22 @@ void Cmd_WeapPrev_f (edict_t *ent)
 			continue;
 		if (! (it->flags & IT_WEAPON) )
 			continue;
-		if (selected_weapon == ITEM_INDEX(it) && cl->newweapon)
+
+		it->use (ent, it);
+		if (cl->newweapon != newweapon)
 		{
+			it = cl->newweapon;
 			// Ridah, show the current weapon on the hud, for easy scrolling
-			if (deathmatch_value && !strstr(cl->newweapon->icon, "pipe"))
+			if (!strstr(it->icon, "pipe"))
 			{
-				it = cl->newweapon;
-				ent->client->ps.stats[STAT_PICKUP_ICON] = gi.imageindex(it->icon);
-				ent->client->ps.stats[STAT_PICKUP_STRING] = CS_ITEMS+ITEM_INDEX(it);
-				ent->client->pickup_msg_time = level.time + 5.5;
+				cl->ps.stats[STAT_PICKUP_ICON] = gi.imageindex(it->icon);
+				cl->ps.stats[STAT_PICKUP_STRING] = CS_ITEMS + ITEM_INDEX(it);
+				cl->pickup_msg_time = level.time + 5.5;
 			}
+			else
+				cl->pickup_msg_time = 0;
 
 			return;	// successful
-		}
-		else
-		{
-			it->use (ent, it);
 		}
 	}
 }
@@ -1350,113 +1226,23 @@ void Cmd_Activate_f (edict_t *ent)
 {
 	edict_t		*trav, *best;
 	float		best_dist=9999, this_dist;
+
+	if (ent->client->showscores == SCORE_REJOIN)
+		return;
+
+
 // ACEBOT_ADD //MENU
-	if (ent->client->showscores == SCORE_BOT_VOTE)
-	{
-		switch (ent->menu)
-		{
-		case 1:ent->client->showscores = SCORE_BOT_ADD; ent->menu = 0; break;
-		case 2:ent->client->showscores = SCORE_BOT_REMOVE; ent->menu = 0; break;
-		case 3:ent->client->showscores = SCORE_BOT_SKILL; ent->menu = 0; break;
-		case 4:	if (ent->client->pers.noantilag) 
-					Cmd_AntiLag_f(ent, "1"); //ent->client->pers.noantilag = 0;
-				else	
-					Cmd_AntiLag_f(ent, "0"); //ent->client->pers.noantilag = 1;
-				ent->menu = 4; break;
-
-	
-		case 5:Cmd_Yes_f(ent); ent->client->showscores = NO_SCOREBOARD; ent->menu = 0; break;
-		case 6:Cmd_No_f(ent); ent->client->showscores = NO_SCOREBOARD; ent->menu = 0;	break;
-
-		default: ent->client->showscores = NO_SCOREBOARD; ent->menu = 0; break;
-			
-
-		}
-		//ent->menu = 0;
-		DeathmatchScoreboard(ent);
+	if (ACECM_G_Activate_f(ent))
 		return;
-	}
-	
-	if (ent->client->showscores == SCORE_BOT_ADD)
-	{
-		if (level.modeset == MATCH || level.modeset == PUBLIC)
-		{
-			switch (ent->menu)
-			{
-			case 1: Cmd_VoteAddBot_f(ent,1) ; break;
-			case 2: Cmd_VoteAddBot_f(ent, 2); break;
-			case 3:Cmd_VoteAddBot_f(ent, 0); break;
-			default: ; break;
-
-			}
-		}
-		//ent->client->showscores = NO_SCOREBOARD;
-		ent->client->showscores = SCORE_BOT_VOTE;
-		ent->menu = 0;
-		DeathmatchScoreboard(ent);
-		return;
-	}
-
-
-	if (ent->client->showscores == SCORE_BOT_REMOVE)
-	{
-		if (level.modeset == MATCH || level.modeset == PUBLIC)
-		{
-			switch (ent->menu)
-			{
-			case 1: Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[0]); break;
-			case 2: Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[1]); break;
-			case 3: Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[2]); break;
-			case 4: Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[3]); break;
-			case 5: Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[4]); break;
-			case 6: Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[5]); break;
-			case 7: Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[6]); break;
-			case 8: Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[7]); break;
-			default: Cmd_VoteRemoveBot_f(ent, true, ""); break; //invalid!!!
-
-			}
-		}
-		//ent->client->showscores = NO_SCOREBOARD;
-		ent->client->showscores = SCORE_BOT_VOTE;
-		ent->menu = 0;
-		DeathmatchScoreboard(ent);
-		return;
-	}
-
-	if (ent->client->showscores == SCORE_BOT_SKILL)
-	{
-		if (level.modeset == MATCH || level.modeset == PUBLIC)
-		{
-			switch (ent->menu)
-			{
-			case 1: menuBotSkill = 0.0; Cmd_VoteSkill_f(ent, 1); break;
-			case 2: menuBotSkill = 0.4; Cmd_VoteSkill_f(ent, 1); break;
-			case 3: menuBotSkill = 0.8; Cmd_VoteSkill_f(ent, 1); break;
-			case 4: menuBotSkill = 1.2; Cmd_VoteSkill_f(ent, 1); break;
-			case 5: menuBotSkill = 1.6; Cmd_VoteSkill_f(ent, 1); break;
-			case 6: menuBotSkill = 2.0; Cmd_VoteSkill_f(ent, 1); break;
-			case 7: menuBotSkill = 2.4; Cmd_VoteSkill_f(ent, 1); break;
-			case 8: menuBotSkill = 2.8; Cmd_VoteSkill_f(ent, 1); break;
-			case 9: menuBotSkill = 3.2; Cmd_VoteSkill_f(ent, 1); break;
-			case 10: menuBotSkill = 3.6; Cmd_VoteSkill_f(ent, 1); break;
-			case 11: menuBotSkill = 4.0; Cmd_VoteSkill_f(ent, 1); break;
-			//default:Cmd_VoteSkill_f(ent, 1); break;
-
-			}
-		}
-		ent->client->showscores = NO_SCOREBOARD;
-		ent->menu = 0;
-		DeathmatchScoreboard(ent);
-		return;
-	}
 // ACEBOT_END
 
 	if (ent->movetype == MOVETYPE_NOCLIP)
 	{
 		if (ent->client->pers.spectator == SPECTATING && (level.modeset == PUBLIC || level.modeset == MATCH))
 		{
-			if (level.modeset == MATCH && no_spec->value && !ent->client->pers.admin && !ent->client->pers.rconx[0]) return;
-			if (maxclients->value > 1)
+			if (level.modeset == MATCH && no_spec->value && !ent->client->pers.admin && !ent->client->pers.rconx[0]) 
+				return;
+			if ((int)maxclients->value > 1)
 			{
 				if (!ent->client->chase_target)
 				{
@@ -1512,7 +1298,7 @@ void Cmd_Activate_f (edict_t *ent)
 			gitem_t *item;
 			
 			ent->client->pers.currentcash += best->currentcash;
-			//cprintf (ent, PRINT_HIGH, "%i dollars found\n", best->currentcash);
+			//safe_cprintf (ent, PRINT_HIGH, "%i dollars found\n", best->currentcash);
 			ent->client->ps.stats[STAT_CASH_PICKUP] = best->currentcash;
 			best->currentcash = 0;
 			// flash the screen green
@@ -1616,7 +1402,7 @@ void Cmd_Activate_f (edict_t *ent)
 
 			// Ridah, added this since it's frustrating hitting the switches in deathmatch
 			if (target->target == NULL)  //hypov8 crashing server if no target
-				target->target = "null";
+				target->target = "null"; //todo: fix
 			if (!deathmatch_value || (!Q_stricmp(target->classname, "func_button") && !Q_stricmp(target->target, "safe2")))
 			if (tr.ent != target)
 				continue;
@@ -1811,7 +1597,7 @@ void Cmd_Reload_f (edict_t *ent)
 
 void Cmd_Holster_f (edict_t *ent)
 {
-	cprintf (ent, PRINT_HIGH, "no holstering\n");
+	safe_cprintf (ent, PRINT_HIGH, "no holstering\n");
 }
 
 // JOSEPH 29-DEC-98
@@ -1840,7 +1626,7 @@ void Cmd_WeapNext_f (edict_t *ent)
 {
 	gclient_t	*cl;
 	int			i, index;
-	gitem_t		*it;
+	gitem_t		*it, *newweapon;
 	int			selected_weapon;
 
 	cl = ent->client;
@@ -1855,19 +1641,17 @@ void Cmd_WeapNext_f (edict_t *ent)
 		return;
 
 	// Ridah, if already changing weapons, start from the next weapon, for faster cycling
-	if (ent->client->weaponstate == WEAPON_DROPPING)
-	{
+	if (cl->weaponstate == WEAPON_DROPPING)
 		selected_weapon = ITEM_INDEX(cl->newweapon);
-	}
 	else
-	{
 		selected_weapon = ITEM_INDEX(cl->pers.weapon);
-	}
+
+	newweapon = cl->newweapon;
 
 	// scan  for the next valid one
-	for (i=1 ; i<=MAX_ITEMS ; i++)
+	for (i=1 ; i<MAX_ITEMS ; i++)
 	{
-		index = (selected_weapon + MAX_ITEMS - i)%MAX_ITEMS;
+		index = (selected_weapon + i) % MAX_ITEMS;
 		
 		if (!cl->pers.inventory[index])
 			continue;
@@ -1876,22 +1660,22 @@ void Cmd_WeapNext_f (edict_t *ent)
 			continue;
 		if (! (it->flags & IT_WEAPON) )
 			continue;
-		if (selected_weapon == ITEM_INDEX(it) && cl->newweapon)
+
+		it->use (ent, it);
+		if (cl->newweapon != newweapon)
 		{
+			it = cl->newweapon;
 			// Ridah, show the current weapon on the hud, for easy scrolling
-			if (deathmatch_value && !strstr(cl->newweapon->icon, "pipe"))
+			if (!strstr(it->icon, "pipe"))
 			{
-				it = cl->newweapon;
-				ent->client->ps.stats[STAT_PICKUP_ICON] = gi.imageindex(it->icon);
-				ent->client->ps.stats[STAT_PICKUP_STRING] = CS_ITEMS+ITEM_INDEX(it);
-				ent->client->pickup_msg_time = level.time + 5.5;
+				cl->ps.stats[STAT_PICKUP_ICON] = gi.imageindex(it->icon);
+				cl->ps.stats[STAT_PICKUP_STRING] = CS_ITEMS + ITEM_INDEX(it);
+				cl->pickup_msg_time = level.time + 5.5;
 			}
+			else
+				cl->pickup_msg_time = 0;
 
 			return;	// successful
-		}
-		else
-		{
-			it->use (ent, it);
 		}
 	}
 }
@@ -1905,7 +1689,7 @@ void Cmd_WeapLast_f (edict_t *ent)
 {
 	gclient_t	*cl;
 	int			index;
-	gitem_t		*it;
+	gitem_t		*it, *newweapon;
 
 	cl = ent->client;
 
@@ -1918,6 +1702,8 @@ void Cmd_WeapLast_f (edict_t *ent)
 	if (!cl->pers.weapon || !cl->pers.lastweapon)
 		return;
 
+	newweapon = cl->newweapon;
+
 	index = ITEM_INDEX(cl->pers.lastweapon);
 	if (!cl->pers.inventory[index])
 		return;
@@ -1928,15 +1714,20 @@ void Cmd_WeapLast_f (edict_t *ent)
 		return;
 
 	it->use (ent, it);
-
-	// Ridah, show the current weapon on the hud, for easy scrolling
-	if (deathmatch_value && !strstr(it->icon, "pipe"))
+	if (cl->newweapon == newweapon)
 	{
-		ent->client->ps.stats[STAT_PICKUP_ICON] = gi.imageindex(it->icon);
-		ent->client->ps.stats[STAT_PICKUP_STRING] = CS_ITEMS+ITEM_INDEX(it);
-		ent->client->pickup_msg_time = level.time + 5.5;
-	}
+		it = cl->newweapon;
+	// Ridah, show the current weapon on the hud, for easy scrolling
+		if (!strstr(it->icon, "pipe"))
+	{
+			cl->ps.stats[STAT_PICKUP_ICON] = gi.imageindex(it->icon);
+			cl->ps.stats[STAT_PICKUP_STRING] = CS_ITEMS + ITEM_INDEX(it);
+			cl->pickup_msg_time = level.time + 5.5;
 
+	}
+		else
+			cl->pickup_msg_time = 0;
+	}
 }
 
 /*
@@ -1948,29 +1739,31 @@ void Cmd_InvDrop_f (edict_t *ent)
 {
 	gitem_t		*it;
 	int		index;
-	char		*s;
-	//hypov8 todo: dont dro in spec
-	s = gi.args();
+	//hypov8 todo: dont drop in spec
+
+	if (ent->solid == SOLID_NOT)
+		return;
+
 
 	ValidateSelectedItem (ent);
 
 	if (ent->client->pers.selected_item == -1)
 	{
-		cprintf (ent, PRINT_HIGH, "No item to drop.\n");
+		safe_cprintf (ent, PRINT_HIGH, "No item to drop.\n");
 		return;
 	}
 
 	it = &itemlist[ent->client->pers.selected_item];
 	if (!it->drop)
 	{
-		cprintf (ent, PRINT_HIGH, "Item is not dropable.\n");
+		safe_cprintf (ent, PRINT_HIGH, "Item is not dropable.\n");
 		return;
 	}
 
 	index = ITEM_INDEX(it);
 	if (!ent->client->pers.inventory[index])
 	{
-		cprintf (ent, PRINT_HIGH, "Out of item: %s\n", s);
+		safe_cprintf (ent, PRINT_HIGH, "Out of item: %s\n", it->pickup_name);
 		return;
 	}
 
@@ -1985,7 +1778,7 @@ Cmd_Kill_f
 void Cmd_Kill_f (edict_t *ent)
 {
 	if (ent->solid != SOLID_NOT)
-		cprintf (ent, PRINT_HIGH, "no suiciding!\n");
+		safe_cprintf (ent, PRINT_HIGH, "no suiciding!\n");
 }
 
 /*
@@ -1996,18 +1789,8 @@ Cmd_PutAway_f
 void Cmd_PutAway_f (edict_t *ent)
 {
 // ACEBOT_ADD
-	if (ent->client->showscores == SCORE_BOT_ADD
-		|| ent->client->showscores == SCORE_BOT_REMOVE
-		|| ent->client->showscores == SCORE_BOT_SKILL)
-	{
-		ent->client->showscores = SCORE_BOT_VOTE;
-		//ent->client->showhelp = false;
-		ent->client->showinventory = false;
-		ent->client->resp.vote = 0;
-		ent->menu = 0;
-		DeathmatchScoreboard(ent); //hypov8 add, update scoreboard straight away
+	if (ACECM_G_PutAway_f(ent))
 		return;
-	}
 // ACEBOT_END
 
 // HYPOV8 ADD
@@ -2044,162 +1827,24 @@ void Cmd_Players_f (edict_t *ent)
 
 	count = 0;
 
-	cprintf(ent, PRINT_HIGH, "num score ping name            lastmsg country\n"
+	safe_cprintf(ent, PRINT_HIGH, "num score ping name            lastmsg country\n"
 		"--- ----- ---- --------------- ------- ---------------------\n");
-	for (a=1; a<=maxclients->value; a++)
+	for (a=1; a<=(int)maxclients->value; a++)
 	{
 		gclient_t *c = g_edicts[a].client;
 		if (c && (g_edicts[a].inuse || (c->pers.connected && (kpded2 || curtime-c->pers.lastpacket < 120000))))
 		{
 			char buf[16];
 			Com_sprintf(buf,sizeof(buf), "%s", g_edicts[a].inuse ? va("%i",c->ping) : "CNCT");
-			cprintf(ent, PRINT_HIGH, "%3d %5d %4s %-15s %7d %s\n",
+			safe_cprintf(ent, PRINT_HIGH, "%3d %5d %4s %-15s %7d %s\n",
 				a-1, c->resp.score, buf, c->pers.netname, curtime-c->pers.lastpacket, c->pers.country ? c->pers.country : "");
 			count++;
 		}
 	}
 
-	cprintf (ent, PRINT_HIGH, "\n%i players\n", count);
+	safe_cprintf (ent, PRINT_HIGH, "\n%i players\n", count);
 }
 
-/*
-=================
-Cmd_Wave_f
-=================
-*/
-void Cmd_Wave_f (edict_t *ent, edict_t *other, int who)
-{
-	char *cmd;
-
-	cmd = gi.argv(0);
-
-
-	if (other!=NULL)
-	{
-		if (!other->client)
-			return;
-
-		if (!ent->solid)
-			return;
-	}
-
-	// can't wave when ducked
-	if (ent->client->ps.pmove.pm_flags & PMF_DUCKED)
-		return;
-
-	if (ent->client->last_wave > (level.time - 2.5) && (ent->client->last_wave <= level.time))
-		return;
-
-	ent->client->last_wave = level.time;
-
-	// say something
-	{
-		if (ent->gender == GENDER_MALE)
-		{
-			switch(who)
-			{
-				case 0: //random
-					Voice_Random(ent, other, player_profanity_level2, NUM_PLAYER_PROFANITY_LEVEL2);
-					break;
-				case KINGPIN:
-					Voice_Random(ent, other, kingpin_random, NUM_KINGPIN_RANDOM);
-					break;
-				case LEROY:
-					Voice_Random(ent, other, leroy_random, NUM_LEROY_RANDOM);
-					break;
-				case MJ:
-					Voice_Random(ent, other, mj_random, NUM_MJ_RANDOM);
-					break;
-				case MOMO:
-					Voice_Random(ent, other, momo_random, NUM_MOMO_RANDOM);
-					break;
-				case LAMONT:
-					Voice_Random(ent, other, lamont_random, NUM_LAMONT_RANDOM);
-					break;
-				case JESUS:
-					Voice_Random(ent, other, jesus_random, NUM_JESUS_RANDOM);
-					break;
-				case TYRONE:
-					Voice_Random(ent, other, tyrone_random, NUM_TYRONE_RANDOM);
-					break;
-				case WILLY:
-					Voice_Random(ent, other, willy_random, NUM_WILLY_RANDOM);
-					break;
-				case MOKER:
-					Voice_Random(ent, other, moker_random, NUM_MOKER_RANDOM);
-					break;
-				case HEILMAN:
-					Voice_Random(ent, other, heilman_random, NUM_HEILMAN_RANDOM);
-					break;
-				default:
-					Voice_Random(ent, other, player_profanity_level2, NUM_PLAYER_PROFANITY_LEVEL2);
-			}
-		}
-		else if (ent->gender == GENDER_FEMALE)
-		{
-			switch(who)
-			{
-				case 0: //random
-					Voice_Random(ent, other, f_profanity_level2, F_NUM_PROFANITY_LEVEL2);
-					break;
-				case BAMBI:
-					Voice_Random(ent, other, bambi_random, F_NUM_BAMBI_RANDOM);
-					break;
-				case YOLANDA:
-					Voice_Random(ent, other, yolanda_random, F_NUM_YOLANDA_RANDOM);
-					break;
-				case MONA:
-					Voice_Random(ent, other, mona_random, F_NUM_MONA_RANDOM);
-					break;
-				case LOLA:
-					Voice_Random(ent, other, lola_random, F_NUM_LOLA_RANDOM);
-					break;
-				case BLUNT:
-					Voice_Random(ent, other, blunt_random, F_NUM_BLUNT_RANDOM);
-					break;
-				case BETH:
-					Voice_Random(ent, other, beth_random, F_NUM_BETH_RANDOM);
-					break;
-				default:
-					Voice_Random(ent, other, f_profanity_level2, F_NUM_PROFANITY_LEVEL2);
-			}
-		}
-	}
-
-
-	//hypov8 taunt ani re'enabled
-	{
-		int rnd;
-
-		if (ent->client->anim_priority > ANIM_WAVE)
-			return;
-		if (ent->client->anim_priority == ANIM_ATTACK) //add hypov8 stop taunt ani when attacking
-			return;
-
-		ent->client->anim_priority = ANIM_WAVE;
-
-		rnd = rand() % 3;
-
-		switch (rnd)
-		{
-		case 0:
-			//		gi.cprintf (ent, PRINT_HIGH, "flipoff\n");
-			ent->s.frame = FRAME_tg_bird_01 - 1;
-			ent->client->anim_end = FRAME_tg_bird_10;
-			break;
-		case 1:
-			//		gi.cprintf (ent, PRINT_HIGH, "salute\n");
-			ent->s.frame = FRAME_tg_crch_grab_01 - 1;
-			ent->client->anim_end = FRAME_tg_crch_grab_16;
-			break;
-		case 2:
-			//		gi.cprintf (ent, PRINT_HIGH, "taunt\n");
-			ent->s.frame = FRAME_tg_chin_flip_01 - 1;
-			ent->client->anim_end = FRAME_tg_chin_flip_15;
-			break;
-		}
-	}
-}
 
 /*
 ==================
@@ -2214,9 +1859,10 @@ void Cmd_Say_f (edict_t *ent, qboolean team, qboolean arg0)
 	char	text[2048];
 	gclient_t *cl;
 
-	ent->client->resp.check_idle = level.framenum;
+	ent->client->pers.idle = curtime;
 
-	if (ent->client->pers.mute) return;
+	if (ent->client->pers.mute)
+		return;
 	if (gi.argc () < 2 && !arg0)
 		return;
 	if (!arg0 && !*gi.argv(1)) //dont print empty chat
@@ -2226,12 +1872,15 @@ void Cmd_Say_f (edict_t *ent, qboolean team, qboolean arg0)
 		&& ent->client->pers.spectator != SPECTATING)
 		team = false;
 
-	if (team && ((ent->client->pers.admin > NOT_ADMIN) || (ent->client->pers.rconx[0])))
-		Com_sprintf (text, sizeof(text), ">(%s)<: ", ent->client->pers.netname);
-	else if ((ent->client->pers.admin > NOT_ADMIN) || (ent->client->pers.rconx[0]))
-		Com_sprintf (text, sizeof(text), ">|%s|<: ", ent->client->pers.netname);
+	if (ent->client->pers.admin > NOT_ADMIN && level.modeset >= MATCHSETUP && (ent->client->pers.spectator == SPECTATING || level.modeset == MATCHSETUP))
+	{
+		if (team)
+			Com_sprintf (text, sizeof(text), ">(admin:%s): ", ent->client->pers.netname);
+		else
+			Com_sprintf (text, sizeof(text), ">admin:%s: ", ent->client->pers.netname);
+	}
 	else if (team)
-		Com_sprintf (text, sizeof(text), ">%s<: ", ent->client->pers.netname);
+		Com_sprintf (text, sizeof(text), ">(%s): ", ent->client->pers.netname);
 	else
 		Com_sprintf (text, sizeof(text), ":%s: ", ent->client->pers.netname);
 
@@ -2253,13 +1902,9 @@ void Cmd_Say_f (edict_t *ent, qboolean team, qboolean arg0)
 		strcat(text, p);
 	}
 
-	if (disable_anon_text && strchr(text, '\r'))
+	if (strchr(text, '\r'))
 	{
-		if (!ent->client->pers.anonwarn)
-		{
-			safe_cprintf(ent, PRINT_CHAT, "anonymous text is not allowed on this server\n");
-			ent->client->pers.anonwarn++;
-		}
+		safe_cprintf(ent, PRINT_CHAT, "Anonymous text is not allowed on this server\n");
 		return;
 	}
 
@@ -2275,7 +1920,7 @@ void Cmd_Say_f (edict_t *ent, qboolean team, qboolean arg0)
 
 		if (level.time < cl->flood_locktill)
 		{
-			cprintf(ent, PRINT_HIGH, "You can't talk for %d more seconds\n",
+			safe_cprintf(ent, PRINT_HIGH, "You can't talk for %d more seconds\n",
 				(int)(cl->flood_locktill - level.time));
 			return;
 		}
@@ -2327,22 +1972,6 @@ void Cmd_Say_f (edict_t *ent, qboolean team, qboolean arg0)
 	}
 }
 
-void Cmd_DropCash_f (edict_t *self)
-{
-	edict_t		*cash;
-
-	if (self->solid == SOLID_NOT) return;
-
-	if ((int)(dmflags->value) & DF_DROP_CASH)
-	{
-		if (self->client->pers.currentcash)
-		{
-			cash = SpawnTheWeapon( self, "item_cashroll" );
-			cash->currentcash = self->client->pers.currentcash;
-			self->client->pers.currentcash = 0;
-		}
-	}
-}
 
 //===================================================================================
 // Papa 10.6.99
@@ -2354,46 +1983,46 @@ void Cmd_DropCash_f (edict_t *self)
 
 void Cmd_PrintSettings_f (edict_t *ent)
 {
-	cprintf(ent, PRINT_HIGH,"\nCurrent Game Settings\n"
+	safe_cprintf(ent, PRINT_HIGH,"\nCurrent Game Settings\n"
 		"=====================\n");
 	switch (level.modeset)
 	{
 		case PREGAME :
 		case PUBLIC :
-			cprintf(ent, PRINT_HIGH, "Server State    : Public\n");
+			safe_cprintf(ent, PRINT_HIGH, "Server State    : Public\n");
 			break;
 		case MATCHSETUP :
-			cprintf(ent, PRINT_HIGH, "Server State    : Match Setup\n");
+			safe_cprintf(ent, PRINT_HIGH, "Server State    : Match Setup\n");
 			break;
 		case MATCHCOUNT :
-			cprintf(ent, PRINT_HIGH, "Server State    : Match Countdown\n");
+			safe_cprintf(ent, PRINT_HIGH, "Server State    : Match Countdown\n");
 			break;
 		case MATCH :
-			cprintf(ent, PRINT_HIGH, "Server State    : Match\n");
+			safe_cprintf(ent, PRINT_HIGH, "Server State    : Match\n");
 			break;
 	}
 	if (level.modeset == MATCHSETUP)
-		cprintf(ent, PRINT_HIGH,"Matchstart score: %d : %d\n", team_startcash[0], team_startcash[1]);
-	cprintf(ent, PRINT_HIGH,"Time limit      : %d\n", (int)timelimit->value);
-	cprintf(ent, PRINT_HIGH,"Frag limit      : %d\n", (int)fraglimit->value);
-	cprintf(ent, PRINT_HIGH,"Cash limit      : %d\n", (int)cashlimit->value);
-	cprintf(ent, PRINT_HIGH,"dmflags         : %d\n", (int)dmflags->value);
-	cprintf(ent, PRINT_HIGH,"dm_realmode     : %d\n", (int)dm_realmode->value);
-	cprintf(ent, PRINT_HIGH,"Teamplay mode   : %d\n", (int)teamplay->value);
+		safe_cprintf(ent, PRINT_HIGH,"Matchstart score: %d : %d\n", team_startcash[0], team_startcash[1]);
+	safe_cprintf(ent, PRINT_HIGH,"Time limit      : %d\n", (int)timelimit->value);
+	safe_cprintf(ent, PRINT_HIGH,"Frag limit      : %d\n", (int)fraglimit->value);
+	safe_cprintf(ent, PRINT_HIGH,"Cash limit      : %d\n", (int)cashlimit->value);
+	safe_cprintf(ent, PRINT_HIGH,"dmflags         : %d\n", (int)dmflags->value);
+	safe_cprintf(ent, PRINT_HIGH,"dm_realmode     : %d\n", (int)dm_realmode->value);
+	safe_cprintf(ent, PRINT_HIGH,"Teamplay mode   : %d\n", (int)teamplay->value);
 	if (!teamplay->value)
-		cprintf(ent, PRINT_HIGH,"Bonus hit       : %d\n", (int)bonus->value);
-	cprintf(ent, PRINT_HIGH,"Bunny-hopping   : %s\n", (int)dmflags->value&DF_NO_BUNNY ? "off" : "on");
-	cprintf(ent, PRINT_HIGH,"Anti-spawncamp  : %s\n", anti_spawncamp->value? "on" : "off");
-	cprintf(ent, PRINT_HIGH,"Shadows         : %s\n", no_shadows->value? "off" : "on");
-	cprintf(ent, PRINT_HIGH,"FOV zooming     : %s\n", no_zoom->value? "off" : "on");
+		safe_cprintf(ent, PRINT_HIGH,"Bonus hit       : %d\n", (int)bonus->value);
+	safe_cprintf(ent, PRINT_HIGH,"Bunny-hopping   : %s\n", (int)dmflags->value&DF_NO_BUNNY ? "off" : "on");
+	safe_cprintf(ent, PRINT_HIGH,"Anti-spawncamp  : %s\n", anti_spawncamp->value? "on" : "off");
+	safe_cprintf(ent, PRINT_HIGH,"Shadows         : %s\n", no_shadows->value? "off" : "on");
+	safe_cprintf(ent, PRINT_HIGH,"FOV zooming     : %s\n", no_zoom->value? "off" : "on");
 	if (level.modeset >= MATCHSETUP && level.modeset <= MATCH)
-		cprintf(ent, PRINT_HIGH,"Spectating      : %s\n", no_spec->value? "off" : "on");
+		safe_cprintf(ent, PRINT_HIGH,"Spectating      : %s\n", no_spec->value? "off" : "on");
 	if (password->string[0])
-		cprintf(ent, PRINT_HIGH,"Server password : %s\n", password->string);
+		safe_cprintf(ent, PRINT_HIGH,"Server password : %s\n", password->string);
 	{
 		edict_t *admin = GetAdmin();
 		if (admin)
-			cprintf(ent, PRINT_HIGH, "Current admin   : %s\n", admin->client->pers.netname);
+			safe_cprintf(ent, PRINT_HIGH, "Current admin   : %s\n", admin->client->pers.netname);
 	}
 }
 
@@ -2401,10 +2030,10 @@ void Cmd_CurseList_f (edict_t *ent)
 {
 	if (disable_curse)
 	{
-		cprintf(ent, PRINT_HIGH,"Player taunts are disabled\n");
+		safe_cprintf(ent, PRINT_HIGH,"Player taunts are disabled\n");
 		return;
 	}
-	cprintf(ent, PRINT_HIGH,"\nList of Curse Commands\n"
+	safe_cprintf(ent, PRINT_HIGH,"\nList of Curse Commands\n"
 		"=============================\n"
 		"MALE       FEMALE      RANDOM\n"
 		"=============================\n"
@@ -2424,7 +2053,7 @@ void Cmd_CommandList_f (edict_t *ent)
 {
 	char buf[1000];
 
-	cprintf(ent, PRINT_HIGH, "\nCurrent Console Commands\n"
+	safe_cprintf(ent, PRINT_HIGH, "\nCurrent Console Commands\n"
 		"========================\n");
 	strcpy(buf, "menu, maplist, changemap, players, motd, settings, curselist, commands\n");
 
@@ -2476,10 +2105,10 @@ void Cmd_CommandList_f (edict_t *ent)
 	else
 		strcat(buf, " \n");
 
-	cprintf(ent, PRINT_HIGH, "%s\n", buf);
+	safe_cprintf(ent, PRINT_HIGH, "%s\n", buf);
 
 	if (ent->client->pers.admin > NOT_ADMIN && !fixed_gametype)
-		cprintf(ent, PRINT_HIGH,
+		safe_cprintf(ent, PRINT_HIGH,
 			"   The dm_realmode settings are:\n"
 			"      0 : Standard\n"
 			"      1 : Realmode\n"
@@ -2492,14 +2121,15 @@ void Cmd_CommandList_f (edict_t *ent)
 
 void Cmd_Yes_f (edict_t *ent)
 {
+
 	edict_t		*dude;
 	int			i, nop, novy;
 	char		command [256];
 
 	if (level.voteset == NO_VOTES)
-		cprintf(ent, PRINT_HIGH, "There is nothing to vote on at this time\n");
+		safe_cprintf(ent, PRINT_HIGH, "There is nothing to vote on at this time\n");
 	else if (ent->client->resp.vote != HASNT_VOTED)
-		cprintf(ent, PRINT_HIGH, "You have already voted\n");
+		safe_cprintf(ent, PRINT_HIGH, "You have already voted\n");
 	else
 	{
 		ent->client->resp.vote = YES;
@@ -2515,12 +2145,13 @@ void Cmd_Yes_f (edict_t *ent)
 		safe_bprintf (PRINT_HIGH, "%d out of %d have voted YES\n", novy, nop);
 		if ((novy *2) > nop)
 		{
+
 			switch (level.voteset) // Papa - if you wanted to add different types of votes, you could do it here
 			{
 				case VOTE_ON_ADMIN:
 					for_each_player_not_bot(dude, i)
 					{
-						if (dude->client->resp.vote == CALLED_VOTE)
+						if (dude->client->resp.vote == CALLED_VOTE)	
 						{
 							dude->client->pers.admin = ELECTED;
 							safe_bprintf (PRINT_HIGH, "%s has been elected admin\n", dude->client->pers.netname);
@@ -2529,12 +2160,12 @@ void Cmd_Yes_f (edict_t *ent)
 						}
 					}
 					break;
+
 				case VOTE_ON_MAP:
 // ACEBOT_ADD
 					ACECM_LevelEnd();
 					PrintScoreMatchEnd();
-
-					//FreeBots();
+					ACESP_RemoveBot("all");
 // ACEBOT_END
 					safe_bprintf (PRINT_HIGH, "The map change vote has passed\n");
 					if (teamplay->latched_string || dm_realmode->latched_string)
@@ -2544,9 +2175,10 @@ void Cmd_Yes_f (edict_t *ent)
 					gi.AddCommandString (command);
 					break;
 
-// ACEBOT_ADD			//hypov8 todo?: check this
+// ACEBOT_ADD			
+				//hypov8 todo?: check this
 				case	VOTE_ADDBOT:
-					if (level.modeset == MATCH || level.modeset == PUBLIC)
+					if (level.modeset == MATCH || level.modeset == PUBLIC)	
 					{
 						safe_bprintf(PRINT_HIGH, "Add Bot by: %s accepted.\n", dude->client->pers.netname);
 						gi.dprintf("Vote AddBot by: %s accepted.\n", dude->client->pers.netname);
@@ -2557,28 +2189,31 @@ void Cmd_Yes_f (edict_t *ent)
 							ACESP_SpawnBot_Random("\0", "\0", "\0", NULL);
 					}
 					break;
+
 				case	VOTE_REMOVEBOT:
-					if (level.modeset == MATCH || level.modeset == PUBLIC)
-					{
-						safe_bprintf(PRINT_HIGH, "Remove Bot by: %s accepted. \n", dude->client->pers.netname);
-						gi.dprintf("Vote AddRemove by: %s accepted. \n", dude->client->pers.netname);
+						if (level.modeset == MATCH || level.modeset == PUBLIC)	
+						{
+							safe_bprintf(PRINT_HIGH, "Remove Bot by: %s accepted. \n", dude->client->pers.netname);
+							gi.dprintf("Vote AddRemove by: %s accepted. \n", dude->client->pers.netname);
 
-						ACESP_RemoveBot(voteRemoveBot);
-					}
+							ACESP_RemoveBot(voteRemoveBot);
+						}
 					break;
-
+#if 1
 				case VOTE_BOTSKILL:
-					//if (level.modeset == MATCH || level.modeset == PUBLIC)
 					{
 						char sSkill[16];
 						Com_sprintf(sSkill, sizeof(sSkill), "%1.1f", voteBotSkill);
 						sv_botskill = gi.cvar_set("sv_botskill", sSkill);
 						safe_bprintf(PRINT_HIGH, "Bot-Skill set to %d of 10 (sv_botskill %s)\n", ACECM_ReturnBotSkillWeb(), sv_botskill->string);
-						cprintf(ent, PRINT_HIGH, "This setting takes effect immediately\n");
+						safe_cprintf(ent, PRINT_HIGH, "This setting takes effect immediately\n");
 					}
-				break;
+					break;
 // ACEBOT_END
+
+#endif	
 			}
+
 			for_each_player_not_bot(dude, i)
 			{
 				if (dude->client->resp.vote == CALLED_VOTE)
@@ -2586,16 +2221,18 @@ void Cmd_Yes_f (edict_t *ent)
 			}
 			level.voteset = NO_VOTES;
 		}
+
 	}
 // ACEBOT_ADD	
 	//else
 	{
 		if (!ent->client->resp.vote == HASNT_VOTED)
-			cprintf(ent, PRINT_HIGH, "You have already voted!\n");
+			safe_cprintf(ent, PRINT_HIGH, "You have already voted!\n");
 		else
 // ACEBOT_END
-			cprintf(ent, PRINT_HIGH, "There is nothing to vote on at this time!\n");
+			safe_cprintf(ent, PRINT_HIGH, "There is nothing to vote on at this time!\n");
 	}
+
 }
 
 void Cmd_No_f (edict_t *ent)
@@ -2604,9 +2241,9 @@ void Cmd_No_f (edict_t *ent)
 	int			i, nop, novn;
 
 	if (level.voteset == NO_VOTES)
-		cprintf(ent, PRINT_HIGH, "There is nothing to vote on at this time\n");
+		safe_cprintf(ent, PRINT_HIGH, "There is nothing to vote on at this time\n");
 	else if (ent->client->resp.vote != HASNT_VOTED)
-		cprintf(ent, PRINT_HIGH, "You have already voted\n");
+		safe_cprintf(ent, PRINT_HIGH, "You have already voted\n");
 	else
 	{
 		ent->client->resp.vote = NO;
@@ -2658,7 +2295,7 @@ void Cmd_Vote_f (edict_t *ent, char *vote)
 	else if (Q_stricmp (vote, "no") == 0)
 		Cmd_No_f (ent);
 	else
-		cprintf(ent, PRINT_HIGH, "Vote YES or NO\n");
+		safe_cprintf(ent, PRINT_HIGH, "Vote YES or NO\n");
 }
 
 void Cmd_Elect_f (edict_t *ent)
@@ -2669,7 +2306,7 @@ void Cmd_Elect_f (edict_t *ent)
 
 	if (disable_admin_voting)
 	{
-		cprintf(ent, PRINT_HIGH, "Electable admins has been disabled on this server\n");
+		safe_cprintf(ent, PRINT_HIGH, "Electable admins has been disabled on this server\n");
 		return;
 	}
 
@@ -2677,9 +2314,9 @@ void Cmd_Elect_f (edict_t *ent)
 	if (dude)
 	{
 		if (dude == ent)
-			cprintf(ent, PRINT_HIGH, "You already have admin\n");
+			safe_cprintf(ent, PRINT_HIGH, "You already have admin\n");
 		else
-			cprintf(ent, PRINT_HIGH, "%s already has admin\n", dude->client->pers.netname);
+			safe_cprintf(ent, PRINT_HIGH, "%s already has admin\n", dude->client->pers.netname);
 		return;
 	}
 
@@ -2707,7 +2344,7 @@ void Cmd_Elect_f (edict_t *ent)
 		gi.multicast(vec3_origin, MULTICAST_ALL);
 	}
 	else
-		cprintf(ent, PRINT_HIGH, "A vote is already in progress\n");
+		safe_cprintf(ent, PRINT_HIGH, "A vote is already in progress\n");
 }
 
 void Cmd_MapList_f (edict_t *ent)
@@ -2716,17 +2353,17 @@ void Cmd_MapList_f (edict_t *ent)
 
 	if (!num_maps)
 	{
-		cprintf(ent, PRINT_HIGH, "Any map on this server may be loaded\n");
+		safe_cprintf(ent, PRINT_HIGH, "Any map on this server may be loaded\n");
 		return;
 	}
 
-	cprintf(ent, PRINT_HIGH, "Valid maps for this server:\n");
+	safe_cprintf(ent, PRINT_HIGH, "Valid maps for this server:\n");
 	i = 0;
 	if (num_maps > 20)
 		for (; i<num_maps-1; i+=2)
-			cprintf(ent, PRINT_HIGH, "   %-17s   %s\n", maplist[i], maplist[i+1]);
+			safe_cprintf(ent, PRINT_HIGH, "   %-17s   %s\n", maplist[i], maplist[i+1]);
 	for (; i<num_maps; i++)
-		cprintf(ent, PRINT_HIGH, "   %s\n", maplist[i]);
+		safe_cprintf(ent, PRINT_HIGH, "   %s\n", maplist[i]);
 }
 
 qboolean ValidMap (char *mapname)
@@ -2741,29 +2378,26 @@ qboolean ValidMap (char *mapname)
 	}
 	else
 	{
-		char filename[MAX_QPATH];
-		Com_sprintf(filename, sizeof(filename), "maps/%s.bsp", mapname);
-		if (file_exist(filename))
+		if (file_exist(va("maps/%s.bsp", mapname)))
 			return true;
 		if (kpded2)
 		{
 			// check for an "override" file
-			Com_sprintf(filename, sizeof(filename), "maps/%s.bsp.override", mapname);
-			if (file_exist(filename))
+			if (file_exist(va("maps/%s.bsp.override", mapname)))
 				return true;
 		}
 	}
 	return false;
 }
 
-void Cmd_ChangeMap_f (edict_t *ent)
+void Cmd_ChangeMap_f (edict_t *ent, qboolean vote)
 {
 	char		*s;
 	char		command [256];
 
 	if (gi.argc() < 2)
 	{
-		cprintf(ent, PRINT_HIGH, "Usage: changemap <mapname>\n");
+		safe_cprintf(ent, PRINT_HIGH, "Usage: changemap <mapname>\n");
 		return;
 	}
 
@@ -2771,11 +2405,11 @@ void Cmd_ChangeMap_f (edict_t *ent)
 	kp_strlwr(s);
 	if (!ValidMap (s)) // Always make sure the map is on the server before switching
 	{
-		cprintf(ent, PRINT_HIGH, "%s is not a valid map\n", s);
+		safe_cprintf(ent, PRINT_HIGH, "%s is not a valid map\n", s);
 		return;
 	}
 
-	if (!ent->client->pers.admin)
+	if (!ent->client->pers.admin || vote)
 	{
 		if (level.voteset == NO_VOTES)  
 		{
@@ -2800,16 +2434,16 @@ void Cmd_ChangeMap_f (edict_t *ent)
 		}
 		else
 		{
-			cprintf(ent, PRINT_HIGH, "You do not have admin and a vote is already in progress\n");
+			safe_cprintf(ent, PRINT_HIGH, "You do not have admin and a vote is already in progress\n");
 			return;
 		}
 	}
 
-	// ACEBOT_ADD
+// ACEBOT_ADD
 	ACECM_LevelEnd();
 	PrintScoreMatchEnd();
-	//FreeBots();
-	// ACEBOT_END
+	ACESP_RemoveBot("all");
+// ACEBOT_END
 
 	if (teamplay->latched_string || dm_realmode->latched_string)
 		Com_sprintf (command, sizeof(command), "map \"%s\"\n", s);
@@ -2826,7 +2460,7 @@ void Cmd_MatchSetup_f (edict_t *ent)
 		Cmd_PrintSettings_f (ent);
 	}
 	else
-		cprintf(ent, PRINT_HIGH, "You do not have admin\n");
+		safe_cprintf(ent, PRINT_HIGH, "You do not have admin\n");
 }
 
 void Cmd_MatchStart_f (edict_t *ent)
@@ -2834,343 +2468,10 @@ void Cmd_MatchStart_f (edict_t *ent)
 	if (ent->client->pers.admin > NOT_ADMIN)
 		MatchStart ();
 	else
-		cprintf(ent, PRINT_HIGH, "You do not have admin\n");
-}
-
-#if 0
-void Cmd_VoteMap_f(edict_t *ent)
-{
-	int i, f, count;
-	edict_t *dude;
-	char		*s;
-	char	command[256];
-	struct stat st;
-	char mapInMod[60], mapInMain[60];
-	cvar_t	*game_dir;
-
-
-	s = gi.args();
-	kp_strlwr(s);
-
-	//hypo mod folder
-	game_dir = gi.cvar("game", "", 0);
-	sprintf(mapInMod, "%s/maps/%s.bsp", game_dir->string, s); //hypov8 DIR_SLASH
-
-	//hypov8 main folder
-	sprintf(mapInMain, "%s/maps/%s.bsp", "main", s); //hypov8 DIR_SLASH
-
-
-	if (!ValidMap(s)) // Always make sure the map is on the server before switching
-	{
-		f = stat(mapInMod, &st);
-		if (f == -1)
-		{
-			f = stat(mapInMain, &st);
-			if (f == -1)
-			{
-				cprintf(ent, PRINT_HIGH, "%s is not a valid map\n", s);
-				return;
-			}
-			else
-				cprintf(ent, PRINT_HIGH, "%s exists in 'main' dir but not in map cycle file\n", s);
-
-		}
-		else
-			cprintf(ent, PRINT_HIGH, "%s exists in %s dir but not in map cycle file\n", s, game_dir);
-	}
-
-	if (level.voteset == NO_VOTES)
-	{
-		count = 0;
-		for_each_player_not_bot(dude, i)
-		{
-			dude->vote = 0;
-			count++;
-		}
-		if (count == 1)
-		{
-			//safe_bprintf(PRINT_HIGH, "%s alowed to change map.\n", ent->client->pers.netname);
-			cprintf(ent, PRINT_CHAT, "%s alowed to change map.\n", ent->client->pers.netname);
-
-			Com_sprintf(command, sizeof(command), "map \"%s\"\n", s);
-			gi.AddCommandString(command);
-
-			return;
-		}						//¡¢£¤¥¦§¨©ª«¬­­
-		safe_bprintf(PRINT_CHAT, "%s has requested map change to %s.\n\nPLEASE VOTE\n\n", ent->client->pers.netname, s);
-		ent->vote = CALLED_VOTE;
-		level.voteframe = level.framenum;
-		level.voteset = VOTE_ON_MAP;
-
-		strcpy(changeMapName, s);
-
-		gi.WriteByte(svc_stufftext);
-		gi.WriteString("play misc/talk.wav");
-		gi.multicast(vec3_origin, MULTICAST_ALL);
-	}
-	else if (level.voteset != NO_VOTES)
-		cprintf(ent, PRINT_HIGH, "Vote is allready in progress.\n");
-
-}
-//END
-#endif
-
-// ACEBOT_ADD
-static void Cmd_VoteAddBot_f(edict_t *ent, int teamUse)
-{
-	int i, count;
-	edict_t *dude;
-	char	*s = '\0';
-	char *team = '\0';
-
-
-	if (!sv_bot_allow_add->value)
-	{
-		cprintf(ent, PRINT_HIGH, "Clients NOT allowed to add bots\n");
-		return;
-	}
-
-	if (num_bots >= (int)sv_bot_max->value)
-	{
-		cprintf(ent, PRINT_HIGH, "Maximum Bots Reached\n");
-		return;
-	}
-
-
-	if (teamplay->value)
-	{
-		if (teamUse)
-		{
-			if (teamUse == 1){
-				team = "d";
-				s = "d";
-			}
-			else if (teamUse == 2){
-				team = "n";
-				s = "n";
-			}
-			else team = '\0';
-		}
-		else
-		{
-			s = gi.args();
-			if (s[0])
-				team = s;
-		}
-	}
-
-	if (level.voteset == NO_VOTES)
-	{
-		count = 0;
-		for_each_player_not_bot(dude, i)
-		{
-			dude->client->resp.vote = 0;
-			count++;
-		}
-
-		if (count == 1)
-		{
-			//safe_bprintf(PRINT_HIGH, "%s alowed to change map.\n", ent->client->pers.netname);
-			gi.dprintf("Vote AddBot by: %s accepted.\n", ent->client->pers.netname);
-			cprintf(ent, PRINT_CHAT, "¡­%s alowed to add bot.\n", ent->client->pers.netname);
-			//ACESP_SpawnBot(team, "\0", "\0", NULL);
-			ACESP_SpawnBot_Random(team, "\0", "\0", NULL);
-			return;
-		}						//¡¢£¤¥¦§¨©ª«¬­­
-		safe_bprintf(PRINT_CHAT, "%s has requested to add a bot.\n\nPLEASE VOTE\n\n", ent->client->pers.netname);
-		ent->client->resp.vote = CALLED_VOTE;
-		level.voteframe = level.framenum;
-		level.voteset = VOTE_ADDBOT;
-
-		if (teamplay->value)
-			strcpy(voteAddBot, s);
-
-		gi.WriteByte(svc_stufftext);
-		gi.WriteString("play misc/talk.wav");
-		gi.multicast(vec3_origin, MULTICAST_ALL);
-	}
-	else if (level.voteset != NO_VOTES)
-		cprintf(ent, PRINT_HIGH, "Vote is allready in progress.\n");
-
+		safe_cprintf(ent, PRINT_HIGH, "You do not have admin\n");
 }
 
 
-//hypo vote remove bot
-void Cmd_VoteRemoveBot_f(edict_t *ent, qboolean isMenu, char botnames[32]) //VOTE_REMOVEBOT;
-{
-	int i, count;
-	edict_t *dude;
-	char		*s;
-	char *name = '\0';
-
-	if (!sv_bot_allow_add->value)
-	{
-		cprintf(ent, PRINT_HIGH, "Bot Vote Disabled.\n", ent->client->pers.netname);
-		return;
-	}
-
-	if (!isMenu)
-	{
-		s = gi.args();
-		if (s[0])
-			name = s;
-		else if (s[0] == '\0')
-		{
-			cprintf(ent, PRINT_HIGH, "INVALID BOT NAME.\n", ent->client->pers.netname);
-			return;
-		}
-	}
-	else
-	{
-		if (botnames == NULL || !botnames[0])		
-		{
-			cprintf(ent, PRINT_HIGH, "INVALID BOT NAME.\n", ent->client->pers.netname);
-			return;
-		}
-		s = botnames;
-		name = botnames;
-	}
-
-
-	if (level.voteset == NO_VOTES)
-	{
-		count = 0;
-		for_each_player_inc_bot(dude, i)
-		{
-			if (!dude->acebot.is_bot)
-				continue;
-			if (_strcmpi(dude->client->pers.netname, s) == 0)
-				count++;
-		}
-
-		if (count == 0)
-		{
-			cprintf(ent, PRINT_HIGH, "INVALID BOT NAME.\n", ent->client->pers.netname);
-			return;
-		}
-	}
-
-	if (level.voteset == NO_VOTES)
-	{
-		count = 0;
-		for_each_player_not_bot(dude, i)
-		{
-			dude->client->resp.vote = 0;
-			count++;
-		}
-
-		if (count == 1)
-		{
-			gi.dprintf("Vote BotRemove accepted. by: %s\n", ent->client->pers.netname);
-			//safe_bprintf(PRINT_HIGH, "%s alowed to change map.\n", ent->client->pers.netname);
-			cprintf(ent, PRINT_CHAT, "%s alowed to remove bot.\n", ent->client->pers.netname);
-			ACESP_RemoveBot(s);
-			return;
-		}						//¡¢£¤¥¦§¨©ª«¬­­
-		safe_bprintf(PRINT_CHAT, "%s has requested to remove bot %s.\n\nPLEASE VOTE\n\n", ent->client->pers.netname, name);
-		ent->client->resp.vote = CALLED_VOTE;
-		level.voteframe = level.framenum;
-		level.voteset = VOTE_REMOVEBOT;
-
-		strcpy(voteRemoveBot, s);
-
-		gi.WriteByte(svc_stufftext);
-		gi.WriteString("play misc/talk.wav");
-		gi.multicast(vec3_origin, MULTICAST_ALL);
-	}
-	else if (level.voteset != NO_VOTES)
-		cprintf(ent, PRINT_HIGH, "Vote is allready in progress.\n");
-
-}
-
-
-//hypo vote skill
-void Cmd_VoteSkill_f(edict_t *ent, qboolean usedMenu) //VOTE_BOTSKILL;
-
-{
-	int i, count;
-	edict_t *dude;
-	char		*s;
-	float skill_f;
-
-	if (!sv_bot_allow_skill->value)	{
-		cprintf(ent, PRINT_HIGH, "Bot-Skill Voting Disabled.\n", ent->client->pers.netname);
-		return;
-	}
-
-	if (!usedMenu) 
-	{
-		int skill;
-		s = gi.args();
-		skill = atoi(s);
-
-		if (s[0] == '\0' || skill < 0 || skill > 10)
-		{
-			cprintf(ent, PRINT_HIGH, "INVALID BOT SKILL. VALUE= 0 to 10.(current: %d)\n",
-				ent->client->pers.netname, ACECM_ReturnBotSkillWeb());
-			return;
-		}
-		skill_f = ACECM_ReturnBotSkillFloat(skill);
-	}
-	else
-		skill_f = menuBotSkill;
-
-
-	if (level.voteset == NO_VOTES)
-	{
-		count = 0;
-		for_each_player_not_bot(dude, i)
-		{
-			dude->client->resp.vote = 0;
-			count++;
-		}
-
-		if (count == 1)
-		{
-			char sSkill[16];
-			Com_sprintf(sSkill, sizeof(sSkill), "%1.1f", skill_f);
-			sv_botskill = gi.cvar_set("sv_botskill", sSkill);
-			safe_bprintf(PRINT_HIGH, "Bot-Skill set to %d of 10 (sv_botskill %s)\n", ACECM_ReturnBotSkillWeb(), sv_botskill->string);
-			cprintf(ent, PRINT_HIGH, "This setting takes effect immediately\n");
-			return;
-		}						//¡¢£¤¥¦§¨©ª«¬­­
-
-		safe_bprintf(PRINT_CHAT, "%s has requested to change bot skill to %d of 10.\n\nPLEASE VOTE\n\n", ent->client->pers.netname, ACECM_ReturnBotSkillWeb_var(skill_f));
-		ent->client->resp.vote = CALLED_VOTE;
-		level.voteframe = level.framenum;
-		level.voteset = VOTE_BOTSKILL;
-
-		voteBotSkill = skill_f;
-
-
-		gi.WriteByte(svc_stufftext);
-		gi.WriteString("play misc/talk.wav");
-		gi.multicast(vec3_origin, MULTICAST_ALL);
-	}
-	else if (level.voteset != NO_VOTES)
-		cprintf(ent, PRINT_HIGH, "Vote is allready in progress.\n");
-
-}
-
-
-
-void Cmd_Menu_f(edict_t *ent)
-{
-
-	ent->client->showinventory = false;
-	//ent->client->showhelp = false; //hypov8 todo?: check this
-
-	if (ent->client->showscores == SCORE_BOT_VOTE
-		|| ent->client->showscores == SCORE_BOT_ADD
-		|| ent->client->showscores == SCORE_BOT_REMOVE
-		|| ent->client->showscores == SCORE_BOT_SKILL)
-		ent->client->showscores = NO_SCOREBOARD;
-	else
-		ent->client->showscores = SCORE_BOT_VOTE;
-
-	DeathmatchScoreboard(ent);
-}
-// ACEBOT_END
 
 // HYPOV8_ADD
 void Cmd_EndMap_f(edict_t *ent)
@@ -3183,11 +2484,11 @@ void Cmd_EndMap_f(edict_t *ent)
 			if(	level.modeset == MATCH)
 				MatchEnd();
 			else if (level.modeset == PUBLIC)
-				EndDMLevel();
+				EndDMLevel(); //hypov8 todo: urm.. call it now?
 		}
 	}
 	else
-		cprintf(ent, PRINT_HIGH, "You do not have admin.\n");
+		safe_cprintf(ent, PRINT_HIGH, "You do not have admin.\n");
 }
 //END
 
@@ -3198,12 +2499,12 @@ void Cmd_MatchEnd_f (edict_t *ent)
 	if (ent->client->pers.admin > NOT_ADMIN)
 	{
 		if (level.modeset != MATCH)
-			cprintf(ent, PRINT_HIGH, "A match has not been started\n");
+			safe_cprintf(ent, PRINT_HIGH, "A match has not been started\n");
 		else
 			MatchEnd ();
 	}
 	else
-		cprintf(ent, PRINT_HIGH, "You do not have admin\n");
+		safe_cprintf(ent, PRINT_HIGH, "You do not have admin\n");
 }
 
 /*void Cmd_PauseMatch_f(edict_t *ent)
@@ -3217,11 +2518,11 @@ void Cmd_MatchEnd_f (edict_t *ent)
         {
             dude->client->ps.pmove.pm_type = PM_FREEZE;
             dude->movetype = MOVETYPE_NONE;
-            cprintf(dude,PRINT_HIGH,"You are phrozen.\n");
+            safe_cprintf(dude,PRINT_HIGH,"You are phrozen.\n");
         }
     }
     else
-		cprintf(ent,PRINT_HIGH,"You do not have permission\n");
+		safe_cprintf(ent,PRINT_HIGH,"You do not have permission\n");
 }*/
 
 void Cmd_MatchScore_f (edict_t *ent)
@@ -3231,19 +2532,19 @@ void Cmd_MatchScore_f (edict_t *ent)
 		int t0, t1;
 		if (level.modeset != MATCHSETUP)
 		{
-			cprintf(ent, PRINT_HIGH, "Can only set the scores when in matchsetup mode\n");
+			safe_cprintf(ent, PRINT_HIGH, "Can only set the scores when in matchsetup mode\n");
 			return;
 		}
 		if (gi.argc() != 3)
 		{
-			cprintf(ent, PRINT_HIGH, "Usage: matchscore <drags> <nicks>\n");
+			safe_cprintf(ent, PRINT_HIGH, "Usage: matchscore <drags> <nicks>\n");
 			return;
 		}
 		t0 = atoi(gi.argv(1));
 		t1 = atoi(gi.argv(2));
 		if (t0 > 9999 || t1 > 9999)
 		{
-			cprintf(ent, PRINT_HIGH, "You can not set scores that high\n");
+			safe_cprintf(ent, PRINT_HIGH, "You can not set scores that high\n");
 			return;
 		}
 		team_startcash[0] = t0;
@@ -3251,7 +2552,7 @@ void Cmd_MatchScore_f (edict_t *ent)
 		safe_bprintf(PRINT_HIGH, "The match score will start at %d (%s) to %d (%s)\n", team_startcash[0], team_names[1], team_startcash[1], team_names[2]);
 	}
 	else
-		cprintf(ent, PRINT_HIGH, "You do not have admin\n");
+		safe_cprintf(ent, PRINT_HIGH, "You do not have admin\n");
 }
 
 void Cmd_SetTimeLimit_f (edict_t *ent, char *value)
@@ -3261,7 +2562,7 @@ void Cmd_SetTimeLimit_f (edict_t *ent, char *value)
 		int		i = atoi (value);
 		if ((i < 0) || (i > 60))
 		{
-			cprintf(ent, PRINT_HIGH, "Please choose a timelimit between 0 and 60\n");
+			safe_cprintf(ent, PRINT_HIGH, "Please choose a timelimit between 0 and 60\n");
 			return;
 		}
 		gi.cvar_set("timelimit", value);
@@ -3269,7 +2570,7 @@ void Cmd_SetTimeLimit_f (edict_t *ent, char *value)
 		UpdateTime();
 	}
 	else
-		cprintf(ent, PRINT_HIGH, "You do not have admin\n");
+		safe_cprintf(ent, PRINT_HIGH, "You do not have admin\n");
 }
 
 void Cmd_SetClientIdle_f (edict_t *ent, char *value)
@@ -3279,14 +2580,14 @@ void Cmd_SetClientIdle_f (edict_t *ent, char *value)
 		int		i = atoi (value);
 		if (i < 60)
 		{
-			cprintf(ent, PRINT_HIGH, "Please choose an idle time of at least 60\n");
+			safe_cprintf(ent, PRINT_HIGH, "Please choose an idle time of at least 60\n");
 			return;
 		}
 		gi.cvar_set("idle_client", value);
 		safe_bprintf(PRINT_HIGH, "The idle time has been changed to %d seconds\n", i);
 	}
 	else
-		cprintf(ent, PRINT_HIGH, "You do not have admin\n");
+		safe_cprintf(ent, PRINT_HIGH, "You do not have admin\n");
 }
 
 void Cmd_SetFragLimit_f (edict_t *ent, char *value)
@@ -3296,14 +2597,14 @@ void Cmd_SetFragLimit_f (edict_t *ent, char *value)
 		int		i = atoi (value);
 		if (i < 0) 
 		{
-			cprintf(ent, PRINT_HIGH, "Please choose a positive fraglimit\n");
+			safe_cprintf(ent, PRINT_HIGH, "Please choose a positive fraglimit\n");
 			return;
 		}
 		gi.cvar_set("fraglimit", value);
 		safe_bprintf(PRINT_HIGH, "The fraglimit has been changed to %d\n", i);
 	}
 	else
-		cprintf(ent, PRINT_HIGH, "You do not have admin\n");
+		safe_cprintf(ent, PRINT_HIGH, "You do not have admin\n");
 }
 
 void Cmd_SetCashLimit_f (edict_t *ent, char *value)
@@ -3313,14 +2614,14 @@ void Cmd_SetCashLimit_f (edict_t *ent, char *value)
 		int		i = atoi (value);
 		if (i < 0 ) 
 		{
-			cprintf(ent, PRINT_HIGH, "Please choose a positive cashlimit\n");
+			safe_cprintf(ent, PRINT_HIGH, "Please choose a positive cashlimit\n");
 			return;
 		}
 		gi.cvar_set("cashlimit", value);
 		safe_bprintf(PRINT_HIGH, "The cashlimit has been changed to %d\n",i);
 	}
 	else
-		cprintf(ent, PRINT_HIGH, "You do not have admin\n");
+		safe_cprintf(ent, PRINT_HIGH, "You do not have admin\n");
 }
 
 void Cmd_SetDmFlags_f (edict_t *ent, char *value)
@@ -3338,7 +2639,7 @@ void Cmd_SetDmFlags_f (edict_t *ent, char *value)
 		safe_bprintf(PRINT_HIGH, "dmflags has been changed to %d\n", i);
 	}
 	else
-		cprintf(ent, PRINT_HIGH, "You do not have admin\n");
+		safe_cprintf(ent, PRINT_HIGH, "You do not have admin\n");
 }
 
 /*void Cmd_Clear_f (edict_t *ent)
@@ -3358,51 +2659,17 @@ void Cmd_SetRealMode_f (edict_t *ent, char *value)
 	{
 		if (fixed_gametype)
 		{
-			cprintf(ent, PRINT_HIGH, "This server's game type may not be changed\n");
+			safe_cprintf(ent, PRINT_HIGH, "This server's game type may not be changed\n");
 			return;
 		}
 		gi.cvar_set("dm_realmode", value);
-		cprintf(ent, PRINT_HIGH, "This setting will take effect with a map change\n");
+		safe_cprintf(ent, PRINT_HIGH, "This setting will take effect with a map change\n");
 	}
 	else
-		cprintf(ent, PRINT_HIGH, "You do not have admin\n");
+		safe_cprintf(ent, PRINT_HIGH, "You do not have admin\n");
 }
 
 
-// ACEBOT_ADD
-void Cmd_SetBotSkill_f(edict_t *ent, char *value) //add hypov8
-{
-	if (ent->client->pers.admin > NOT_ADMIN)
-	{
-		int skill = atoi(value);
-		if (Q_stricmp(value, "") == 0){
-			cprintf(ent, PRINT_HIGH, "Invalid value. Current botskill is %d of 10 (sv_botskill %s)\n", ACECM_ReturnBotSkillWeb(), sv_botskill->string);
-			return;
-		}
-		switch (skill)
-		{
-		default:
-		case 0: value = "0.0"; break;
-		case 1: value = "0.4"; break;
-		case 2: value = "0.8"; break;
-		case 3: value = "1.2"; break;
-		case 4: value = "1.6"; break;
-		case 5: value = "2.0"; break;
-		case 6: value = "2.4"; break;
-		case 7: value = "2.8"; break;
-		case 8: value = "3.2"; break;
-		case 9: value = "3.6"; break;
-		case 10: value = "4.0"; break;
-		}
-
-		sv_botskill = gi.cvar_set("sv_botskill", value);
-		safe_bprintf(PRINT_HIGH, "Bot-Skill set to %d of 10 (sv_botskill %s)\n", ACECM_ReturnBotSkillWeb(), sv_botskill->string);
-		cprintf(ent, PRINT_HIGH, "This setting takes effect immediately\n");
-	}
-	else
-		cprintf(ent, PRINT_HIGH, "You do not have admin, but botskill is %d of 10 (sv_botskill %s)\n", ACECM_ReturnBotSkillWeb(), sv_botskill->string);
-}
-// ACEBOT_END
 
 void Cmd_SetPassword_f (edict_t *ent, char *value)
 {
@@ -3411,10 +2678,10 @@ void Cmd_SetPassword_f (edict_t *ent, char *value)
 		if (enable_password)
 			gi.cvar_set("password", value);
 		else
-			cprintf(ent, PRINT_HIGH, "The password option is disabled\n");
+			safe_cprintf(ent, PRINT_HIGH, "The password option is disabled\n");
 	}
 	else
-		cprintf(ent, PRINT_HIGH, "You do not have admin\n");
+		safe_cprintf(ent, PRINT_HIGH, "You do not have admin\n");
 }
 
 void Cmd_SetTeamplay_f (edict_t *ent, char *value)
@@ -3424,19 +2691,19 @@ void Cmd_SetTeamplay_f (edict_t *ent, char *value)
 		int		i = atoi (value);
 		if (fixed_gametype)
 		{
-			cprintf(ent, PRINT_HIGH, "This server's game type may not be changed\n");
+			safe_cprintf(ent, PRINT_HIGH, "This server's game type may not be changed\n");
 			return;
 		}
 		if (value[0] && (i == 0) || (i == 1) || (i == 4))
 		{
 			gi.cvar_set("teamplay", value);
-			cprintf(ent, PRINT_HIGH, "This setting will take effect with a map change\n");
+			safe_cprintf(ent, PRINT_HIGH, "This setting will take effect with a map change\n");
 		}
 		else
-			cprintf(ent, PRINT_HIGH, "Teamplay settings are as follows:\n 0: Standard DM\n 1: Bagman\n 4: Team DM\n");
+			safe_cprintf(ent, PRINT_HIGH, "Teamplay settings are as follows:\n 0: Standard DM\n 1: Bagman\n 4: Team DM\n");
 	}
 	else
-		cprintf(ent, PRINT_HIGH, "You do not have admin\n");
+		safe_cprintf(ent, PRINT_HIGH, "You do not have admin\n");
 }
 
 void Cmd_SetBonus_f (edict_t *ent, char *value)
@@ -3446,14 +2713,14 @@ void Cmd_SetBonus_f (edict_t *ent, char *value)
 		int		i = atoi (value);
 		if (i < 0) 
 		{
-			cprintf(ent, PRINT_HIGH, "Please choose a positive bonus hit deficit\n");
+			safe_cprintf(ent, PRINT_HIGH, "Please choose a positive bonus hit deficit\n");
 			return;
 		}
 		gi.cvar_set("bonus", value);
 		safe_bprintf(PRINT_HIGH, "The bonus hit deficit has been changed to %d\n", i);
 	}
 	else
-		cprintf(ent, PRINT_HIGH, "You do not have admin\n");
+		safe_cprintf(ent, PRINT_HIGH, "You do not have admin\n");
 }
 
 void Cmd_ResetServer_f (edict_t *ent)
@@ -3461,7 +2728,7 @@ void Cmd_ResetServer_f (edict_t *ent)
 	if (ent->client->pers.admin > NOT_ADMIN || ent->client->pers.rconx[0]) 
 		ResetServer(false);
 	else
-		cprintf(ent, PRINT_HIGH, "You do not have permission\n");
+		safe_cprintf(ent, PRINT_HIGH, "You do not have permission\n");
 }
 
 void Cmd_Toggle_ASC_f (edict_t *ent)
@@ -3480,7 +2747,7 @@ void Cmd_Toggle_ASC_f (edict_t *ent)
 		}
 	}
 	else
-		cprintf(ent, PRINT_HIGH, "You do not have admin\n");
+		safe_cprintf(ent, PRINT_HIGH, "You do not have admin\n");
 }
 
 void Cmd_Toggle_Bunny_f (edict_t *ent)
@@ -3494,7 +2761,7 @@ void Cmd_Toggle_Bunny_f (edict_t *ent)
 			safe_bprintf(PRINT_HIGH, "Bunny-hopping is now enabled\n");
 	}
 	else
-		cprintf(ent, PRINT_HIGH, "You do not have admin\n");
+		safe_cprintf(ent, PRINT_HIGH, "You do not have admin\n");
 }
 
 void Cmd_Toggle_Spec_f(edict_t *ent)
@@ -3503,7 +2770,7 @@ void Cmd_Toggle_Spec_f(edict_t *ent)
 	{
 		if (level.modeset < MATCHSETUP || level.modeset > MATCH)
 		{
-			cprintf(ent, PRINT_HIGH, "Spectating can only be disabled in match mode\n");
+			safe_cprintf(ent, PRINT_HIGH, "Spectating can only be disabled in match mode\n");
 			return;
 		}
 		if (no_spec->value)
@@ -3532,7 +2799,7 @@ void Cmd_Toggle_Spec_f(edict_t *ent)
 		}
 	}
 	else
-		cprintf(ent, PRINT_HIGH, "You do not have admin\n");
+		safe_cprintf(ent, PRINT_HIGH, "You do not have admin\n");
 }
 
 void Cmd_Toggle_Shadows_f(edict_t *ent)
@@ -3551,7 +2818,7 @@ void Cmd_Toggle_Shadows_f(edict_t *ent)
 		}
 	}
 	else
-		cprintf(ent, PRINT_HIGH, "You do not have admin\n");
+		safe_cprintf(ent, PRINT_HIGH, "You do not have admin\n");
 }
 
 void Cmd_Toggle_Zoom_f(edict_t *ent)
@@ -3570,14 +2837,14 @@ void Cmd_Toggle_Zoom_f(edict_t *ent)
 		}
 	}
 	else
-		cprintf(ent, PRINT_HIGH, "You do not have admin\n");
+		safe_cprintf(ent, PRINT_HIGH, "You do not have admin\n");
 }
 
 void Cmd_AntiLag_f(edict_t *ent, char *value)
 {
 	if (!value[0])
 	{
-		cprintf(ent, PRINT_HIGH, "Usage: antilag <0/1>\n0 = off, 1 = on (if enabled by server)\n");
+		safe_cprintf(ent, PRINT_HIGH, "Usage: antilag <0/1>\n0 = off, 1 = on (if enabled by server)\n");
 		return;
 	}
 	ent->client->pers.noantilag = !atoi(value);
@@ -3593,23 +2860,23 @@ void Cmd_Status_f(edict_t *ent)
 	{
 		int a;
 
-		cprintf(ent, PRINT_HIGH, "map : %s\n", level.mapname);
-		cprintf(ent, PRINT_HIGH, "num score ping name            lastmsg address               ver\n"
+		safe_cprintf(ent, PRINT_HIGH, "map : %s\n", level.mapname);
+		safe_cprintf(ent, PRINT_HIGH, "num score ping name            lastmsg address               ver\n"
 			"--- ----- ---- --------------- ------- --------------------- ----\n");
-		for (a=1; a<=maxclients->value; a++)
+		for (a=1; a<=(int)maxclients->value; a++)
 		{
 			gclient_t *c = g_edicts[a].client;
 			if (c && (g_edicts[a].inuse || (c->pers.connected && (kpded2 || curtime-c->pers.lastpacket < 120000))))
 			{
 				char buf[16];
 				Com_sprintf(buf,sizeof(buf), g_edicts[a].inuse ? "%d" : "CNCT", c->ping);
-				cprintf(ent, PRINT_HIGH, "%3d %5d %4s %-15s %7d %-21s %.2f\n",
+				safe_cprintf(ent, PRINT_HIGH, "%3d %5d %4s %-15s %7d %-21s %.2f\n",
 					a-1, c->resp.score, buf, c->pers.netname, curtime-c->pers.lastpacket, c->pers.ip, c->pers.version/100.0);
 			}
 		}
 	}
 	else
-		cprintf(ent, PRINT_HIGH, "You do not have permission\n");
+		safe_cprintf(ent, PRINT_HIGH, "You do not have permission\n");
 }
 
 void Cmd_SetTeamName_f (edict_t *ent, int team, char *name)
@@ -3624,25 +2891,30 @@ void Cmd_SetTeamName_f (edict_t *ent, int team, char *name)
 			UpdateTeams();
 		}
 		else
-			cprintf(ent, PRINT_HIGH, "Team name can't be longer than 15 letters or start with whitespace\n");
+			safe_cprintf(ent, PRINT_HIGH, "Team name can't be longer than 15 letters or start with whitespace\n");
 	}
 	else
-		cprintf(ent, PRINT_HIGH, "You do not have admin\n");
+		safe_cprintf(ent, PRINT_HIGH, "You do not have admin\n");
 }
 
 void Cmd_Admin_f (edict_t *ent, char *value)
 {
-	if (!admincode[0] && !ent->client->pers.rconx[0])
-	{
-		cprintf(ent, PRINT_HIGH, "The admin option is disabled\n");
-		return;
-	}
+	cvar_t *rcon_password;
+
 	if (ent->client->pers.admin == ADMIN)
 	{
-		cprintf(ent, PRINT_HIGH, "You already have admin\n");
+		safe_cprintf(ent, PRINT_HIGH, "You already have admin\n");
 		return;
 	}
-	if (!Q_stricmp(admincode, value) || ent->client->pers.rconx[0])
+	if (level.framenum < ent->client->resp.login_frame)
+	{
+		safe_cprintf(ent, PRINT_HIGH, "Only 1 attempt allowed per second\n");
+		return;
+	}
+	ent->client->resp.login_frame = level.framenum + 10;
+
+	rcon_password = gi.cvar("rcon_password", "", 0);
+	if (ent->client->pers.rconx[0] || (admincode[0] && !strcmp(admincode, value)) || (rcon_password->string[0] && !strcmp(rcon_password->string, value)))
 	{
 		if (!ent->client->pers.admin)
 		{
@@ -3651,7 +2923,7 @@ void Cmd_Admin_f (edict_t *ent, char *value)
 			{
 				if (admin->client->pers.admin == ADMIN)
 				{
-					cprintf(ent, PRINT_HIGH, "%s already has admin\n", admin->client->pers.netname);
+					safe_cprintf(ent, PRINT_HIGH, "%s already has admin\n", admin->client->pers.netname);
 					return;
 				}
 				else
@@ -3668,7 +2940,7 @@ void Cmd_Admin_f (edict_t *ent, char *value)
 			level.voteset = NO_VOTES;
 	}
 	else
-		cprintf(ent, PRINT_HIGH, "Incorrect admin code\n");
+		safe_cprintf(ent, PRINT_HIGH, "Incorrect admin code\n");
 }
 
 void Cmd_Resign_f (edict_t *ent)
@@ -3679,7 +2951,7 @@ void Cmd_Resign_f (edict_t *ent)
 		safe_bprintf(PRINT_HIGH, "%s is no longer admin\n", ent->client->pers.netname);
 	}
 	else
-		cprintf(ent, PRINT_HIGH, "You do not have admin\n"); 
+		safe_cprintf(ent, PRINT_HIGH, "You do not have admin\n"); 
 }
 
 void Cmd_BanDicks_f(edict_t *ent, int type)	
@@ -3718,10 +2990,10 @@ void Cmd_BanDicks_f(edict_t *ent, int type)
 				}
 				fprintf(list,"%s\n", value);
 				fclose(list);
-				if (num_ips < 100)
+				if (num_ban_ips < 100)
 				{
-					strncpy(ip[num_ips].value, value, 16);
-					num_ips++;
+					strncpy(ban_ip[num_ban_ips].value, value, 16);
+					num_ban_ips++;
 				}
 			}
 			else
@@ -3740,10 +3012,10 @@ void Cmd_BanDicks_f(edict_t *ent, int type)
 				}
 				fprintf(list,"%s\n", value);
 				fclose(list);
-				if (num_netnames < 100)
+				if (num_ban_names < 100)
 				{
-					strncpy(netname[num_netnames].value, value, 16);
-					num_netnames++;
+					strncpy(ban_name[num_ban_names].value, value, 16);
+					num_ban_names++;
 				}
 			}
 			else
@@ -3751,7 +3023,7 @@ void Cmd_BanDicks_f(edict_t *ent, int type)
 		}
 	}
 	else
-		cprintf(ent, PRINT_HIGH, "You do not have permission\n");
+		safe_cprintf(ent, PRINT_HIGH, "You do not have permission\n");
 }
 
 void Cmd_ListBans_f(edict_t *ent)
@@ -3764,8 +3036,8 @@ void Cmd_ListBans_f(edict_t *ent)
 		if (ban_ip_filename[0]) 
 		{
 			safe_cprintf(ent, PRINT_HIGH, "List of banned IP addresses\n===========================\n");         
-			for (a=0; a<num_ips; a++)
-				safe_cprintf(ent, PRINT_HIGH, "%s\n", ip[a].value);
+			for (a=0; a<num_ban_ips; a++)
+				safe_cprintf(ent, PRINT_HIGH, "%s\n", ban_ip[a].value);
 			safe_cprintf(ent, PRINT_HIGH, "\n"); // cosmetic stuff
 		}
 		else
@@ -3774,15 +3046,15 @@ void Cmd_ListBans_f(edict_t *ent)
 		if (ban_name_filename[0]) 
 		{
 			safe_cprintf(ent, PRINT_HIGH, "List of banned names\n====================\n");
-			for (a=0; a<num_netnames; a++)
-				safe_cprintf(ent, PRINT_HIGH, "%s\n", netname[a].value);
+			for (a=0; a<num_ban_names; a++)
+				safe_cprintf(ent, PRINT_HIGH, "%s\n", ban_name[a].value);
 			safe_cprintf(ent, PRINT_HIGH, "\n"); // cosmetic stuff
 		}
 		else
 			safe_cprintf(ent, PRINT_HIGH, "Name banning is disabled\n");
 	}
 	else 
-		cprintf(ent, PRINT_HIGH, "You do not have permission\n");
+		safe_cprintf(ent, PRINT_HIGH, "You do not have permission\n");
 }
 
 void checkkick(edict_t *ent, char *cmd, char *action)
@@ -3792,16 +3064,16 @@ void checkkick(edict_t *ent, char *cmd, char *action)
 
 	if (gi.argc() < 3 || gi.argc() > 4)
 	{
-		cprintf(ent, PRINT_HIGH, "Usage: %s <userid> <reason>\nNOTE: <reason> is optional\n", cmd);
+		safe_cprintf(ent, PRINT_HIGH, "Usage: %s <userid> <reason>\nNOTE: <reason> is optional\n", cmd);
 		return;
 	}
 
 	name = gi.argv(2);
 	a = atoi(name);
-	if (!strcmp(name,"0") || (a > 0 && a < maxclients->value))
+	if (!strcmp(name,"0") || (a > 0 && a < (int)maxclients->value))
 	{
 		a++;
-		if (g_edicts[a].inuse && g_edicts[a].client)
+		if (g_edicts[a].inuse)
 		{
 			if (gi.argc() == 4)
     			safe_bprintf(PRINT_HIGH, "%s is being %s by %s because %s\n", g_edicts[a].client->pers.netname, action, ent->client->pers.netname, gi.argv(3));
@@ -3809,15 +3081,15 @@ void checkkick(edict_t *ent, char *cmd, char *action)
 				safe_bprintf(PRINT_HIGH, "%s is being %s by %s\n", g_edicts[a].client->pers.netname, action, ent->client->pers.netname);
 		}
 		else
-			cprintf(ent, PRINT_HIGH, "Client %s is not active\n", name);
+			safe_cprintf(ent, PRINT_HIGH, "Client %s is not active\n", name);
 	}
 	else
 	{
-		for (a=1; a<=maxclients->value; a++)
-			if (g_edicts[a].inuse && g_edicts[a].client
-				&& !Q_strcasecmp(g_edicts[a].client->pers.netname, name)) break;
-		if (a > maxclients->value)
-			cprintf(ent,PRINT_HIGH,"Userid %s is not on the server\n",name);
+		for (a=1; a<=(int)maxclients->value; a++)
+			if (g_edicts[a].inuse && !Q_strcasecmp(g_edicts[a].client->pers.netname, name))
+				break;
+		if (a > (int)maxclients->value)
+			safe_cprintf(ent,PRINT_HIGH,"Userid %s is not on the server\n",name);
 		else
 		{
 			if (gi.argc() == 4)
@@ -3832,7 +3104,7 @@ void dumpuser(edict_t *ent, edict_t *target)
 {
 	char *info = target->client->pers.userinfo, *s, buf[64];
 
-	cprintf(ent, PRINT_HIGH, "userinfo\n--------\n");
+	safe_cprintf(ent, PRINT_HIGH, "userinfo\n--------\n");
 	while (*info == '\\')
 	{
 		s = ++info;
@@ -3845,7 +3117,7 @@ void dumpuser(edict_t *ent, edict_t *target)
 		buf[s - info] = 0;
 		info = ++s;
 		while (*s && *s != '\\') s++;
-		cprintf(ent, PRINT_HIGH, "%-19s %.*s\n", buf, s - info, info);
+		safe_cprintf(ent, PRINT_HIGH, "%-20s %.*s\n", buf, s - info, info);
 		info = s;
 	}
 }
@@ -3856,7 +3128,7 @@ void Cmd_Mute_f (edict_t *ent, char *value)
 		|| ent->client->pers.admin > ELECTED || ent->client->pers.rconx[0]) 
 	{
 		int		i = atoi (value);
-		if (!*value || (i < 0 || (i+1) > maxclients->value) || !(g_edicts[i+1].inuse && g_edicts[i+1].client))
+		if (!*value || (i < 0 || (i+1) > (int)maxclients->value) || !g_edicts[i+1].inuse)
 		{
 			if (*value) safe_cprintf(ent, PRINT_HIGH, "Unable to find client id match\n");
 			safe_cprintf(ent, PRINT_HIGH, "Usage: mute <userid>\n");
@@ -3865,18 +3137,18 @@ void Cmd_Mute_f (edict_t *ent, char *value)
 		if (g_edicts[i+1].client->pers.mute == 0)
 		{
 			safe_cprintf(ent, PRINT_HIGH, "Enabled mute on %s\n", g_edicts[i + 1].client->pers.netname);
-			cprintf(&g_edicts[i+1], PRINT_HIGH, "Admin has muted you\n");
+			safe_cprintf(&g_edicts[i+1], PRINT_HIGH, "Admin has muted you\n");
 			g_edicts[i+1].client->pers.mute = 1; 
 		}
 		else
 		{
 			safe_cprintf(ent, PRINT_HIGH, "Disabled mute on %s\n", g_edicts[i + 1].client->pers.netname);
-			cprintf(&g_edicts[i+1], PRINT_HIGH, "Admin has unmuted you\n");
+			safe_cprintf(&g_edicts[i+1], PRINT_HIGH, "Admin has unmuted you\n");
 			g_edicts[i+1].client->pers.mute = 0; 
 		}
 	}
 	else
-		cprintf(ent, PRINT_HIGH, "You do not have permission\n");
+		safe_cprintf(ent, PRINT_HIGH, "You do not have permission\n");
 }
 
 void Cmd_Rcon_f (edict_t *ent)
@@ -3886,27 +3158,28 @@ void Cmd_Rcon_f (edict_t *ent)
 
 	if (!num_rconx_pass)
 	{
-		cprintf(ent, PRINT_HIGH, "The rconx options are disabled\n");
+		safe_cprintf(ent, PRINT_HIGH, "The rconx options are disabled\n");
 		return;
 	}
 
 	if (!ent->client->pers.rconx[0])
 	{
-		cprintf(ent, PRINT_HIGH, "You must login with \"rconx_login\" before using \"rconx\"\n");
+		safe_cprintf(ent, PRINT_HIGH, "You must login with \"rconx_login\" before using \"rconx\"\n");
 		return;
 	}
 
-	if (gi.argc() < 2) return;
+	if (gi.argc() < 2) 
+		return;
 	cmd = gi.argv(1);
-	if (!Q_strncasecmp(cmd, "rcon", 4)) return;
+	if (!Q_strncasecmp(cmd, "rcon", 4)) 
+		return;
 
 	strcpy(cmdline, cmd);
 	for (a=2; a<gi.argc(); a++)
 	{
 		// reason hack
-		if ((!Q_stricmp(cmd, "kick") || !Q_stricmp(cmd, "kickban")) 
-		&& gi.argc() == 4 
-		&& a == 3) break;
+		if ((!Q_stricmp(cmd, "kick") || !Q_stricmp(cmd, "kickban"))	&& gi.argc() == 4 && a == 3) 
+			break;
     
 		strcat(cmdline, " \"");
 		strcat(cmdline, gi.argv(a));
@@ -3922,12 +3195,12 @@ void Cmd_Rcon_f (edict_t *ent)
 	else if (!Q_stricmp(cmd, "serverinfo"))
 	{
 		cvar_t *v = gi.cvar(TIMENAME, "", 0);
-		cprintf(ent, PRINT_HIGH, "Server info settings:\n");
-		cprintf(ent, PRINT_HIGH, "mapname              %s\n", level.mapname);
+		safe_cprintf(ent, PRINT_HIGH, "Server info settings:\n");
+		safe_cprintf(ent, PRINT_HIGH, "mapname              %s\n", level.mapname);
 		while (v)
 		{
 			if ((v->flags & CVAR_SERVERINFO) && v->string[0])
-				cprintf(ent, PRINT_HIGH, "%-21s%s\n", v->name, v->string);
+				safe_cprintf(ent, PRINT_HIGH, "%-20s%s\n", v->name, v->string);
 			v = v->next;
 		}
 		return;
@@ -3937,26 +3210,26 @@ void Cmd_Rcon_f (edict_t *ent)
 		char *name;
 		if (gi.argc() != 3)
 		{
-			cprintf(ent, PRINT_HIGH, "Usage: %s <userid>\n", cmd);
+			safe_cprintf(ent, PRINT_HIGH, "Usage: %s <userid>\n", cmd);
 			return;
 		}
 		name = gi.argv(2);
 		a = atoi(name);
-		if (!strcmp(name, "0") || (a > 0 && a < maxclients->value))
+		if (!strcmp(name, "0") || (a > 0 && a < (int)maxclients->value))
 		{
 			a++;
-			if (g_edicts[a].inuse && g_edicts[a].client)
+			if (g_edicts[a].inuse)
 				dumpuser(ent, g_edicts + a);
 			else
-				cprintf(ent, PRINT_HIGH, "Client %s is not active\n", name);
+				safe_cprintf(ent, PRINT_HIGH, "Client %s is not active\n", name);
 		}
 		else
 		{
-			for (a=1; a<=maxclients->value; a++)
-				if (g_edicts[a].inuse && g_edicts[a].client
-					&& !Q_strcasecmp(g_edicts[a].client->pers.netname, name)) break;
-			if (a>maxclients->value)
-				cprintf(ent, PRINT_HIGH, "Userid %s is not on the server\n", name);
+			for (a=1; a<=(int)maxclients->value; a++)
+				if (g_edicts[a].inuse && !Q_strcasecmp(g_edicts[a].client->pers.netname, name)) 
+				break;
+			if (a>(int)maxclients->value)
+				safe_cprintf(ent, PRINT_HIGH, "Userid %s is not on the server\n", name);
 			else
 				dumpuser(ent, g_edicts + a);
 		}
@@ -3991,12 +3264,12 @@ void Cmd_Rcon_f (edict_t *ent)
 		Cmd_ListBans_f(ent);
 		return;
 	}
-// ACEBOT_ADD
+// ACEBOT_ADD //todo: move "gamemap"
 	else if (!Q_stricmp(cmd, "gamemap") || !Q_stricmp(cmd, "map"))
 	{
 		ACECM_LevelEnd();
 		PrintScoreMatchEnd();
-		//FreeBots();
+		ACESP_RemoveBot("all");
 	}
 // ACEBOT_END
 	else if (gi.argc() == 2)
@@ -4004,7 +3277,7 @@ void Cmd_Rcon_f (edict_t *ent)
 		char *val=gi.cvar(cmd, "", 0)->string;
 		if (val[0])
 		{
-			cprintf(ent, PRINT_HIGH, "\"%s\" is \"%s\"\n", cmd, val);
+			safe_cprintf(ent, PRINT_HIGH, "\"%s\" is \"%s\"\n", cmd, val);
 			return;
 		}
 	}
@@ -4019,22 +3292,31 @@ void Cmd_Rcon_login_f (edict_t *ent, char *pass)
 
 	if (!num_rconx_pass)
 	{
-		cprintf(ent, PRINT_HIGH, "The rconx options are disabled\n");
+		safe_cprintf(ent, PRINT_HIGH, "The rconx options are disabled\n");
 		return;
 	}
 
+
+	if (level.framenum < ent->client->resp.login_frame)
+	{
+		safe_cprintf(ent, PRINT_HIGH, "Only 1 attempt allowed per second\n");
+		return;
+	}
+	ent->client->resp.login_frame = level.framenum + 10;
+
 	for (a=0; a<num_rconx_pass; a++)
-		if (!Q_stricmp(pass, rconx_pass[a].value)) break;
+		if (!Q_stricmp(pass, rconx_pass[a].value)) 
+			break;
 	if (a == num_rconx_pass)
 	{
 		ent->client->pers.rconx[0] = 0;
-		cprintf(ent, PRINT_HIGH, "Invalid rconx login\n");
+		safe_cprintf(ent, PRINT_HIGH, "Invalid rconx login\n");
 		return;
 	}
 	strcpy(ent->client->pers.rconx, pass);
 	time(&t);
 	gi.dprintf("rconx_login (%s:%s) ip: %s time: %s", ent->client->pers.netname, ent->client->pers.rconx, ent->client->pers.ip, ctime(&t));
-	cprintf(ent, PRINT_HIGH, "Successfully logged in\n");
+	safe_cprintf(ent, PRINT_HIGH, "Successfully logged in\n");
 }
 
 void Cmd_MOTD_f (edict_t *ent)
@@ -4064,33 +3346,92 @@ void ClientCommand (edict_t *ent)
 	char	*cmd;
 //gi.dprintf("cmd: %s [%s]\n",gi.argv(0), gi.args());
 
-	if (!ent->client)
+	if (!ent->inuse)
 		return;		// not fully in game yet
 
 	ent->client->pers.lastpacket = curtime;
 
-	if (!ent->inuse)
-		return;
-
 // ACEBOT_ADD
 	if (ACECM_Commands(ent))
 		return;
-
-	if (ent->acebot.is_bot)
-		return; //hypo bot wont use console
 // ACEBOT_END
 
 	cmd = gi.argv(0);
 
-	if (!strncmp(cmd, cmd_check, 7))
+	if (!strncmp(cmd, cmd_check, 3))
+
 	{
-#ifndef HYPODEBUG //add hypov8 allow developer
-		switch (cmd[7])
+		int argc = gi.argc();
+		if (!cmd[3])
+
 		{
-			case 'A':
-				if (gi.argc() != 4 || atof(gi.argv(1)) != 0 || atof(gi.argv(2)) < 16)
+			// $m_pitch $antilag
+			float v = atof(gi.argv(1));
+			if (fabs(fabs(v) - 0.022f) > 0.0001f)
+			{
+				gi.WriteByte(svc_stufftext);
+				if (v < 0)
+					gi.WriteString("m_yaw 0.022\nm_pitch -0.022\n");
+				else
+					gi.WriteString("m_yaw 0.022\nm_pitch 0.022\n");
+				gi.unicast(ent, true);
+			}
+			if (argc == 3)
+				ent->client->pers.noantilag = !atoi(gi.argv(2));
+		}
+		else
+		{
+#if 1 //HYPODEBUG
+			int c = atoi(cmd + 3);
+			if (c != ent->client->resp.checked)
+				return;
+			if (c & 1)
+			{
+				// $vid_gamma $gl_picmip $intensity $gl_maxtexsize
+				if (argc != 5 || atof(gi.argv(1)) < 0.2999f || atof(gi.argv(2)) != 0 || atof(gi.argv(3)) != 2 || atof(gi.argv(4)) < 16)
+				{
+					char stuff[64] = "";
+					if (argc == 5 && level.framenum < ent->client->resp.enterframe + 100)
+					{
+						if (atof(gi.argv(1)) < 0.2999f)
+							strcat(stuff, "set vid_gamma 0.3;");
+						if (atof(gi.argv(3)) != 2)
+							strcat(stuff, "set intensity 2;");
+						if (stuff[0])
+						{
+							strcat(stuff, "vid_restart\r\n");
+							gi.WriteByte(svc_stufftext);
+							gi.WriteString(stuff);
+							gi.unicast(ent, true);
+						}
+					}
+					if (!stuff[0])
+					{
+						if (atof(gi.argv(1)) < 0.2999f)
+						{
+							KICKENT(ent, "%s is being kicked for using a lighting cheat!\n");
+						}
+						else
 				{
 					KICKENT(ent, "%s is being kicked for using a texture cheat!\n");
+				}
+					}
+				}
+			}
+			else
+			{
+				// $gl_clear $r_showbbox $gl_polyblend $r_debug_lighting
+				if (argc != 5 || atof(gi.argv(2)) != 0)
+				{
+					KICKENT(ent, "%s is being kicked for using a cheat!\n");
+				}
+				else if (atof(gi.argv(1)) != 0)
+				{
+					KICKENT(ent, "%s is being kicked for using a see-thru cheat!\n");
+				}
+				else if (atof(gi.argv(4)) != 0)
+				{
+					KICKENT(ent, "%s is being kicked for using a lighting cheat!\n");
 				}
 				else
 				{
@@ -4101,7 +3442,7 @@ void ClientCommand (edict_t *ent)
 						{
 							if (ent->client->pers.polyblender) // they have reset gl_polyblend to 0
 							{
-								KICKENT(ent, "%s is being kicked for having a flame hack!\n");
+								KICKENT(ent, "%s is being kicked for using a flame hack!\n");
 							}
 							else
 							{
@@ -4112,36 +3453,14 @@ void ClientCommand (edict_t *ent)
 							}
 						}
 					}
-					else if (v == 2)
-						ent->client->pers.polyblender = 1;
 					else
-						ent->client->pers.polyblender = 0;
+						ent->client->pers.polyblender = (v == 2);
 				}
-				break;
-
-			case 'B':
-				if (gi.argc() != 3 || atof(gi.argv(1)) != 0 || atof(gi.argv(2)) != 1/* || atof(gi.argv(3)) != 1*/)
-					KICKENT(ent, "%s is being kicked for using a see-thru cheat!\n");
-				break;
-
-			case 'C':
-				{
-					float v = atof(gi.argv(1));
-					if (fabs(fabs(v) - 0.022f) > 0.0001f)
-					{
-						gi.WriteByte(svc_stufftext);
-						if (v < 0)
-							gi.WriteString("m_yaw 0.022\nm_pitch -0.022\n");
-						else
-							gi.WriteString("m_yaw 0.022\nm_pitch 0.022\n");
-						gi.unicast(ent, true);
 					}
-					if (gi.argc() == 3)
-						ent->client->pers.noantilag = !atoi(gi.argv(2));
+#endif
+			ent->client->resp.checked += 100;
 				}
-				break;
-		}
-#endif //hypov8
+
 		return;
 	}
 
@@ -4229,8 +3548,8 @@ void ClientCommand (edict_t *ent)
 	else if (Q_stricmp (cmd, "use") == 0)
 		Cmd_Use_f (ent);
 	// END JOSEPH
-	else if ((Q_stricmp (cmd, "drop") == 0) && (Q_stricmp (gi.argv (1), "cash") == 0))
-		Cmd_DropCash_f (ent);
+	//else if ((Q_stricmp (cmd, "drop") == 0) && (Q_stricmp (gi.argv (1), "cash") == 0))
+	//	Cmd_DropCash_f (ent);
 	else if (Q_stricmp (cmd, "drop") == 0)
 		Cmd_Drop_f (ent);
 	else if (Q_stricmp (cmd, "give") == 0)
@@ -4244,14 +3563,6 @@ void ClientCommand (edict_t *ent)
 	else if (Q_stricmp (cmd, "inven") == 0)
 		Cmd_Inven_f (ent);
 	
-	else if (Q_stricmp (cmd, "invnextw") == 0)
-		SelectNextItem (ent, IT_WEAPON);
-	else if (Q_stricmp (cmd, "invprevw") == 0)
-		SelectPrevItem (ent, IT_WEAPON);
-	else if (Q_stricmp (cmd, "invnextp") == 0)
-		SelectNextItem (ent, IT_POWERUP);
-	else if (Q_stricmp (cmd, "invprevp") == 0)
-		SelectPrevItem (ent, IT_POWERUP);
 	else if (Q_stricmp (cmd, "invuse") == 0)
 		Cmd_InvUse_f (ent);
 	else if (Q_stricmp (cmd, "invdrop") == 0)
@@ -4271,14 +3582,6 @@ void ClientCommand (edict_t *ent)
 		Cmd_Clear_f (ent);*/
 	// END JOSEPH
 	
-	// BEGIN HOOK
-	// The hook will only work if its available as a server option
-	else if ((Q_stricmp(cmd, "hook") == 0))
-	{
-		if (sv_hook->value || HmHookAvailable) /*enable_hitmen*/
-			Cmd_Hook_f(ent);
-	}
-	// END
 	// RAFAEL
 	else if (Q_stricmp (cmd, "flashlight") == 0)
 		Cmd_Flashlight_f (ent);
@@ -4301,13 +3604,22 @@ void ClientCommand (edict_t *ent)
 	else if (Q_stricmp (cmd, "togglecam") == 0)
 		Cmd_ToggleCam_f (ent);
 
-	// BEGIN HITMEN
+// BEGIN HOOK
+	// The hook will only work if its available as a server option
+	else if ((Q_stricmp(cmd, "hook") == 0))
+	{
+		if (sv_hook->value || HmHookAvailable) /*enable_hitmen*/
+			Cmd_Hook_f(ent);
+	}
+// END
+// BEGIN HITMEN
 	else if (Q_stricmp (cmd, "showmotd") == 0)
 		{
 		ent->client->showscores = SCORE_MOTD;
 		DeathmatchScoreboard (ent);
 		}
-	// END
+// END
+
 	// Ridah, Vehicles
 	else if (Q_stricmp (cmd, "gear_up") == 0)
 		Cmd_GearUp_f (ent);
@@ -4328,7 +3640,9 @@ void ClientCommand (edict_t *ent)
 		Cmd_Resign_f (ent);
 
 	else if (Q_stricmp (cmd, "changemap") == 0)
-		Cmd_ChangeMap_f (ent);
+		Cmd_ChangeMap_f (ent, false);
+	else if (Q_stricmp (cmd, "votemap") == 0)
+		Cmd_ChangeMap_f (ent, true);
 	else if (Q_stricmp (cmd, "maplist") == 0)
 		Cmd_MapList_f (ent);
 	else if (Q_stricmp (cmd, "commands") == 0)
@@ -4439,20 +3753,6 @@ void ClientCommand (edict_t *ent)
 	else if (Q_stricmp(cmd, "endmap") == 0)	// hypov8 call early map end, goto level select?
 		Cmd_EndMap_f(ent);
 //END
-// ACEBOT_ADD
-	else if (Q_stricmp(cmd, "votebotadd") == 0)		//hypo add bot
-		Cmd_VoteAddBot_f(ent, 0);
-	else if (Q_stricmp(cmd, "votebotremove") == 0)		//hypo add bot
-		Cmd_VoteRemoveBot_f(ent,false, NULL);
-	else if (Q_stricmp(cmd, "votebotskill") == 0)		//hypo add bot
-		Cmd_VoteSkill_f(ent, false);
-	//else if (Q_stricmp(cmd, "votebotcount") == 0)		//hypo todo:
-	//	Cmd_VoteBotCount_f(ent);  
-	else if (Q_stricmp(cmd, "menu") == 0)		//hypo add bot
-		Cmd_Menu_f(ent);
-	else if (Q_stricmp(cmd, "botskill") == 0) //add hypov8
-		Cmd_SetBotSkill_f(ent, gi.argv(1));
-// ACEBOT_END
 
 	else if (teamplay->value)
 	{

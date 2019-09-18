@@ -403,7 +403,7 @@ qboolean AI_CheckTalk( edict_t *self )
 	}
 
 	// check clients
-	for (i=1; i<=maxclients->value; i++)
+	for (i=1; i<=(int)maxclients->value; i++)
 	{
 		if (g_edicts[i].client && g_edicts[i].health > 0)
 		{

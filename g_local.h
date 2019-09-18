@@ -150,7 +150,7 @@ for(INDEX=1;INDEX<=(int)maxclients->value;INDEX++)\
 #define PLAYING				0
 
 // the "gameversion" client command will print this plus compile date
-#define	GAMEVERSION	"Botmatch.v38" //	"MM2.0 +lagless +acebot +hitmen" //hypov8 gamename
+#define	GAMEVERSION	"Botmatch.v38.M2" //	"MM2.0 +lagless +acebot +hitmen" //hypov8 gamename
 
 // protocol bytes that can be directly added to messages
 #define	svc_muzzleflash		1
@@ -510,14 +510,25 @@ typedef struct
 
 	// actual time this server frame started
 	int			frameStartTime;
+
+	int			pregameframes;
+	int			lastactive;
+	float		last_talk_time;
+
+	// next map voting
+	int			vote_set[9];
+	int			num_vote_set;
+	qboolean	vote_nopic[9];
+	int			vote_winner;
+
+	char playerskins[MAX_CLIENTS][MAX_QPATH]; // player skin configstrings
+
+
 // ACEBOT_ADD
 	qboolean bots_spawned; //hypov8 load bots once only while loading players
 	float bot_lastUdate;
 // ACEBOT_END
 
-	int		lastactive;
-
-	char playerskins[MAX_CLIENTS][MAX_QPATH]; // player skin configstrings
 } level_locals_t;
 
 
@@ -850,8 +861,6 @@ extern cvar_t *sv_bot_max; //maximum bots that can be aded
 extern cvar_t *sv_bot_max_players; //maximum bots+clients allowed. remove bots if player enters, can add bots above value
 extern cvar_t *sv_hitmen;
 extern cvar_t *sv_hook; //add hypov8
-extern cvar_t *sv_pretime;
-extern cvar_t *sv_pretimebm;
 // ACEBOT_END
 
 extern cvar_t *sv_keeppistol; //hypov8 add keeps pistol if manualy selected
@@ -900,10 +909,11 @@ extern	cvar_t	*g_mapcycle_file;
 
 extern	cvar_t	*antilag;
 extern	cvar_t	*props;
+extern	cvar_t	*shadows;
 
 extern	cvar_t	*bonus;
 
-extern	int		starttime;
+//extern	int		starttime;
 
 extern	qboolean	kpded2;
 
@@ -1184,7 +1194,7 @@ void InitClientPersistant (gclient_t *client);
 void InitClientResp (gclient_t *client);
 void InitBodyQue (void);
 void ClientBeginServerFrame (edict_t *ent);
-//void FetchClientEntData(edict_t *ent); // ACEBOT_ADD
+
 
 void ClientRejoin(edict_t *ent, qboolean rejoin);
 void DropCash(edict_t *self);
@@ -1350,7 +1360,7 @@ typedef struct
 	char		userinfo[MAX_INFO_STRING];
 	char		netname[16];
 	int			hand;
-	//int			screenwidth; //hypov8 todo:
+	int			screenwidth; //hypov8 todo:
 
 	int			connected;			// a loadgame will leave valid entities that
 									// just don't have a connection yet
@@ -1408,16 +1418,20 @@ typedef struct
 	int			spectator;  // is the player a spectator?
 
 	char		ip[32];
-	char		country[32]; 	//GeoIP2 [32]
 	char		rconx[32];
+	char		country[32]; 	//GeoIP2 [32]
 
-	//int			idle; //hypov8 todo:
+	int			idle; //hypov8 todo:
 	int			lastpacket;
 	int			polyblender;
 	int			mute;
 	int			noantilag;
 
 	int			anonwarn;
+	// ACEBOT_ADD
+	qboolean is_bot; //hypov8 used to free bots on level change
+	// ACEBOT_END
+
 } client_persistant_t;
 
 // client data that stays across deathmatch respawns
@@ -1425,18 +1439,6 @@ typedef struct
 {
 	int			enterframe;			// level.framenum the client entered the game
 	int			score;				// frags, etc
-	// BEGIN HITMEN
-	int			deaths;
-	int			suicides;
-	float		spawntime;
-	float		timealive;
-	int			maxkillstreak;
-	int			killstreak;
-	int			maxdeathstreak;
-	int			deathstreak;
-
-	int			currentstat;
-	// END
 	vec3_t		cmd_angles;			// angles sent over in the last command
 
 	// teamplay
@@ -1452,15 +1454,33 @@ typedef struct
 	int			switch_teams_frame;  // slow down how fast a player can switch teams
 	int			name_change_frame;
 	int			scoreboard_frame;
+	int			login_frame;
 
-	int			check_idle;
-	int			checkdelta, checkpvs, checktime, checktex, checkfoot, checkmouse;
+	int			idle;
+	//int			checkdelta, checkpvs, checktime, checktex, checkfoot, checkmouse;
+
+	int			checkframe[3];
+	int			checked;
 
 	int			kickdelay;
 	char		*kickmess;
 
+	//int			ready;
+	int			soundplayed;
+
 #define TEXTBUFSIZE 2048
 	char		textbuf[TEXTBUFSIZE];
+		// BEGIN HITMEN
+	int			deaths;
+	int			suicides;
+	float		spawntime;
+	float		timealive;
+	int			maxkillstreak;
+	int			killstreak;
+	int			maxdeathstreak;
+	int			deathstreak;
+	int			currentstat;
+	// END
 } client_respawn_t;
 
 // this structure is cleared on each PutClientInServer(),
@@ -1999,9 +2019,6 @@ extern	object_bounds_t	*g_objbnds[MAX_OBJECT_BOUNDS];
 
 extern char maplist[1024][32];
 
-extern int vote_set[9];        // stores votes for next map
-extern int num_vote_set;
-
 extern char admincode[16];		 // the admincode
 extern char default_map[32];
 extern char default_teamplay[16];
@@ -2014,37 +2031,26 @@ extern char default_dm_realmode[16];
 extern char default_anti_spawncamp[16];
 extern char default_bonus[16];
 extern char map_list_filename[32];
-extern char ban_name_filename[32];
-extern char ban_ip_filename[32];
 extern int allow_map_voting;
 extern int wait_for_players;
 extern int disable_admin_voting;
-extern int scoreboard_first;
-extern int fph_scoreboard;
+extern int pregameframes;
 extern int num_maps;
-extern int num_netnames;
-extern int num_ips;
 
 extern int fixed_gametype;
 extern int enable_password;
-extern char rconx_file[32];
-extern int num_rconx_pass;
 extern int keep_admin_status;
 extern int default_random_map;
-extern int disable_anon_text;
 extern int disable_curse;
 // BEGIN HITMEN
 extern int enable_hitmen;
 // END
 extern int unlimited_curse;
+extern int pickup_sounds;
 extern int enable_killerhealth;
 
-typedef struct   // Message of the Day
-{
-	char textline[100];
-} MOTD_t;
-
-extern MOTD_t	MOTD[20];
+// Message of the Day
+extern char MOTD[20][80];
 extern int		num_MOTD_lines;
 
 typedef struct // stores player info if they disconnect
@@ -2064,10 +2070,16 @@ typedef struct  // ban lists
 	char value[32];
 } ban_t;
 
-extern ban_t	netname[100];
-extern ban_t	ip[100];
+extern char ban_name_filename[32];
+extern ban_t ban_name[100];
+extern int num_ban_names;
+extern char ban_ip_filename[32];
+extern ban_t ban_ip[100];
+extern int num_ban_ips;
 
+extern char rconx_file[32];
 extern ban_t	rconx_pass[100];
+extern int num_rconx_pass;
 
 #define TEAMNAME "teams"
 #define SCORENAME "scores"
@@ -2077,7 +2089,7 @@ extern char cmd_check[8];
 
 void cprintf(edict_t *ent, int printlevel, char *fmt, ...);
 
-#define KICKENT(ent,mess) {ent->client->resp.kickmess=mess;ent->client->resp.kickdelay=2;}
+#define KICKENT(ent,mess) {if (!ent->client->resp.kickdelay) {ent->client->resp.kickmess=mess;ent->client->resp.kickdelay=2;}}
 
 /*
 	The Kingpin client can download models/skins/maps/textures but its support for
@@ -2088,4 +2100,4 @@ void cprintf(edict_t *ent, int printlevel, char *fmt, ...);
 	the "dlindex" macro) to add any other files to the downloadable list (only files
 	starting with "/pics/" will be added to the image list).
 */
-#define dlindex(file) {if (kpded2) gi.imageindex(file);}
+static __inline void dlindex(char *file) {if (kpded2) gi.imageindex(file);}

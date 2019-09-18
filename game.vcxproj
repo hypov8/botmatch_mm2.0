@@ -116,6 +116,9 @@
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <AssemblyDebug>false</AssemblyDebug>
       <TurnOffAssemblyGeneration>true</TurnOffAssemblyGeneration>
+      <GenerateMapFile>
+      </GenerateMapFile>
+      <MapExports>false</MapExports>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DDebug2|Win32'">

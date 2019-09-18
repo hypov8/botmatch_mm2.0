@@ -81,6 +81,9 @@ void ACESP_LoadBots()
 	int i;
 	cvar_t	*game_dir, *map_name;
 	char filename[MAX_QPATH];
+	static qboolean flip;
+	char *team;
+	qboolean valid;
 
 	char *line, *token;
 	bot_skin_t player; // name, skin, team, skill;
@@ -102,14 +105,12 @@ void ACESP_LoadBots()
 	fgetline(pIn, buffer);
 	while (!feof(pIn))
 	{
+		valid = false;
 		line = buffer;
-
 		for (i = 1; i <= 4; i++)
 		{
-			player.skill = 1.0f; //default. if missing from old versions
-
 			token = COM_Parse(&line);
-			if (token[0] == '\0' && i != 4)
+			if (token[0] == '\0')
 				break;
 
 			switch (i)
@@ -122,19 +123,28 @@ void ACESP_LoadBots()
 						break;
 			}
 
-			if (i == 4)
+			if (!valid && i >= 1)
 			{
-				if (player.skill > 2) 
-					player.skill = 2;
-				else if (player.skill < 0.0f) 
-					player.skill = 0.0f;
-
-				if (teamplay->value) // name, skin, team 
-					ACESP_SpawnBot(player.team, player.name, player.skin, NULL, player.skill); //sv addbot thugBot "male_thug/009 031 031" dragon
-				else // name, skin			
-					ACESP_SpawnBot("\0", player.name, player.skin, NULL, player.skill); //sv addbot thugBot "male_thug/009 031 031"
+				valid = true; //valid with only name
+				flip = flip ? false : true;
+				team = flip ? "nikki": "dragon";
+				strcpy(player.skin, "male_thug/001 001 001");
+				strcpy(player.team, team);
+				player.skill = 1.0f; //default. if missing from old versions
 			}
 		}
+
+		if (valid)
+		{
+			if (player.skill > 2) 			player.skill = 2;
+			else if (player.skill < 0.0f) 	player.skill = 0.0f;
+
+			if (teamplay->value) // name, skin, team 
+				ACESP_SpawnBot(player.team, player.name, player.skin, NULL, player.skill); //sv addbot thugBot "male_thug/009 031 031" dragon
+			else // name, skin			
+				ACESP_SpawnBot("\0", player.name, player.skin, NULL, player.skill); //sv addbot thugBot "male_thug/009 031 031"
+		}
+
 		fgetline(pIn, buffer);
 		continue;
 	}
@@ -195,17 +205,10 @@ loadgames will.
 */
 static void ACESP_ClientConnect(edict_t *ent, char *userinfo)
 {
-	char	*value;
-	//edict_t	*doot;
-	//int j;
 	char *bestWepName = '\0';
-
-	ent->client = NULL;
-	ent->flags = 0;
 
 	//hypov8 add randomness to best wep when connected. each map
 	ent->acebot.randomWeapon = rand() % 3;
-
 	//hypo another random, try make hmg more domanant
 	if (ent->acebot.randomWeapon != 0)
 		ent->acebot.randomWeapon = rand() % 3;
@@ -217,43 +220,19 @@ static void ACESP_ClientConnect(edict_t *ent, char *userinfo)
 	case 2: bestWepName = "Tommygun"; break;
 	}
 
-	// they can connect
-	ent->client = game.clients + (ent - g_edicts - 1);
+	if (password->string[0])
+		Info_SetValueForKey(userinfo, "password", password->string);
 
-	// clear the respawning variables
-	InitClientResp(ent->client);
-	{
-		memset(&ent->client->pers, 0, sizeof(ent->client->pers));
-		InitClientPersistant(ent->client);
-		ent->client->pers.connected = -1; // distinguish between initial and map change connections
-	}
+	Info_SetValueForKey(userinfo, "ver", "121");
+	Info_SetValueForKey(userinfo, "country", "Botville");
+	//hypov8 todo ip?
 
-	value = Info_ValueForKey(userinfo, "ip");
-	strncpy(ent->client->pers.ip, value, sizeof(ent->client->pers.ip) - 1);
+	ClientConnect(ent, userinfo); //todo return test fail??
 
-	ent->client->resp.enterframe = 0;
-	ent->client->move_frame = ent->client->resp.name_change_frame = -80;  //just to be sure
-	ClientUserinfoChanged(ent, userinfo);
-
-
-	//ent->client->pers.country = "Botville";
-	strncpy(ent->client->pers.country, "Botville", sizeof(ent->client->pers.country) - 1); //GeoIP2 
-
-	gi.dprintf("%s (BOT) connected. BestWep = \"%s\"\n", ent->client->pers.netname, bestWepName);
-
-	if (level.bots_spawned)
-	{
-		edict_t	*doot;
-		int j;
-
-		for_each_player_not_bot(doot, j)// ACEBOT_ADD
-			safe_cprintf(doot, PRINT_CHAT, "%s connected from %s\n", ent->client->pers.netname, ent->client->pers.country);
-	}
-
-	ent->client->pers.lastpacket = curtime;
-	level.lastactive = level.framenum;
 	ent->client->showscores = NO_SCOREBOARD;
+	ent->acebot.is_bot = true; //not needed
 }
+
 
 
 
@@ -261,6 +240,67 @@ static void ACESP_ClientConnect(edict_t *ent, char *userinfo)
 ///////////////////////////////////////////////////////////////////////
 // Modified version of id's code
 ///////////////////////////////////////////////////////////////////////
+#if 1 //HYPOBOTS
+static  void ACESP_PutClientInServer(edict_t *bot, qboolean respawn, int team)
+{
+	//vec3_t	spawn_origin, spawn_angles;
+
+	ClientBegin(bot);
+	bot->classname = "bot"; // "bot"
+	bot->acebot.is_jumping = false;
+	bot->acebot.isTrigPush = false;
+	bot->acebot.old_targetID = -1; //hypo add
+	bot->acebot.num_weps = 2;  //hypo add. 2= pistol+pipe
+	bot->acebot.lastDamageTimer = 0;  //hypo add
+	bot->acebot.old_targetFrame = 0;	//hypov8 add
+	bot->acebot.tauntTime = level.framenum + (random() * 100);
+	bot->acebot.spawnedTime = level.framenum + 30; //hypo add 3 seconds to look for weps?
+	bot->client->pers.team = team;
+	bot->client->pers.noantilag = true;
+	bot->client->ps.fov = 90;
+
+	//hypo
+	bot->client->resp.is_spawn = true;
+	bot->inuse = true;
+	bot->acebot.is_bot = true;
+//end
+
+
+	bot->s.angles[PITCH] = 0;
+	bot->s.angles[YAW] = 0;// spawn_angles[YAW];
+	bot->s.angles[ROLL] = 0;
+	VectorCopy(bot->s.angles, bot->client->ps.viewangles);
+	VectorCopy(bot->s.angles, bot->client->v_angle);
+
+	bot->enemy = NULL;
+	bot->movetarget = NULL;
+	bot->acebot.state = BOTSTATE_MOVE;
+	bot->acebot.suicide_timeout = level.time + 15.0;
+
+	// Set the current node
+	bot->acebot.node_ent = NULL;
+	bot->acebot.next_move_time = level.time;
+	bot->acebot.node_current = ACEND_FindClosestReachableNode(bot, BOTNODE_DENSITY, BOTNODE_ALL);
+	bot->acebot.node_goal = bot->acebot.node_current;
+	bot->acebot.node_next = bot->acebot.node_current;
+	if (bot->acebot.node_current == INVALID) 
+		bot->acebot.state = BOTSTATE_WANDER;
+
+// BEGIN HITMEN
+	if (!sv_hitmen->value)
+//END
+		if (!ACEAI_PickShortRangeGoalSpawned(bot))
+			ACEAI_PickLongRangeGoal(bot);//todo: lrg weapon
+
+
+#if HYPOBOTS
+		bot->think = ACEAI_Think;
+		bot->nextthink = level.time + FRAMETIME;
+#endif
+
+}
+
+#else
 static  void ACESP_PutClientInServer(edict_t *bot, qboolean respawn, int team)
 {
 	vec3_t	mins = {-16, -16, -24};
@@ -672,7 +712,7 @@ static  void ACESP_PutClientInServer(edict_t *bot, qboolean respawn, int team)
 		MoveClientToIntermission(bot);
 
 }
-
+#endif
 ///////////////////////////////////////////////////////////////////////
 // Respawn the bot
 ///////////////////////////////////////////////////////////////////////
@@ -921,7 +961,7 @@ extern void Teamplay_AutoJoinTeam(edict_t *self);
 void ACESP_SpawnBot (char *team, char *name, char *skin, char *userinfo, float skill)
 {
 	edict_t	*bot;
-	int team2;
+	int team2=0;
 	
 	bot = ACESP_FindFreeClient ();
 	
@@ -982,16 +1022,10 @@ void ACESP_SpawnBot (char *team, char *name, char *skin, char *userinfo, float s
 	ACESP_PutClientInServer(bot, false, bot->client->pers.team /*TEAM_NONE*/);
 
 
-//hypo
-	bot->client->resp.is_spawn = true;
-	bot->inuse = true;
-	bot->acebot.is_bot = true;
-	bot->client->pers.noantilag = 1; //hypov8 antilag disabled
-//end
 	// make sure all view stuff is valid
 	ClientEndServerFrame (bot);
 	
-	ACEIT_PlayerAdded (bot); // let the world know we added another
+	//ACEIT_PlayerAdded (bot); // let the world know we added another
 
 	//ACEAI_PickLongRangeGoal(bot); // pick a new goal
 
@@ -1010,6 +1044,9 @@ int ACESP_LoadRandomBotCFG(void)
 	cvar_t	*game_dir;
 	char filename[MAX_QPATH];
 	char *line, *token;
+	static qboolean flip;
+	char*team;
+	qboolean valid;
 
 	level.bots_spawned = true;
 
@@ -1023,7 +1060,8 @@ int ACESP_LoadRandomBotCFG(void)
 		fgetline(pIn, buffer);
 		while (!feof(pIn))
 		{
-			randomBotSkins[count].skill = 1.0f; //default
+			valid = false;
+
 			line = buffer;
 			for (i = 1; i <= 4; i++)
 			{
@@ -1033,24 +1071,34 @@ int ACESP_LoadRandomBotCFG(void)
 
 				switch (i)
 				{
-				case 1: strcpy(randomBotSkins[count].name, token);
-				case 2: strcpy(randomBotSkins[count].skin, token);
-				case 3: strcpy(randomBotSkins[count].team, token);
+				case 1: strcpy(randomBotSkins[count].name, token); break;
+				case 2: strcpy(randomBotSkins[count].skin, token); break;
+				case 3: strcpy(randomBotSkins[count].team, token); break;
 				case 4: if (token[0] != '\0') 
 						randomBotSkins[count].skill = (float)atof((const char *)token); 
 						break;
 				}
 
-				if (randomBotSkins[count].skill > 2) 
-					randomBotSkins[count].skill = 2;
-				else if (randomBotSkins[count].skill < 0.0f) 
-					randomBotSkins[count].skill = 0.0f;
-
 				//all varables exist?
-				if (i == 4) 
-					count++; //add to skin count
-
+				if (!valid && i >= 1)
+				{
+					flip = flip ? false : true;
+					team = flip ? "nikki": "dragon";
+					strcpy(randomBotSkins[count].skin, "male_thug/001 001 001");
+					strcpy(randomBotSkins[count].team, team);
+					randomBotSkins[count].skill = 1.0f;
+					valid = true;
+				}
 			}
+			if (valid)
+			{
+				count++; //add to skin count
+				if (randomBotSkins[count].skill > 2)
+					randomBotSkins[count].skill = 2;
+				else if (randomBotSkins[count].skill < 0.0f)
+					randomBotSkins[count].skill = 0.0f;
+			}
+
 			fgetline(pIn, buffer);
 			continue;
 		}
@@ -1127,9 +1175,6 @@ void ACESP_SpawnBot_Random(char *team, char *name, char *skin, char *userinfo)
 }
 
 
-
-
-
 ///////////////////////////////////////////////////////////////////////
 // Remove a bot by name or all bots
 ///////////////////////////////////////////////////////////////////////
@@ -1139,12 +1184,12 @@ void ACESP_RemoveBot(char *name)
 	qboolean freed=false;
 	edict_t *bot;
 
-	if (!(level.modeset == MATCH || level.modeset == PUBLIC))
-		return;
+	//if (!(level.modeset == MATCH || level.modeset == PUBLIC))
+	//	return;
 
-	for(i=0;i<(int)maxclients->value;i++)
+	for(i=1;i<=(int)maxclients->value;i++)
 	{
-		bot = g_edicts + i + 1;
+		bot = g_edicts + i ;
 		if(bot->inuse && bot->acebot.is_bot) 
 		{
 			if (_strcmpi(bot->client->pers.netname, name) == 0 || strcmp(name, "all") == 0 || strcmp(name, "single") == 0)
@@ -1164,22 +1209,14 @@ void ACESP_RemoveBot(char *name)
 		//safe_bprintf (PRINT_MEDIUM, "%s not found\n", name);
 }
 
-
+//fix for using console to change map
 void FreeBots(void)
 {
-	ACESP_RemoveBot("all");
-	/*
-		int		i;
-		edict_t	*bot;
+	int		i;
 
-		for_each_player_inc_bot(bot, i) //hypov8 todo: not inc bots?
-		{
-			if (bot->acebot.is_bot)
-			{
-				if (bot->inuse)
-					G_FreeEdict(bot);
-			}
-		}*/
+	for (i = 0; i < game.maxclients; i++)
+	{
+		if (game.clients[i].pers.is_bot)
+			memset(&game.clients[i], 0, sizeof(gclient_t)) ;
+	}
 }
-
-

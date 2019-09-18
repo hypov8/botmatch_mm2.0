@@ -363,8 +363,8 @@ void SV_CalcGunOffset (edict_t *ent)
 //	float	delta;
 
 	// gun angles from bobbing
-	ent->client->ps.gunangles[ROLL] = xyspeed * bobfracsin * 0.005;
-	ent->client->ps.gunangles[YAW] = xyspeed * bobfracsin * 0.01;
+	ent->client->ps.gunangles[ROLL] = xyspeed * bobfracsin * 0.001; //hypov8 reduced. was .005
+	ent->client->ps.gunangles[YAW] = xyspeed * bobfracsin * 0.002;	//hypov8 reduced. was 0.01
 	if (bobcycle & 1)
 	{
 		ent->client->ps.gunangles[ROLL] = -ent->client->ps.gunangles[ROLL];
@@ -1117,7 +1117,7 @@ void G_SetClientFrame (edict_t *ent)
 	}
 
 
-	if (weapontype == WEAPON_MELEE)
+	if (weapontype == WEAPON_MELEE || client->last_weapontype == WEAPON_MELEE)
 	{
 
 		// always use normal run if melee and moving
@@ -1137,6 +1137,11 @@ void G_SetClientFrame (edict_t *ent)
 	{
 		if (ent->s.frame < client->anim_end)
 			ent->s.frame++;
+		else if (!(ent->flags & FL_SPAWNED_BLOODPOOL) && ent->groundentity)
+		{
+			SpawnBloodPool (ent);
+			ent->flags |= FL_SPAWNED_BLOODPOOL;
+		}
 		return;		// stay there
 	}
 
@@ -1661,7 +1666,7 @@ void ClientEndServerFrame (edict_t *ent)
 	if (kpded2)
 	{
 		// if eyecam is enabled, set who's eyes we're looking through
-		if (ent->client->chase_target && ent->client->chasemode == EYECAM_CHASE)
+		if (ent->client->chase_target && ent->client->chasemode == EYECAM_CHASE && !ent->client->chase_target->deadflag)
 			ent->client->pov = ent->client->chase_target - g_edicts - 1;
 		else
 			ent->client->pov = -1;
@@ -1703,19 +1708,21 @@ void ClientEndServerFrame (edict_t *ent)
 		current_client->ps.blend[2] = 0;
 		current_client->ps.blend[3] = 0.5;
 		current_client->ps.fov = 90;
-		if (level.framenum == level.startframe) return; // delay hud refresh to avoid overflow
-		G_SetStats (ent);
-		goto updatescore;
-	}
-
-	if (ent->client->chase_target && ent->client->chasemode == EYECAM_CHASE)
-	{
+		if (level.framenum == level.startframe) 
+			return; // delay hud refresh to avoid overflow
 		G_SetStats (ent);
 		goto updatescore;
 	}
 
 	if (ent->client->chase_target)
+	{
+		if (ent->client->chasemode == EYECAM_CHASE)
+	{
+		G_SetStats (ent);
+		goto updatescore;
+	}
 		ent->client->ps.fov = 90;
+	}
 
 	AngleVectors (ent->client->v_angle, forward, right, up);
 
@@ -1738,7 +1745,7 @@ void ClientEndServerFrame (edict_t *ent)
 		else
 			ent->s.angles[PITCH] = ent->client->v_angle[PITCH];
 	}
-	else
+	else if (!ent->deadflag)
 	// done.
 	{
 		if (ent->client->v_angle[PITCH] > 180)
@@ -1815,7 +1822,7 @@ else
 
 	// determine the gun offsets
 // Ridah, Hovercars, no gun offsets
-if (ent->flags & (FL_HOVERCAR | FL_HOVERCAR_GROUND | FL_BIKE))
+if (!(ent->flags & (FL_HOVERCAR | FL_HOVERCAR_GROUND | FL_BIKE))) // ! missing since SDK
 // done.
 	SV_CalcGunOffset (ent);
 
@@ -1873,88 +1880,70 @@ if (ent->flags & (FL_HOVERCAR | FL_HOVERCAR_GROUND | FL_BIKE))
 
 updatescore:
 // ACEBOT_ADD
-	if (ent->acebot.is_bot) return;
+	if (ent->acebot.is_bot) 
+		return;
 // ACEBOT_END
-	if (ent->client->resp.enterframe == level.framenum) return;
+	if (ent->client->resp.enterframe == level.framenum) 
+		return;
 
-	if (ent->client->showscores == SCORE_MOTD && (level.framenum == (ent->client->resp.enterframe + 150)
-		|| (level.modeset == ENDGAMEVOTE && level.framenum == (ent->client->resp.enterframe + 100))))
+	if (ent->client->showscores == SCORE_MOTD && level.framenum == (ent->client->resp.enterframe + 150))
 	{
-		if (level.modeset == ENDGAMEVOTE)
-			ent->client->showscores = SCORE_MAP_VOTE;
-		else
 			ent->client->showscores = SCOREBOARD;
 		ent->client->resp.scoreboard_frame = 0;
 	}
-	if (level.modeset == ENDGAMEVOTE && ent->client->showscores == SCOREBOARD && level.framenum == (level.startframe + 150) && !ent->client->resp.vote)
+	if (level.modeset == ENDGAMEVOTE && ent->client->showscores == SCOREBOARD && level.framenum == (level.startframe + 150) && !ent->client->mapvote)
 	{
 		ent->client->showscores = SCORE_MAP_VOTE;
 		ent->client->resp.scoreboard_frame = 0;
 	}
-	// if the scoreboard is due for an update, update it
-	if ((!ent->client->resp.scoreboard_frame || (ent->client->showscores && !ent->client->resp.textbuf[0] && level.framenum >= (ent->client->resp.scoreboard_frame + 30)))
-		&& level.framenum >= (ent->client->resp.enterframe + 5))
+
+	// don't send these messages if they've lost contact
+	if (curtime - ent->client->pers.lastpacket > 100)
 	{
-		DeathmatchScoreboard(ent);
 		return;
 	}
 
-	if (ent->client->resp.textbuf[0])
+	// if the scoreboard is due for an update, update it
+	if ((!ent->client->resp.scoreboard_frame || level.framenum >= ent->client->resp.scoreboard_frame)
+		&& level.framenum >= (ent->client->resp.enterframe + 5))
 	{
-		char *b = ent->client->resp.textbuf;
-		int j = strlen(b);
-		if (j > 300)
-		{
-			for (i = 300; i < j-20; i++)
-				if (b[i] == '\n')
-				{
-					b[i] = 0;
-					safe_cprintf(ent, PRINT_HIGH, "%s\n", b);
-					memmove(b, b + i + 1, j - i);
-					goto donetext;
-				}
-		}
-		safe_cprintf(ent, PRINT_HIGH, "%s", b);
-		b[0] = 0;
+		DeathmatchScoreboard(ent);
+		if (!kpded2)
+		return;
 	}
-donetext:
-	if (level.intermissiontime) return;
 
-#if HYPODEBUG
+	if (level.intermissiontime)
 	return;
-#endif
 
-	if (level.framenum > ent->client->resp.checkdelta)
+	if (level.framenum > ent->client->resp.checkframe[0])
 	{
-		ent->client->resp.checkdelta = level.framenum + 70 + (rand()&7);
+		ent->client->resp.checkframe[0] = level.framenum + 70 + (rand()&7);
 		gi.WriteByte(svc_stufftext);
-		gi.WriteString("cl_nodelta 0\n");
+		gi.WriteString("cl_nodelta 0\r\n");
 		gi.unicast(ent, false);
 	}
-	else if (level.framenum > ent->client->resp.checktex)
+	if (level.framenum > ent->client->resp.checkframe[1])
 	{
-		ent->client->resp.checktex = level.framenum + 80 + (rand()&7);
+		ent->client->resp.checkframe[1] = level.framenum + 50 + (rand()&7);
+		ent->client->resp.checked = (ent->client->resp.checked + 1 + (rand() % 50) * 2) % 100;
 		gi.WriteByte(svc_stufftext);
-		gi.WriteString(va("cmd %sA $gl_picmip $gl_maxtexsize $gl_polyblend\n", cmd_check));
-		gi.unicast(ent, false);
+		if (ent->client->resp.checked & 1)
+			gi.WriteString(va("cmd %s%d $vid_gamma $gl_picmip $intensity $gl_maxtexsize\r\n", cmd_check, ent->client->resp.checked));
+		else
+			gi.WriteString(va("cmd %s%d $gl_clear $r_showbbox $gl_polyblend $r_debug_lighting\r\n", cmd_check, ent->client->resp.checked));
+		gi.unicast(ent, true);
+		return;
 	}
-	else if (level.framenum > ent->client->resp.checkpvs)
+	if (ent->solid != SOLID_NOT && !ent->deadflag)
 	{
-		ent->client->resp.checkpvs = level.framenum + 80 + (rand()&7);
-		gi.WriteByte(svc_stufftext);
-		gi.WriteString(va("cmd %sB $gl_clear $r_drawworld\n", cmd_check)); /* $gl_ztrick */
-		gi.unicast(ent, false);
-	}
-	else if (ent->solid != SOLID_NOT && !ent->deadflag)
-	{
-		if (level.framenum > ent->client->resp.checkmouse)
+		if (level.framenum > ent->client->resp.checkframe[2])
 		{
-			ent->client->resp.checkmouse = level.framenum + 30 + (rand()&3);
+			ent->client->resp.checkframe[2] = level.framenum + 30 + (rand()&3);
 			gi.WriteByte(svc_stufftext);
 			if (antilag->value)
-				gi.WriteString(va("cmd %sC $m_pitch $antilag\n", cmd_check)); // piggy-back the mouse check
+				gi.WriteString(va("cmd %s $m_pitch $antilag\r\n", cmd_check)); // piggy-back the mouse check
 			else
-				gi.WriteString(va("cmd %sC $m_pitch\n", cmd_check));
+				gi.WriteString(va("cmd %s $m_pitch\r\n", cmd_check));
 			gi.unicast(ent, true);
 		}
 	}
