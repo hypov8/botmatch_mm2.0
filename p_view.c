@@ -1915,36 +1915,44 @@ updatescore:
 	if (level.intermissiontime)
 	return;
 
-	if (level.framenum > ent->client->resp.checkframe[0])
+#ifndef HYPODEBUG
+	// ACEBOT_ADD
+	if (!ent->acebot.is_bot)
 	{
-		ent->client->resp.checkframe[0] = level.framenum + 70 + (rand()&7);
-		gi.WriteByte(svc_stufftext);
-		gi.WriteString("cl_nodelta 0\r\n");
-		gi.unicast(ent, false);
-	}
-	if (level.framenum > ent->client->resp.checkframe[1])
-	{
-		ent->client->resp.checkframe[1] = level.framenum + 50 + (rand()&7);
-		ent->client->resp.checked = (ent->client->resp.checked + 1 + (rand() % 50) * 2) % 100;
-		gi.WriteByte(svc_stufftext);
-		if (ent->client->resp.checked & 1)
-			gi.WriteString(va("cmd %s%d $vid_gamma $gl_picmip $intensity $gl_maxtexsize\r\n", cmd_check, ent->client->resp.checked));
-		else
-			gi.WriteString(va("cmd %s%d $gl_clear $r_showbbox $gl_polyblend $r_debug_lighting\r\n", cmd_check, ent->client->resp.checked));
-		gi.unicast(ent, true);
-		return;
-	}
-	if (ent->solid != SOLID_NOT && !ent->deadflag)
-	{
-		if (level.framenum > ent->client->resp.checkframe[2])
+		// ACEBOT_END
+
+		if (level.framenum > ent->client->resp.checkframe[0])
 		{
-			ent->client->resp.checkframe[2] = level.framenum + 30 + (rand()&3);
+			ent->client->resp.checkframe[0] = level.framenum + 70 + (rand() & 7);
 			gi.WriteByte(svc_stufftext);
-			if (antilag->value)
-				gi.WriteString(va("cmd %s $m_pitch $antilag\r\n", cmd_check)); // piggy-back the mouse check
+			gi.WriteString("cl_nodelta 0\r\n");
+			gi.unicast(ent, false);
+		}
+		if (level.framenum > ent->client->resp.checkframe[1])
+		{
+			ent->client->resp.checkframe[1] = level.framenum + 50 + (rand() & 7);
+			ent->client->resp.checked = (ent->client->resp.checked + 1 + (rand() % 50) * 2) % 100;
+			gi.WriteByte(svc_stufftext);
+			if (ent->client->resp.checked & 1)
+				gi.WriteString(va("cmd %s%d $vid_gamma $gl_picmip $intensity $gl_maxtexsize\r\n", cmd_check, ent->client->resp.checked));
 			else
-				gi.WriteString(va("cmd %s $m_pitch\r\n", cmd_check));
+				gi.WriteString(va("cmd %s%d $gl_clear $r_showbbox $gl_polyblend $r_debug_lighting\r\n", cmd_check, ent->client->resp.checked));
 			gi.unicast(ent, true);
+			return;
+		}
+		if (ent->solid != SOLID_NOT && !ent->deadflag)
+		{
+			if (level.framenum > ent->client->resp.checkframe[2])
+			{
+				ent->client->resp.checkframe[2] = level.framenum + 30 + (rand() & 3);
+				gi.WriteByte(svc_stufftext);
+				if (antilag->value)
+					gi.WriteString(va("cmd %s $m_pitch $antilag\r\n", cmd_check)); // piggy-back the mouse check
+				else
+					gi.WriteString(va("cmd %s $m_pitch\r\n", cmd_check));
+				gi.unicast(ent, true);
+			}
 		}
 	}
+#endif
 }

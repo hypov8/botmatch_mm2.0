@@ -174,20 +174,6 @@ void BeginIntermission (edict_t *targ)
 	if (level.intermissiontime)
 		return;		// already activated
 
-/*
-// ACEBOT_ADD
-	//ToDo: acebot player intermision
-// ACEBOT_END
-	// respawn any dead clients
-	for (i=0 ; i<(int)maxclients->value ; i++)
-	{
-		client = g_edicts + 1 + i;
-		if (!client->inuse)
-			continue;
-		if (client->health <= 0)
-			respawn(client);
-	}
-*/
 	level.intermissiontime = level.time;
 
 	level.changemap = (targ ? targ->map : "");
@@ -576,339 +562,6 @@ void VoteMapScoreboardMessage (edict_t *ent)
 	gi.WriteString (string);
 }
 
-//===================================================================
-//===================================================================
-//===================================================================
-//hypo add voting options
-#if 1 // HYPODEBUG
-// ACEBOT_ADD //MENU
-#define MENU_Y_START 20 //menu height
-#define MENU_Y_COUNT 11 //headder= +2 (max list items)
-
-//#define MENU_Y_HOME 20
-
-#define MENU_YEL "773"
-#define MENU_ORANGE "752"
-#define MENU_GREY "777"
-
-//key names
-static const char *menu_str[] ={
-	"1 (Pipe)   ",
-	"2 (Pistol) ",
-	"3 (Shoty)  ",
-	"4 (Tommy)  ",
-	"5 (HMG)    ",
-	"6 (GL)     ",
-	"7 (Rocket) ",
-	"8 (Flamer) ",
-	"9 (  )     ",
-	"10(  )     ",
-	"11(  )     ",
-	NULL
-};
-
-static void BotScoreboardVote(edict_t *ent) //SCORE_BOT_VOTE
-{
-	char	string[1024];
-	char	skill[5], *txt_antilag;
-	char	color[MENU_Y_COUNT][4];
-	int		yofs[MENU_Y_COUNT + 2];
-	int		i, j;
-
-	char	*choice2[] =
-	{
-		"Add Bot    ",
-		"Remove Bot ",
-		"Bot Skill  ",
-		"Antilag    ",
-		"Vote Yes   ",
-		"Vote No    ",
-		"close      ",
-		//"blah       ",
-		NULL
-	};
-
-	j = MENU_Y_START;
-	for (i = 0; i < MENU_Y_COUNT+2; i++)
-	{
-		yofs[i] = j;
-		j += 20;
-	}
-
-	for (i = 1; i <= 8; i++)
-	{
-		if (ent->menu == i)
-			strcpy(color[i - 1], MENU_ORANGE);
-		else
-			strcpy(color[i - 1], MENU_GREY);
-	}
-
-	if (sv_bot_allow_skill->value != 0)
-		//skill = sv_botskill->value;
-		sprintf(skill, "%i of 10", ACECM_ReturnBotSkillWeb());//web skill
-	else
-		sprintf(skill,"Fixed");
-
-	if (/*antilag->value &&*/ ent->client && !ent->client->pers.noantilag)
-		txt_antilag = "On";
-	else
-		txt_antilag = "Off";
-
-	// send the layout
-	Com_sprintf(string, sizeof(string),
-		" xl 30 " //left margin
-		/*help*/"yv %i dmstr "MENU_YEL" \"Navigate with [ & ]\" "
-		/*help*/"yv %i dmstr "MENU_YEL" \"Accept with WepNum & Use Key's\" "
-		/*1*/	"yv %i dmstr %s \"%s %s->\" "		// addbot
-		/*2*/	"yv %i dmstr %s \"%s %s->\" "		// removebot
-		/*3*/	"yv %i dmstr %s \"%s %s= %s\" "		// botskill
-		/*4*/	"yv %i dmstr %s \"%s %s= %s\" "		// antilag
-		/*5*/	"yv %i dmstr %s \"%s %s\" "			// vote yes
-		/*6*/	"yv %i dmstr %s \"%s %s\" "			// vote no
-		/*7*/	"yv %i dmstr %s \"%s %s\" ",		// close
-
-		/*help*/yofs[0],
-		/*help*/yofs[1],
-		/*1*/	yofs[2], color[0], menu_str[0], choice2[0],
-		/*2*/	yofs[3], color[1], menu_str[1], choice2[1],
-		/*3*/	yofs[4], color[2], menu_str[2], choice2[2], skill,
-		/*4*/	yofs[5], color[3], menu_str[3], choice2[3], txt_antilag,
-		/*5*/	yofs[6], color[4], menu_str[4], choice2[4],
-		/*6*/	yofs[7], color[5], menu_str[5], choice2[5],
-		/*7*/	yofs[8], color[6], menu_str[6], choice2[6]);
-		///*8*/	yofs[9], color[7], menu_str[7], choice2[7]);
-
-
-	gi.WriteByte(svc_layout);
-	gi.WriteString(string);
-	//gi.unicast(ent, true);
-}
-
-static void BotScoreboardAdd(edict_t *ent) // SCORE_BOT_ADD
-{
-	char	string[1024];
-	char	color[MENU_Y_COUNT][4];
-	int		yofs[MENU_Y_COUNT + 2];
-	int		i, j;
-	char	*choice2[] =
-	{
-		"Dragons ",
-		"Nikki's ",
-		"Random  ",
-		NULL
-	};
-
-
-	j = MENU_Y_START;
-	for (i = 0; i < MENU_Y_COUNT+2; i++)
-	{
-		yofs[i] = j;
-		j += 20;
-	}
-
-	for (i = 1; i <= MENU_Y_COUNT; i++)
-	{
-		if (ent->menu == i)
-			strcpy(color[i - 1], MENU_ORANGE);
-		else
-			strcpy(color[i - 1], MENU_GREY);
-	}
-
-
-	// send the layout
-	Com_sprintf(string, sizeof(string),
-		" xl 30 " //left margin
-		/*help*/"yv %i dmstr "MENU_YEL" \"Navigate with [ & ]\" "
-		/*help*/"yv %i dmstr "MENU_YEL" \"Accept with WepNum & Use Key's\" "
-		/*1*/	"yv %i dmstr %s \"%s %s\" "		// Dragons
-		/*2*/	"yv %i dmstr %s \"%s %s\" "		// Nikki's
-		/*3*/	"yv %i dmstr %s \"%s %s\" ",	// Random
-
-		/*help*/yofs[0],
-		/*help*/yofs[1],
-		/*1*/	yofs[2], color[0], menu_str[0], choice2[0],
-		/*2*/	yofs[3], color[1], menu_str[1], choice2[1],
-		/*2*/	yofs[4], color[2], menu_str[2], choice2[2]);
-
-
-	gi.WriteByte(svc_layout);
-	gi.WriteString(string);
-	//gi.unicast(ent, true);
-}
-
-static void BotScoreboardRemove(edict_t *ent) //SCORE_BOT_REMOVE
-{
-	int outCount;
-	edict_t	*bot;
-	char	color[MENU_Y_COUNT][4];
-	int		yofs[MENU_Y_COUNT + 2];
-	int		i, j;
-	char	string[1024];
-	char	*choice2[] =
-	{
-		" N/A    ",
-		" N/A    ",
-		" N/A    ",
-		" N/A    ",
-		" N/A    ",
-		" N/A    ",
-		" N/A    ",
-		" N/A    ",
-		NULL
-	};
-
-	//reset
-	memset(VoteBotRemoveName, 0, sizeof(VoteBotRemoveName));
-
-	outCount = 0;
-	for_each_player_inc_bot(bot, i)
-	{
-		if (bot->acebot.is_bot) 
-		{	
-			strcpy(VoteBotRemoveName[outCount], bot->client->pers.netname);
-			choice2[outCount] = bot->client->pers.netname;
-			outCount++;	
-			continue;
-		}
-		if (outCount > 8)
-			break;
-
-	}
-
-	//no bot, return to menu
-	if (outCount < 1)
-	{
-		ent->client->showscores = SCORE_BOT_VOTE;
-		DeathmatchScoreboard(ent);
-		return;
-	}
-
-	for (i = 1; i <= MENU_Y_COUNT; i++)
-	{
-		if (ent->menu == i)
-			strcpy(color[i - 1], MENU_ORANGE);
-		else
-			strcpy(color[i - 1], MENU_GREY);
-	}
-
-
-	j = MENU_Y_START;
-	for (i = 0; i < MENU_Y_COUNT+2; i++)
-	{
-		yofs[i] = j;
-		j += 20;
-	}
-
-
-	// send the layout
-	Com_sprintf(string, sizeof(string),
-		" xl 30 " //left margin
-		/*help*/"yv %i dmstr "MENU_YEL" \"Navigate with [ & ]\" "
-		/*help*/"yv %i dmstr "MENU_YEL" \"Accept with WepNum & Use Key's\" "
-		/*1*/	"yv %i dmstr %s \"%s %s\" "
-		/*2*/	"yv %i dmstr %s \"%s %s\" "
-		/*3*/	"yv %i dmstr %s \"%s %s\" "
-		/*4*/	"yv %i dmstr %s \"%s %s\" "
-		/*5*/	"yv %i dmstr %s \"%s %s\" "
-		/*6*/	"yv %i dmstr %s \"%s %s\" "
-		/*7*/	"yv %i dmstr %s \"%s %s\" "
-		/*8*/	"yv %i dmstr %s \"%s %s\" ",
-
-		/*help*/yofs[0],
-		/*help*/yofs[1],
-		/*1*/	yofs[2], color[0], menu_str[0], choice2[0],
-		/*2*/	yofs[3], color[1], menu_str[1], choice2[1],
-		/*3*/	yofs[4], color[2], menu_str[2], choice2[2],
-		/*4*/	yofs[5], color[3], menu_str[3], choice2[3],
-		/*5*/	yofs[6], color[4], menu_str[4], choice2[4],
-		/*6*/	yofs[7], color[5], menu_str[5], choice2[5],
-		/*7*/	yofs[8], color[6], menu_str[6], choice2[6],
-		/*8*/	yofs[9], color[7], menu_str[7], choice2[7]);
-
-
-	gi.WriteByte(svc_layout);
-	gi.WriteString(string);
-	//gi.unicast(ent, true);
-}
-
-
-static void BotScoreboardSkill(edict_t *ent) //SCORE_BOT_SKIL
-{
-	char	string[1024];
-	char	color[MENU_Y_COUNT][4];
-	int		yofs[MENU_Y_COUNT + 2]; //y offset. +2 for headder.
-	int		i, j;
-	char	*val_str[] =
-	{
-		" 0 (low)",
-		" 1      ",
-		" 2      ",
-		" 3      ",
-		" 4      ",
-		" 5      ",
-		" 6      ",
-		" 7      ",
-		" 8      ",
-		" 9      ",
-		" 10 (hi)",
-		NULL
-	};
-
-	for (i = 1; i <= MENU_Y_COUNT; i++)
-	{
-		if (ent->menu == i)
-			strcpy(color[i - 1], MENU_ORANGE); // todo: score stay on death or fix ent->menu on death
-		else
-			strcpy(color[i - 1], MENU_GREY);
-	}
-
-	//setup y offset
-	j = 20; //start y pos
-	for (i = 0; i < MENU_Y_COUNT + 2; i++)
-	{
-		yofs[i] = j;
-		j += 20; //move next item down
-	}
-
-
-	// send the layout
-	Com_sprintf(string, sizeof(string),
-		" xl 30 " //left margin
-		/*help*/"yv %i dmstr " MENU_YEL " \"Navigate with [ or ]\" "
-		/*help*/"yv %i dmstr " MENU_YEL " \"Accept with WepNum or Activate Key\" "
-		/*1*/	"yv %i dmstr %s \"%s %s\" "
-		/*2*/	"yv %i dmstr %s \"%s %s\" "
-		/*3*/	"yv %i dmstr %s \"%s %s\" "
-		/*4*/	"yv %i dmstr %s \"%s %s\" "
-		/*5*/	"yv %i dmstr %s \"%s %s\" "
-		/*6*/	"yv %i dmstr %s \"%s %s\" "
-		/*7*/	"yv %i dmstr %s \"%s %s\" "
-		/*8*/	"yv %i dmstr %s \"%s %s\" "
-		/*9*/	"yv %i dmstr %s \"%s %s\" "
-		/*10*/	"yv %i dmstr %s \"%s %s\" "
-		/*11*/	"yv %i dmstr %s \"%s %s\" "
-		,
-
-		/*help*/yofs[0],
-		/*help*/yofs[1],
-		/*1*/	yofs[2], color[0], "0 (  )     ", val_str[0],
-		/*2*/	yofs[3], color[1], menu_str[0], val_str[1],
-		/*3*/	yofs[4], color[2], menu_str[1], val_str[2],
-		/*4*/	yofs[5], color[3], menu_str[2], val_str[3],
-		/*5*/	yofs[6], color[4], menu_str[3], val_str[4],
-		/*6*/	yofs[7], color[5], menu_str[4], val_str[5],
-		/*7*/	yofs[8], color[6], menu_str[5], val_str[6],
-		/*8*/	yofs[9], color[7], menu_str[6], val_str[7],
-		/*9*/	yofs[10], color[8], menu_str[7], val_str[8],
-		/*10*/	yofs[11], color[9], menu_str[8], val_str[9],
-		/*10*/	yofs[12], color[10], menu_str[9], val_str[10]);
-
-
-	gi.WriteByte(svc_layout);
-	gi.WriteString(string);
-}
-// ACEBOT_END //MENU
-#endif
 
 void MOTDScoreboardMessage (edict_t *ent)
 {
@@ -1136,7 +789,7 @@ void GrabDaLootScoreboardMessage (edict_t *ent)
 	const char	*headerd = "NAME         ping hits deaths";
 	const char	*headera = "NAME         ping  acc   fav ";
 	const char	*headers = "NAME          acc  fav stole ";
-	int		yofs=0, avping = 0, tp = 0, tc = 0;
+	int		yofs=30, avping = 0, tp = 0, tc = 0; //hypov8 yofs was 0
 	int		tmax;
 	int setup = (level.modeset == PREGAME || (level.modeset == MATCHSETUP && (!level.intermissiontime || level.framenum >= level.startframe + 150)));
 
@@ -1146,9 +799,9 @@ void GrabDaLootScoreboardMessage (edict_t *ent)
 		header = teamplay->value == 4 ? headera : headers;
 
 // ACEBOT_ADD
-	if (ent->acebot.is_bot)
-		return;
+	if (ent->acebot.is_bot)	return;
 // ACEBOT_END
+
 	x = (-1*strlen(header) - 2) * 10;	// 10 pixels per char
 
 	string[0] = 0;
@@ -1172,12 +825,12 @@ void GrabDaLootScoreboardMessage (edict_t *ent)
 		goto skipscores;
 	}
 
-	Com_sprintf (entry, sizeof(entry), "xm -50 yt 5 dmstr "MENU_ORANGE" \"Map: %s\" ",/* -5*strlen(level.mapname),*/ level.mapname);
+	Com_sprintf (entry, sizeof(entry), "xm -50 yt 5 dmstr 752 \"Map: %s\" ",/* -5*strlen(level.mapname),*/ level.mapname);
 	j = strlen(entry);
 	strcpy (string + stringlength, entry);
 	stringlength += j;
 
-	Com_sprintf(entry, sizeof(entry), "xm -50 yt 25 dmstr "MENU_ORANGE" \"Skill: %i of 10\" ", ACECM_ReturnBotSkillWeb());
+	Com_sprintf(entry, sizeof(entry), "xm -50 yt 25 dmstr 752 \"Skill: %i of 10\" ", ACECM_ReturnBotSkillWeb());
 	j = strlen(entry);
 	strcpy(string + stringlength, entry);
 	stringlength += j;
@@ -1287,6 +940,10 @@ void GrabDaLootScoreboardMessage (edict_t *ent)
 				tag = "096";
 			else if (cl_ent->client->pers.admin > NOT_ADMIN)
 				tag = "779";
+// ACEBOT_ADD
+			else if (cl_ent->acebot.is_bot)
+				tag = "966";
+// ACEBOT_END
 			else
 				tag = "999";	// fullbright
 
@@ -1408,9 +1065,9 @@ void DeathmatchScoreboardMessage (edict_t *ent)
 
 	string[0] = 0;
 	stringlength = 0;
+
 // ACEBOT_ADD
-	if (ent->acebot.is_bot)
-		return;
+	if (ent->acebot.is_bot)		return;
 // ACEBOT_END
 
 	if (!ent->client->showscores)
@@ -1479,12 +1136,12 @@ void DeathmatchScoreboardMessage (edict_t *ent)
 
 	realtotal = total;
 
-	Com_sprintf (entry, sizeof(entry), "xm -50 yt 5 dmstr "MENU_ORANGE" \"Map: %s\" ", level.mapname);
+	Com_sprintf (entry, sizeof(entry), "xm -50 yt 5 dmstr 752 \"Map: %s\" ", level.mapname);
 	j = strlen(entry);
 	strcpy (string + stringlength, entry);
 	stringlength += j;
 
-	Com_sprintf(entry, sizeof(entry), "xm -50 yt 25 dmstr "MENU_ORANGE" \"Skill: %i of 10\" ", ACECM_ReturnBotSkillWeb());
+	Com_sprintf(entry, sizeof(entry), "xm -50 yt 25 dmstr 752 \"Skill: %i of 10\" ", ACECM_ReturnBotSkillWeb());
 	j = strlen(entry);
 	strcpy(string + stringlength, entry);
 	stringlength += j;
@@ -1654,7 +1311,10 @@ void DeathmatchScoreboard (edict_t *ent)
 		ent->client->showscores = NO_SCOREBOARD;
 // ACEBOT_ADD
 	if (ent->acebot.is_bot)
+	{
 		ent->client->showscores = NO_SCOREBOARD;
+		return;
+	}
 // ACEBOT_END
 
 	if (ent->client->showscores == SCORE_MOTD)
@@ -1666,18 +1326,17 @@ void DeathmatchScoreboard (edict_t *ent)
 	else if (ent->client->showscores == SCORE_MAP_VOTE)
 		VoteMapScoreboardMessage(ent);
 // ACEBOT_ADD
-#if 1 //def HYPODEBUG
-	else if (ent->client->showscores == SCORE_BOT_VOTE)
-		BotScoreboardVote(ent);
+
+	else if (ent->client->showscores == SCORE_BOT_MENU)
+		ACECM_BotScoreboardVote(ent);
 	else if (ent->client->showscores == SCORE_BOT_ADD)
-		BotScoreboardAdd(ent);
+		ACECM_BotScoreboardAdd(ent);
 	else if (ent->client->showscores == SCORE_BOT_REMOVE)
-		BotScoreboardRemove(ent);
+		ACECM_BotScoreboardRemove(ent);
 	else if (ent->client->showscores == SCORE_BOT_SKILL)
-		BotScoreboardSkill(ent);
+		ACECM_BotScoreboardSkill(ent);
 //	else if (ent->client->showscores == SCORE_INITAL_SPEC) //hypov8 todo?: check this
-//		SpecInitalScoreboard(ent); //hyopv8 spec/esc fix 
-#endif
+//		SpecInitalScoreboard(ent); //hypov8 spec/esc fix 
 // ACEBOT_END
 
 // BEGIN HITMEN
@@ -1691,14 +1350,19 @@ void DeathmatchScoreboard (edict_t *ent)
 		GrabDaLootScoreboardMessage (ent);
 	else
 		DeathmatchScoreboardMessage (ent);	
-	// ACEBOT_ADD
+// ACEBOT_ADD
 	if (!ent->acebot.is_bot)
-		// ACEBOT_END
+// ACEBOT_END
 	gi.unicast (ent, !ent->client->resp.scoreboard_frame);
 
-	ent->client->resp.scoreboard_frame = level.framenum;
-	if (ent->client->showscores == SCORE_REJOIN)
-		ent->client->resp.scoreboard_frame += 10000; // no need to refresh rejoin message
+
+		// set next refresh
+	if (ent->client->showscores == NO_SCOREBOARD || ent->client->showscores == SCORE_REJOIN)
+		ent->client->resp.scoreboard_frame = 0x7fffffff;
+	else if (ent->client->showscores == SCORE_MAP_VOTE && level.framenum < level.startframe + 300)
+		ent->client->resp.scoreboard_frame = (level.framenum + 10 < level.startframe + 300 ? level.framenum + 10 : level.startframe + 300);
+	else
+		ent->client->resp.scoreboard_frame = level.framenum + 30;
 }
 
 
@@ -1758,7 +1422,7 @@ skipscoreboard2:
 		ent->client->showscores = NO_SCOREBOARD;
 
 #if 1 //def HYPODEBUG //death, resets scoreboard
-	else if (ent->client->showscores == SCORE_BOT_VOTE ||
+	else if (ent->client->showscores == SCORE_BOT_MENU ||
 		ent->client->showscores == SCORE_BOT_ADD ||
 		ent->client->showscores == SCORE_BOT_REMOVE ||
 		ent->client->showscores == SCORE_BOT_SKILL)
@@ -1797,6 +1461,7 @@ void Cmd_Help_f (edict_t *ent, int page)
 // ACEBOT_ADD //new kpded.exe
 	if (ent->acebot.is_bot) return;
 // ACEBOT_END
+
 	// this is for backwards compatability
 	Cmd_Score_f (ent);
 }
@@ -2237,17 +1902,28 @@ void G_SetStats (edict_t *ent)
 void PrintScoreMatchEnd(void)
 {
 	int i, j;
-
-	if (!dedicated)
+	
+	//stop score displaying twice
+	if (level.scoresCalled)
 		return;
 
-	gi.dprintf(" \n");
-	gi.dprintf("--== results ==--\n");
-	gi.dprintf("map              : %s\n", level.mapname);
-	gi.dprintf("botskill(WEB)    : %d\n", ACECM_ReturnBotSkillWeb());
-	gi.dprintf("sv_botskill      : %s\n", sv_botskill->string);
-	gi.dprintf("num score ping deaths acc fav   name           address               ver \n");
-	gi.dprintf("--- ----- ---- ------ ---- ----- -------------- --------------------- ----\n");
+	level.scoresCalled = true;
+
+	//if (!dedicated)
+	//	return;
+
+	gi.dprintf(
+		" \n"
+		"--== results ==--\n"
+		"map              : %s\n"
+		"botskill(WEB)    : %d\n"
+		"sv_botskill      : %s\n"
+		"num score ping deaths acc  fav   name           address               ver \n"
+		"--- ----- ---- ------ ---- ----- -------------- --------------------- ------\n",
+		level.mapname, 
+		ACECM_ReturnBotSkillWeb(), 
+		sv_botskill->string );
+
 	for (i = 1; i <= (int)maxclients->value; i++)
 	{
 		if (g_edicts[i].inuse && g_edicts[i].client)
@@ -2275,9 +1951,8 @@ void PrintScoreMatchEnd(void)
 				, (float)c->pers.version / 100.0);		//version
 		}
 	}
-	gi.dprintf("--==   end   ==--\n");
-	// gi.dprintf("--- ----- ---- ------ ---- ----- -------------- --------------------- ----\n");
-	gi.dprintf(" \n");
+	gi.dprintf("--==   end   ==--\n \n");
+
 }
 // HYPOV8_END
 

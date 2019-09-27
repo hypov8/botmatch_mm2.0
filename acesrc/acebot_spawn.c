@@ -247,12 +247,12 @@ static  void ACESP_PutClientInServer(edict_t *bot, qboolean respawn, int team)
 
 	ClientBegin(bot);
 	bot->classname = "bot"; // "bot"
-	bot->acebot.is_jumping = false;
+	//bot->acebot.is_jumping = false;
 	bot->acebot.isTrigPush = false;
-	bot->acebot.old_targetID = -1; //hypo add
+	bot->acebot.enemyID_old = -1; //hypo add
 	bot->acebot.num_weps = 2;  //hypo add. 2= pistol+pipe
 	bot->acebot.lastDamageTimer = 0;  //hypo add
-	bot->acebot.old_targetFrame = 0;	//hypov8 add
+	bot->acebot.enemyAddFrame = 0;	//hypov8 add
 	bot->acebot.tauntTime = level.framenum + (random() * 100);
 	bot->acebot.spawnedTime = level.framenum + 30; //hypo add 3 seconds to look for weps?
 	bot->client->pers.team = team;
@@ -286,11 +286,8 @@ static  void ACESP_PutClientInServer(edict_t *bot, qboolean respawn, int team)
 	if (bot->acebot.node_current == INVALID) 
 		bot->acebot.state = BOTSTATE_WANDER;
 
-// BEGIN HITMEN
-	if (!sv_hitmen->value)
-//END
-		if (!ACEAI_PickShortRangeGoalSpawned(bot))
-			ACEAI_PickLongRangeGoal(bot);//todo: lrg weapon
+	if (!ACEAI_PickShortRangeGoalSpawned(bot))
+		ACEAI_PickLongRangeGoal(bot);//todo: lrg weapon
 
 
 #if HYPOBOTS
@@ -397,12 +394,12 @@ static  void ACESP_PutClientInServer(edict_t *bot, qboolean respawn, int team)
 	bot->hasSelectedPistol = false; // HYPOV8_ADD
 
 	//acebot
-	bot->acebot.is_jumping = false;
+	//bot->acebot.is_jumping = false;
 	bot->acebot.isTrigPush = false;
-	bot->acebot.old_targetID = -1; //hypo add
+	bot->acebot.enemyID_old = -1; //hypo add
 	bot->acebot.num_weps = 2;  //hypo add. 2= pistol+pipe
 	bot->acebot.lastDamageTimer = 0;  //hypo add
-	bot->acebot.old_targetFrame = 0;	//hypov8 add
+	bot->acebot.enemyAddFrame = 0;	//hypov8 add
 	bot->acebot.tauntTime = level.framenum + (random() * 100);
 	bot->acebot.spawnedTime = level.framenum + 30; //hypo add 3 seconds to look for weps?
 	client->pers.team = team;
@@ -716,8 +713,42 @@ static  void ACESP_PutClientInServer(edict_t *bot, qboolean respawn, int team)
 ///////////////////////////////////////////////////////////////////////
 // Respawn the bot
 ///////////////////////////////////////////////////////////////////////
-void ACESP_Respawn (edict_t *self)
+void ACESP_Respawn (edict_t *ent)
 {
+#if 1
+		if (ent->acebot.is_bot)
+	{
+		ent->acebot.isTrigPush = false;
+		ent->acebot.enemyID_old = -1; //hypo add
+		ent->acebot.num_weps = 2;  //hypo add. 2= pistol+pipe
+		ent->acebot.lastDamageTimer = 0;  //hypo add
+		ent->acebot.enemyAddFrame = 0;	//hypov8 add
+		ent->acebot.tauntTime = level.framenum + (random() * 100);
+		ent->acebot.spawnedTime = level.framenum + 10; 
+		ent->enemy = NULL;
+		ent->movetarget = NULL;
+		ent->acebot.state = BOTSTATE_MOVE;
+		ent->acebot.suicide_timeout = level.time + 15.0;
+
+		// Set the current node
+		ent->acebot.node_ent = NULL;
+		ent->acebot.next_move_time = level.time;
+		ent->acebot.node_current = ACEND_FindClosestReachableNode(ent, BOTNODE_DENSITY, BOTNODE_ALL);
+		ent->acebot.node_goal = ent->acebot.node_current;
+		ent->acebot.node_next = ent->acebot.node_current;
+		if (ent->acebot.node_current == INVALID) 
+			ent->acebot.state = BOTSTATE_WANDER;
+
+		// BEGIN HITMEN
+		if (sv_hitmen->value) //todo: check this
+			ACEAI_PickLongRangeGoal(ent);//todo: lrg weapon
+		else
+		//END
+			if (!ACEAI_PickShortRangeGoalSpawned(ent))
+				ACEAI_PickLongRangeGoal(ent);//todo: lrg weapon
+	}
+
+#else
 	if (!(level.modeset == MATCH || level.modeset == PUBLIC))
 	{
 		self->deadflag = 0;
@@ -741,7 +772,7 @@ void ACESP_Respawn (edict_t *self)
 	self->client->ps.pmove.pm_time = 14;
 
 	self->client->respawn_time = level.time; // +5;//hypov8 add 5 secs to respawn
-	
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////
@@ -975,8 +1006,8 @@ void ACESP_SpawnBot (char *team, char *name, char *skin, char *userinfo, float s
 	bot->flags &= ~FL_GODMODE;
 	bot->health = 0;
 	meansOfDeath = MOD_UNKNOWN;
-	bot->acebot.new_target = -1;
-	bot->acebot.old_targetID = -1;
+	bot->acebot.enemyID_new = -1;
+	bot->acebot.enemyID_old = -1;
 	bot->yaw_speed = 100; // yaw speed
 	bot->inuse = true;
 	bot->acebot.is_bot = true;
@@ -1021,13 +1052,8 @@ void ACESP_SpawnBot (char *team, char *name, char *skin, char *userinfo, float s
 	// locate ent at a spawn point
 	ACESP_PutClientInServer(bot, false, bot->client->pers.team /*TEAM_NONE*/);
 
-
 	// make sure all view stuff is valid
 	ClientEndServerFrame (bot);
-	
-	//ACEIT_PlayerAdded (bot); // let the world know we added another
-
-	//ACEAI_PickLongRangeGoal(bot); // pick a new goal
 
 }
 
@@ -1178,7 +1204,7 @@ void ACESP_SpawnBot_Random(char *team, char *name, char *skin, char *userinfo)
 ///////////////////////////////////////////////////////////////////////
 // Remove a bot by name or all bots
 ///////////////////////////////////////////////////////////////////////
-void ACESP_RemoveBot(char *name)
+void ACESP_RemoveBot(char *name, qboolean print)
 {
 	int i;
 	qboolean freed=false;
@@ -1195,8 +1221,16 @@ void ACESP_RemoveBot(char *name)
 			if (_strcmpi(bot->client->pers.netname, name) == 0 || strcmp(name, "all") == 0 || strcmp(name, "single") == 0)
 			{
 				freed = true;
-				safe_bprintf (PRINT_MEDIUM, "%s removed\n", bot->client->pers.netname);
+				if (print)
+					safe_bprintf (PRINT_MEDIUM, "%s removed\n", bot->client->pers.netname);
+
 				ClientDisconnect(bot);//add hypov8
+				bot->svflags |= SVF_NOCLIENT;
+
+
+				if (game.clients[i-1].pers.is_bot)
+					memset(&game.clients[i-1], 0, sizeof(gclient_t)) ;
+
 
 				if (strcmp(name, "single") == 0) //hypov8 remove 1 bot then exit
 					break;
@@ -1208,6 +1242,23 @@ void ACESP_RemoveBot(char *name)
 		gi.dprintf("%s not found\n", name);
 		//safe_bprintf (PRINT_MEDIUM, "%s not found\n", name);
 }
+
+
+//respawn(self);
+void ACESP_KillBot(edict_t *self)
+{
+	self->client->latched_buttons = 0;
+	self->acebot.suicide_timeout = level.time + 10.0; //reset since not using ACESP
+	self->flags &= ~FL_GODMODE; //hypov8 added. shown as player killed them selves now
+	self->health = 0;
+	meansOfDeath = MOD_BOT_SUICIDE;		//hypov8 added. shown as player killed them selves now
+	VectorSet(self->velocity, 0, 0, 0);	//hypo stop movement
+#if HYPODEBUG
+	gi.dprintf("Bot %s Died at XYZ:(%f, %f, %f)\n", self->client->pers.netname, self->s.origin[0], self->s.origin[1], self->s.origin[2]);
+#endif
+	player_die(self, self, self, 100000, vec3_origin, 0, 0); //hypov8 add null
+}
+
 
 //fix for using console to change map
 void FreeBots(void)

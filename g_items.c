@@ -1073,20 +1073,24 @@ void Touch_Item (edict_t *ent, edict_t *other, cplane_t *plane, csurface_t *surf
 			else if (ent->count == 4)
 			{
 				ent->item->icon = "/pics/h_heavymachinegun_cooling.tga";
-
-				if (pickup_sounds && other->last_talk_time < level.time - 1)
+// ACEBOT_ADD
+				if (!other->acebot.is_bot)
+// ACEBOT_END
 				{
-					static const char *sounds[3] = { "mod_hmg1", "mod_hmg2", "weapon7" };
-					int n;
-					if (other->client->resp.soundplayed & 1)
-						n = 2;
-					else
-						n = rand() & 1;
-					gi.WriteByte(svc_stufftext);
-					gi.WriteString(va("play world/pawnomatic/%s\n", sounds[n]));
-					gi.unicast(other, false);
-					other->client->resp.soundplayed |= 1;
-					other->last_talk_time = level.time;
+					if (pickup_sounds && other->last_talk_time < level.time - 1)
+					{
+						static const char *sounds[3] = { "mod_hmg1", "mod_hmg2", "weapon7" };
+						int n;
+						if (other->client->resp.soundplayed & 1)
+							n = 2;
+						else
+							n = rand() & 1;
+						gi.WriteByte(svc_stufftext);
+						gi.WriteString(va("play world/pawnomatic/%s\n", sounds[n]));
+						gi.unicast(other, false);
+						other->client->resp.soundplayed |= 1;
+						other->last_talk_time = level.time;
+					}
 				}
 			}
 		}
@@ -1114,7 +1118,7 @@ void Touch_Item (edict_t *ent, edict_t *other, cplane_t *plane, csurface_t *surf
 // ACEBOT_ADD
 	if (other->acebot.is_bot && other->acebot.node_ent == ent)
 			ACEAI_Reset_Goal_Node(other, 0.0, "Found Goal Early.");
-		//ACEIT_checkIfGoalEntPickedUp(other);
+
 // ACEBOT_END
 
 
@@ -1129,7 +1133,6 @@ void Touch_Item (edict_t *ent, edict_t *other, cplane_t *plane, csurface_t *surf
 		else
 			G_FreeEdict (ent);
 	}
-	
 }
 
 //======================================================================
@@ -3085,26 +3088,26 @@ model="models/pu_icon/key/key_c.md2"
 // ACEBOT_ADD
 //hypov8 misc model
 	{
-		"misc_model", 							/*classname*/
-		NULL,							/* pickup */
-		NULL,								/* use */
-		NULL,							/* drop */
-		NULL,								/* weaponthink */
-		"",						/* pickup_sound */
-		"",		/* world_model */
-		0,								/* world_model_flags */
-		"",			/* view_model */
+		"misc_model", 				/*classname*/
+		NULL,						/* pickup */
+		NULL,						/* use */
+		NULL,						/* drop */
+		NULL,						/* weaponthink */
+		"",							/* pickup_sound */
+		"",							/* world_model */
+		0,							/* world_model_flags */
+		"",							/* view_model */
 
 		/* client side info */
 		"", 						/* icon */ //todo G()^T
-		"",									/* pickup_name */
-		0,										/* count_width */
-		0,										/* quantity */
-		"",								/* ammo */
-		0,				/* flags */
-		NULL,									/* info */
-		0,										/* tag */
-		""				/* precache */
+		"miscmodel",				/* pickup_name */
+		0,							/* count_width */
+		0,							/* quantity */
+		"",							/* ammo */
+		0,							/* flags */
+		NULL,						/* info */
+		0,							/* tag */
+		""							/* precache */
 	},
 // ACEBOT_END
 

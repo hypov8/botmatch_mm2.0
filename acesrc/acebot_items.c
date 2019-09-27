@@ -61,26 +61,14 @@
 #include "../g_local.h" //DIR_SLASH
 #include "acebot.h"
 
-int	num_players = 0;
-int num_items = 0;
+int	num_players;
+int num_items;
 int nodeFileComplet =0;
 int botsRemoved = 0;
-int num_bots = 0;
+int num_bots;
 
-
-int num_items_tmp = 0;				//add hypov8 store old item ammount, needed???
-qboolean num_items_changed = false;	//add hypov8 changed when an item it droped etc
 
 item_table_t item_table[MAX_EDICTS];
-//edict_t *players[MAX_CLIENTS];		// pointers to all players in the game
-
-
-void ACEIT_checkIfGoalEntPickedUp(edict_t *self)
-{
-	ACEAI_Reset_Goal_Node(self, 0.0, "Found Goal Early.");
-	//self->acebot.node_ent = NULL;
-	//ACEAI_PickLongRangeGoal(self); // Pick a new goal
-}
 
 
 //hypov8
@@ -133,7 +121,7 @@ void ACEIT_PlayerCheckCount()
 					if (bot->client)
 					{
 						strcpy(botname, bot->client->pers.netname);
-						ACESP_RemoveBot(botname);
+						ACESP_RemoveBot(botname, true);
 						botsRemoved++;
 						return;
 					}
@@ -169,17 +157,8 @@ void ACEIT_PlayerCheckAddCount()
 
 void ACEIT_PlayerAdded(edict_t *ent)
 {
-	//players[num_players++] = ent;
-
-	//gi.dprintf(" Added: %s, Bot Enemy = %i\n", ent->client->pers.netname, num_players+1); //add +1
-	//safe_bprintf(PRINT_HIGH, "Working ... 1\n");
-
 	if (!ent->acebot.is_bot)
 		ACEIT_PlayerCheckCount();
-#if HYPOBOTS
-	else
-		num_bots++;
-#endif
 }
 
 ///////////////////////////////////////////////////////////////////////
@@ -188,38 +167,7 @@ void ACEIT_PlayerAdded(edict_t *ent)
 
 void ACEIT_PlayerRemoved(edict_t *ent)
 {
-	//int i;
-	int pos =0;
-	
-	//gi.dprintf(" Removed: %s, Inuse = %i\n", ent->client->pers.netname, num_players-1);
 
-#if HYPOBOTS
-	// watch for 0 players
-	if(num_players == 0)
-		return;
-
-	// special cas for only one player
-	if(num_players == 1)
-	{	
-		num_players = 0;
-		gi.dprintf(" Removed: %s, Inuse = %i\n", ent->client->pers.netname, num_players);
-		return;
-	}
-
-	// Find the player
-	for(i=0;i<num_players;i++)
-		if(ent == players[i])
-			pos = i;
-
-	// decrement
-	for(i=pos;i<num_players-1;i++)
-		players[i] = players[i+1];
-
-	num_players--;
-	gi.dprintf(" Removed: %s, Inuse = %i\n", ent->client->pers.netname, num_players);
-
-	//hypo add back in a bot if it was removed
-#endif
 	if (!ent->acebot.is_bot)
 		ACEIT_PlayerCheckAddCount();
 }
@@ -237,7 +185,7 @@ qboolean ACEIT_IsReachable(edict_t *self, vec3_t goal)
 	//hypo todo: check/cleanup. SRG. do we need on crouch?
 
 	VectorCopy(goal, goal_move_dn);
-	goal_move_dn[2] -= BOTNODE_SHIFT;//goal move down 8. match player height
+	goal_move_dn[2] += BOTNODE_SHIFT;//hypov8 was minus. "items" are 15 units. ==old(goal move down 8. match player height)
 
 	VectorCopy(self->mins,minx);
 	VectorCopy(self->maxs, maxx);
@@ -433,12 +381,13 @@ qboolean ACEIT_Needs_Armor(edict_t *bot, char * itemName)
 ///////////////////////////////////////////////////////////////////////
 float ACEIT_ItemNeed(edict_t *self, int item, float timestamp, int spawnflags)
 {
-	//gitem_t *itemArmor;
+	//weapon search multiplyer. stop bot using pistol to much
+	int nedWepMulti = (self->acebot.num_weps <= 4) ? 2.0 : 1.0;
 
 	// Make sure item is at least close to being valid
 	if(item < 0 || item > 100)
 		return 0.0;
-	//return 0.0; //hypo debug wander
+
 
 	//hypov8 make bot ignore all items if they have cash
 	if (teamplay->value == 1)
@@ -450,22 +399,53 @@ float ACEIT_ItemNeed(edict_t *self, int item, float timestamp, int spawnflags)
 				return 0.0;
 		}
 
+// BEGIN HITMEN
+	if (sv_hitmen->value /*enable_hitmen*/)
+	{	//skip items that are auto asigned
+		switch (item)
+		{
+			//weapons
+			case ITEMLIST_PISTOL:
+			case ITEMLIST_SPISTOL:
+			case ITEMLIST_TOMMYGUN:
+			case ITEMLIST_SHOTGUN:
+			case ITEMLIST_GRENADELAUNCHER:
+			case ITEMLIST_FLAMETHROWER:
+			case ITEMLIST_BAZOOKA:
+			case ITEMLIST_HEAVYMACHINEGUN:
+			// Ammo
+			case ITEMLIST_GRENADES: 
+			case ITEMLIST_SHELLS: 
+			case ITEMLIST_BULLETS: 
+			case ITEMLIST_ROCKETS: 
+			case ITEMLIST_AMMO308:
+			case ITEMLIST_CYLINDER:	
+			case ITEMLIST_FLAMETANK:
+			return 0.0;
+			break;
+
+		}
+	}
+// END
+
+
 	//hypov8 calculate if we need the ammo, then the gun
 	if (spawnflags & (DROPPED_ITEM | DROPPED_PLAYER_ITEM))
 	{
 		switch (item)
 		{
-		// Weapons that are droped. when player dies..
+			// Weapons that are droped. when player dies..
 		case ITEMLIST_PISTOL:
 		case ITEMLIST_SPISTOL:
-		case ITEMLIST_TOMMYGUN:if (self->client->pers.inventory[ITEM_INDEX(FindItem("Bullets"))] < self->client->pers.max_bullets) return 0.3; break;
-		case ITEMLIST_SHOTGUN:if (self->client->pers.inventory[ITEM_INDEX(FindItem("Shells"))] < self->client->pers.max_shells) return 0.4; break;
-		case ITEMLIST_GRENADELAUNCHER:if (self->client->pers.inventory[ITEM_INDEX(FindItem("Grenades"))] < self->client->pers.max_grenades) return 0.3; break;
-		case ITEMLIST_FLAMETHROWER:	if (self->client->pers.inventory[ITEM_INDEX(FindItem("Gas"))] < self->client->pers.max_cells) return 0.6; break;
-		case ITEMLIST_BAZOOKA:if (self->client->pers.inventory[ITEM_INDEX(FindItem("Rockets"))] < self->client->pers.max_rockets)	return 1.5;	break;
-		case ITEMLIST_HEAVYMACHINEGUN:if (self->client->pers.inventory[ITEM_INDEX(FindItem("308cal"))] < self->client->pers.max_slugs) return 1.5; break;
+		case ITEMLIST_TOMMYGUN:if (self->client->pers.inventory[ITEM_INDEX(FindItem("Bullets"))] < self->client->pers.max_bullets) return 0.3*nedWepMulti; break;
+		case ITEMLIST_SHOTGUN:if (self->client->pers.inventory[ITEM_INDEX(FindItem("Shells"))] < self->client->pers.max_shells) return 0.4*nedWepMulti; break;
+		case ITEMLIST_GRENADELAUNCHER:if (self->client->pers.inventory[ITEM_INDEX(FindItem("Grenades"))] < self->client->pers.max_grenades) return 0.3*nedWepMulti; break;
+		case ITEMLIST_FLAMETHROWER:	if (self->client->pers.inventory[ITEM_INDEX(FindItem("Gas"))] < self->client->pers.max_cells) return 0.6*nedWepMulti; break;
+		case ITEMLIST_BAZOOKA:if (self->client->pers.inventory[ITEM_INDEX(FindItem("Rockets"))] < self->client->pers.max_rockets)	return 1.5*nedWepMulti;	break;
+		case ITEMLIST_HEAVYMACHINEGUN:if (self->client->pers.inventory[ITEM_INDEX(FindItem("308cal"))] < self->client->pers.max_slugs) return 1.5*nedWepMulti; break;
 		}
 	}
+
 
 
 	switch (item)
@@ -482,15 +462,15 @@ float ACEIT_ItemNeed(edict_t *self, int item, float timestamp, int spawnflags)
 
 		// Weapons
 		case ITEMLIST_CROWBAR: 	if (!self->client->pers.inventory[ITEM_INDEX(FindItemByClassname("weapon_crowbar"))]) return 0.1; break;
-		case ITEMLIST_PISTOL:	if (!self->client->pers.inventory[ITEM_INDEX(FindItemByClassname("weapon_pistol"))]) return 2.8; break; //was 1.8
-		case ITEMLIST_SPISTOL:	if (!self->client->pers.inventory[ITEM_INDEX(FindItemByClassname("weapon_spistol"))]) return 2.8; break; //was 1.8
-		case ITEMLIST_SHOTGUN:	if (!self->client->pers.inventory[ITEM_INDEX(FindItemByClassname("weapon_shotgun"))]) return 2.8; break; //was 1.8
-		case ITEMLIST_TOMMYGUN:	if (!self->client->pers.inventory[ITEM_INDEX(FindItemByClassname("weapon_tommygun"))]) return 2.8; break; //was 1.8
-		case ITEMLIST_GRENADELAUNCHER:	if (!self->client->pers.inventory[ITEM_INDEX(FindItemByClassname("weapon_grenadelauncher"))]) return 2.8; break; //was 1.8
-		case ITEMLIST_FLAMETHROWER:	if (!self->client->pers.inventory[ITEM_INDEX(FindItemByClassname("weapon_flamethrower"))]) return 2.8; break; //was 1.8
+		case ITEMLIST_PISTOL:	if (!self->client->pers.inventory[ITEM_INDEX(FindItemByClassname("weapon_pistol"))]) return 0.1*nedWepMulti; break;
+		case ITEMLIST_SPISTOL:	if (!self->client->pers.inventory[ITEM_INDEX(FindItemByClassname("weapon_spistol"))]) return 0.1*nedWepMulti; break;
+		case ITEMLIST_SHOTGUN:	if (!self->client->pers.inventory[ITEM_INDEX(FindItemByClassname("weapon_shotgun"))]) return 2.8*nedWepMulti; break;
+		case ITEMLIST_TOMMYGUN:	if (!self->client->pers.inventory[ITEM_INDEX(FindItemByClassname("weapon_tommygun"))]) return 2.8*nedWepMulti; break;
+		case ITEMLIST_GRENADELAUNCHER:	if (!self->client->pers.inventory[ITEM_INDEX(FindItemByClassname("weapon_grenadelauncher"))]) return 2.8*nedWepMulti; break;
+		case ITEMLIST_FLAMETHROWER:	if (!self->client->pers.inventory[ITEM_INDEX(FindItemByClassname("weapon_flamethrower"))]) return 2.8*nedWepMulti; break;
 
-		case ITEMLIST_BAZOOKA: if (!self->client->pers.inventory[ITEM_INDEX(FindItemByClassname("weapon_bazooka"))]) return 3.0; break; //was 2.0
-		case ITEMLIST_HEAVYMACHINEGUN: if (!self->client->pers.inventory[ITEM_INDEX(FindItemByClassname("weapon_heavymachinegun"))]) return 3.0; break; //was 2.0
+		case ITEMLIST_BAZOOKA: if (!self->client->pers.inventory[ITEM_INDEX(FindItemByClassname("weapon_bazooka"))]) return 3.0*nedWepMulti; break;
+		case ITEMLIST_HEAVYMACHINEGUN: if (!self->client->pers.inventory[ITEM_INDEX(FindItemByClassname("weapon_heavymachinegun"))]) return 3.0*nedWepMulti; break;
 
 		// Ammo
 		case ITEMLIST_GRENADES: if (self->client->pers.inventory[ITEM_INDEX(FindItem("Grenades"))] < self->client->pers.max_grenades) return 0.3; break;
@@ -827,15 +807,15 @@ void ACEIT_BuildItemNodeTable(qboolean reLinkEnts)
 			// Find stored location
 			for (i = 0; i < numnodes; i++)
 			{
-				if (nodes[i].type == BOTNODE_ITEM || nodes[i].type == BOTNODE_TELEPORTER||
-					nodes[i].type == BOTNODE_DRAGON_SAFE|| nodes[i].type ==BOTNODE_NIKKISAFE||
-					nodes[i].type == BOTNODE_PLATFORM ) // valid types
+				if (nodes[i].type == BOTNODE_ITEM || nodes[i].type == BOTNODE_TELEPORTER ||
+					nodes[i].type == BOTNODE_DRAGON_SAFE || nodes[i].type == BOTNODE_NIKKISAFE ||
+					nodes[i].type == BOTNODE_PLATFORM) // valid types
 				{
 					VectorCopy(items->s.origin, v);
 
-					// shift nodes to match creation adjustment
+					// shift nodes up to match PathMap creation height of 24 units
 					if (nodes[i].type == BOTNODE_ITEM)			v[2] += BOTNODE_ITEM_16;
-					if (nodes[i].type == BOTNODE_TELEPORTER)	v[2] += BOTNODE_TELEPORTER_32;
+					if (nodes[i].type == BOTNODE_TELEPORTER)	v[2] += BOTNODE_TELEPORTER_16;
 					if (nodes[i].type == BOTNODE_DRAGON_SAFE)	v[2] += BOTNODE_DRAGON_SAFE_8;
 					if (nodes[i].type == BOTNODE_NIKKISAFE)		v[2] += BOTNODE_NIKKISAFE_8;
 
@@ -864,8 +844,22 @@ void ACEIT_BuildItemNodeTable(qboolean reLinkEnts)
 					}
 				}
 			}
+			if (i == numnodes)
+			{	//cant find a match. try rebild
+				if (!level.aceNodesCurupt)
+				{
+					level.aceNodesCurupt = true;
+#ifdef DEBUG_ACE
+					fclose(pOut);
+#endif
+					return;
+				}
+				//this should not happen anymore.. but who knows!!!
+				//fprintf(pOut, "ERROR Relink item: %s node: %d pos: %f %f %f\n", items->classname, item_table[num_items].node, items->s.origin[0], items->s.origin[1], items->s.origin[2]);
+				if (debug_mode)	
+					gi.dprintf("ERROR Relink item: %s node: %d pos: %f %f %f\n",items->classname, item_table[num_items].node, items->s.origin[0], items->s.origin[1], items->s.origin[2]);
+			}
 		}
-
 
 	}
 

@@ -874,36 +874,36 @@ void Cmd_Use_f (edict_t *ent)
 
     if (ent->client->showscores == SCORE_MAP_VOTE)  // next map vote menu
 	{
-		if (s && level.framenum >= (ent->client->resp.scoreboard_frame + 2))
-		{
-			int vote=0;
+		int vote=0;
 		if (level.vote_winner)
 			return;
-			if (!strcmp(s, "pipe"))
-				vote = 1;
+		if (!strcmp(s, "pipe"))
+			vote = 1;
 		else if (!strcmp(s, "pistol"))
-				vote = 2;
+			vote = 2;
 		else if (!strcmp(s, "shotgun"))
-				vote = 3;
+			vote = 3;
 		else if (!strcmp(s, "tommygun"))
-				vote = 4;
+			vote = 4;
 		else if (!strcmp(s, "heavy machinegun"))
-				vote = 5;
+			vote = 5;
 		else if (!strcmp(s, "grenade launcher"))
-				vote = 6;
+			vote = 6;
 		else if (!strcmp(s, "bazooka"))
-				vote = 7;
+			vote = 7;
 		else if (!strcmp(s, "flamethrower"))
-				vote = 8;
+			vote = 8;
+		else
+			return;
 		// hypov8 todo else return;
-			if (vote > 0 && vote <= level.num_vote_set)
-			{
-				ent->client->mapvote = vote;
-				ent->client->resp.scoreboard_frame = 0;
-			}
+		if (vote > 0 && vote <= level.num_vote_set)
+		{
+			ent->client->mapvote = vote;
+			ent->client->resp.scoreboard_frame = 0;
 		}
 		return;
 	}
+
 // ACEBOT_ADD
 	if (ACECM_G_Use_f(ent, s))
 		return;
@@ -1803,7 +1803,7 @@ void Cmd_PutAway_f (edict_t *ent)
 		gi.WriteByte(svc_stufftext);
 		gi.WriteString(va("%s\n", string));
 		gi.unicast(ent, true);
-		ent->client->resp.scoreboard_frame = level.framenum + 50 - 30;
+		ent->client->resp.scoreboard_frame = level.framenum + 20; // 50 - 30
 	}
 // HYPOV8 END
 
@@ -2123,7 +2123,7 @@ void Cmd_Yes_f (edict_t *ent)
 {
 
 	edict_t		*dude;
-	int			i, nop, novy;
+	int			i, nop, novy, idle;
 	char		command [256];
 
 	if (level.voteset == NO_VOTES)
@@ -2135,17 +2135,17 @@ void Cmd_Yes_f (edict_t *ent)
 		ent->client->resp.vote = YES;
 		nop=0;
 		novy=0;
+		idle = 0;
 		for_each_player_not_bot(dude, i)
 		{
 			if ((dude->client->resp.vote == YES) || (dude->client->resp.vote == CALLED_VOTE))
 				novy ++;
+			else if (!dude->client->resp.vote && curtime - dude->client->pers.idle > 120000)
+				idle++;
 			nop++;
 		}
-
-		safe_bprintf (PRINT_HIGH, "%d out of %d have voted YES\n", novy, nop);
-		if ((novy *2) > nop)
+		if ((novy *2) > (nop - idle))
 		{
-
 			switch (level.voteset) // Papa - if you wanted to add different types of votes, you could do it here
 			{
 				case VOTE_ON_ADMIN:
@@ -2165,10 +2165,10 @@ void Cmd_Yes_f (edict_t *ent)
 // ACEBOT_ADD
 					ACECM_LevelEnd();
 					PrintScoreMatchEnd();
-					ACESP_RemoveBot("all");
+					ACESP_RemoveBot("all", false);
 // ACEBOT_END
 					safe_bprintf (PRINT_HIGH, "The map change vote has passed\n");
-					if (teamplay->latched_string || dm_realmode->latched_string)
+					if (teamplay->latched_string || dm_realmode->latched_string|| sv_hitmen->latched_string)
 						Com_sprintf (command, sizeof(command), "map \"%s\"\n", votemap);
 					else
 						Com_sprintf (command, sizeof(command), "gamemap \"%s\"\n", votemap);
@@ -2196,10 +2196,9 @@ void Cmd_Yes_f (edict_t *ent)
 							safe_bprintf(PRINT_HIGH, "Remove Bot by: %s accepted. \n", dude->client->pers.netname);
 							gi.dprintf("Vote AddRemove by: %s accepted. \n", dude->client->pers.netname);
 
-							ACESP_RemoveBot(voteRemoveBot);
+							ACESP_RemoveBot(voteRemoveBot, true);
 						}
 					break;
-#if 1
 				case VOTE_BOTSKILL:
 					{
 						char sSkill[16];
@@ -2210,29 +2209,20 @@ void Cmd_Yes_f (edict_t *ent)
 					}
 					break;
 // ACEBOT_END
-
-#endif	
 			}
 
-			for_each_player_not_bot(dude, i)
+			/*for_each_player_not_bot(dude, i)
 			{
 				if (dude->client->resp.vote == CALLED_VOTE)
 					dude->client->resp.vote = HASNT_VOTED;
-			}
+			}*/
+
 			level.voteset = NO_VOTES;
 		}
-
-	}
-// ACEBOT_ADD	
-	//else
-	{
-		if (!ent->client->resp.vote == HASNT_VOTED)
-			safe_cprintf(ent, PRINT_HIGH, "You have already voted!\n");
 		else
-// ACEBOT_END
-			safe_cprintf(ent, PRINT_HIGH, "There is nothing to vote on at this time!\n");
+			safe_bprintf (PRINT_HIGH, "%d have voted YES (%d more needed)\n", novy, (nop - idle) / 2 + 1 - novy);
 	}
-
+	//safe_cprintf(ent, PRINT_HIGH, "There is nothing to vote on at this time!\n");
 }
 
 void Cmd_No_f (edict_t *ent)
@@ -2277,11 +2267,11 @@ void Cmd_No_f (edict_t *ent)
 					break;
 // ACEBOT_END
 			}
-			for_each_player_not_bot(dude, i)
+			/*for_each_player_not_bot(dude, i)
 			{
 				if (dude->client->resp.vote == CALLED_VOTE)
 					dude->client->resp.vote = HASNT_VOTED;
-			}
+			}*/
 
 			level.voteset = NO_VOTES;
 		}
@@ -2434,7 +2424,7 @@ void Cmd_ChangeMap_f (edict_t *ent, qboolean vote)
 		}
 		else
 		{
-			safe_cprintf(ent, PRINT_HIGH, "You do not have admin and a vote is already in progress\n");
+			safe_cprintf(ent, PRINT_HIGH, vote ? "A vote is already in progress\n" : "You do not have admin and a vote is already in progress\n");
 			return;
 		}
 	}
@@ -2442,10 +2432,10 @@ void Cmd_ChangeMap_f (edict_t *ent, qboolean vote)
 // ACEBOT_ADD
 	ACECM_LevelEnd();
 	PrintScoreMatchEnd();
-	ACESP_RemoveBot("all");
+	ACESP_RemoveBot("all", false);
 // ACEBOT_END
 
-	if (teamplay->latched_string || dm_realmode->latched_string)
+	if (teamplay->latched_string || dm_realmode->latched_string|| sv_hitmen->latched_string)
 		Com_sprintf (command, sizeof(command), "map \"%s\"\n", s);
 	else
 		Com_sprintf (command, sizeof(command), "gamemap \"%s\"\n", s);
@@ -3264,12 +3254,12 @@ void Cmd_Rcon_f (edict_t *ent)
 		Cmd_ListBans_f(ent);
 		return;
 	}
-// ACEBOT_ADD //todo: move "gamemap"
+// ACEBOT_ADD //hypov8 todo: this is never called
 	else if (!Q_stricmp(cmd, "gamemap") || !Q_stricmp(cmd, "map"))
 	{
 		ACECM_LevelEnd();
 		PrintScoreMatchEnd();
-		ACESP_RemoveBot("all");
+		ACESP_RemoveBot("all", false);
 	}
 // ACEBOT_END
 	else if (gi.argc() == 2)

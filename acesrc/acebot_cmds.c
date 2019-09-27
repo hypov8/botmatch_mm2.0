@@ -69,6 +69,351 @@ qboolean debug_mode=true;
 qboolean debug_mode_origin_ents = true; //local node
 #endif
 
+
+//===================================================================
+// scoreboard
+//===================================================================
+//hypo add voting options
+#if 1 // HYPODEBUG
+// ACEBOT_ADD //MENU
+#define MENU_Y_START 20 //menu height
+#define MENU_Y_COUNT 11 //headder= +2 (max list items)
+
+//#define MENU_Y_HOME 20
+
+#define MENU_YEL "773"
+#define MENU_ORANGE "752"
+#define MENU_GREY "777"
+
+//key names
+static const char *menu_str[] ={
+	"1 (Pipe)   ",
+	"2 (Pistol) ",
+	"3 (Shoty)  ",
+	"4 (Tommy)  ",
+	"5 (HMG)    ",
+	"6 (GL)     ",
+	"7 (Rocket) ",
+	"8 (Flamer) ",
+	"9 (  )     ",
+	"10(  )     ",
+	"11(  )     ",
+	NULL
+};
+
+void ACECM_BotScoreboardVote(edict_t *ent) //SCORE_BOT_MENU
+{
+	char	string[1024];
+	char	skill[10], *txt_antilag;
+	char	color[MENU_Y_COUNT][4];
+	int		yofs[MENU_Y_COUNT + 3]; //y offset. +3 for headder.
+	int		i, j;
+
+	char	*choice2[] =
+	{
+		"Add Bot    ",
+		"Remove Bot ",
+		"Bot Skill  ",
+		"Antilag    ",
+		"Vote Yes   ",
+		"Vote No    ",
+		"close      ",
+		//"blah       ",
+		NULL
+	};
+
+	j = MENU_Y_START;
+	for (i = 0; i < MENU_Y_COUNT+3; i++) //y offset. +3 for headder.
+	{
+		yofs[i] = j;
+		j += 20;
+	}
+
+	for (i = 1; i <= 8; i++)
+	{
+		if (ent->menu == i)
+			strcpy(color[i - 1], MENU_ORANGE);
+		else
+			strcpy(color[i - 1], MENU_GREY);
+	}
+
+	if (sv_bot_allow_skill->value != 0)
+		Com_sprintf(skill, sizeof(skill), "%i of 10", ACECM_ReturnBotSkillWeb());//web skill
+	else
+		Com_sprintf(skill, sizeof(skill),"Fixed");
+
+	if (ent->client && !ent->client->pers.noantilag)
+		txt_antilag = "On";
+	else
+		txt_antilag = "Off";
+
+	// send the layout
+	Com_sprintf(string, sizeof(string),
+		" xl 30 " //left margin
+		/*help*/"yv %i dmstr "MENU_YEL" \"Navigate with [ & ]\" "
+		/*help*/"yv %i dmstr "MENU_YEL" \"Accept with WepNum & Use Key's\" "
+		/*help*/"yv %i dmstr "MENU_YEL" \"Close with Score key(TAB/F1)\" "
+		/*1*/	"yv %i dmstr %s \"%s %s->\" "		// addbot
+		/*2*/	"yv %i dmstr %s \"%s %s->\" "		// removebot
+		/*3*/	"yv %i dmstr %s \"%s %s= %s\" "		// botskill
+		/*4*/	"yv %i dmstr %s \"%s %s= %s\" "		// antilag
+		/*5*/	"yv %i dmstr %s \"%s %s\" "			// vote yes
+		/*6*/	"yv %i dmstr %s \"%s %s\" "			// vote no
+		/*7*/	"yv %i dmstr %s \"%s %s\" ",		// close
+
+		/*help*/yofs[0],
+		/*help*/yofs[1],
+		/*help*/yofs[2],
+		/*1*/	yofs[3], color[0], menu_str[0], choice2[0],
+		/*2*/	yofs[4], color[1], menu_str[1], choice2[1],
+		/*3*/	yofs[5], color[2], menu_str[2], choice2[2], skill,
+		/*4*/	yofs[6], color[3], menu_str[3], choice2[3], txt_antilag,
+		/*5*/	yofs[7], color[4], menu_str[4], choice2[4],
+		/*6*/	yofs[8], color[5], menu_str[5], choice2[5],
+		/*7*/	yofs[9], color[6], menu_str[6], choice2[6]);
+		///*8*/	yofs[10], color[7], menu_str[7], choice2[7]);
+
+
+	gi.WriteByte(svc_layout);
+	gi.WriteString(string);
+	//gi.unicast(ent, true);
+}
+
+void ACECM_BotScoreboardAdd(edict_t *ent) // SCORE_BOT_ADD
+{
+	char	string[1024];
+	char	color[MENU_Y_COUNT][4];
+	int		yofs[MENU_Y_COUNT + 3]; //y offset. +3 for headder.
+	int		i, j;
+	char	*choice2[] =
+	{
+		"Dragons ",
+		"Nikki's ",
+		"Random  ",
+		NULL
+	};
+
+
+	j = MENU_Y_START;
+	for (i = 0; i < MENU_Y_COUNT+3; i++) //y offset. +3 for headder.
+	{
+		yofs[i] = j;
+		j += 20;
+	}
+
+	for (i = 1; i <= MENU_Y_COUNT; i++)
+	{
+		if (ent->menu == i)
+			strcpy(color[i - 1], MENU_ORANGE);
+		else
+			strcpy(color[i - 1], MENU_GREY);
+	}
+
+
+	// send the layout
+	Com_sprintf(string, sizeof(string),
+		" xl 30 " //left margin
+		/*help*/"yv %i dmstr "MENU_YEL" \"Navigate with [ & ]\" "
+		/*help*/"yv %i dmstr "MENU_YEL" \"Accept with WepNum & Use Key's\" "
+		/*help*/"yv %i dmstr " MENU_YEL " \"Close with Score key(TAB/F1)\" "
+		/*1*/	"yv %i dmstr %s \"%s %s\" "		// Dragons
+		/*2*/	"yv %i dmstr %s \"%s %s\" "		// Nikki's
+		/*3*/	"yv %i dmstr %s \"%s %s\" ",	// Random
+
+		/*help*/yofs[0],
+		/*help*/yofs[1],
+		/*help*/yofs[2],
+		/*1*/	yofs[3], color[0], menu_str[0], choice2[0],
+		/*2*/	yofs[4], color[1], menu_str[1], choice2[1],
+		/*2*/	yofs[5], color[2], menu_str[2], choice2[2]);
+
+
+	gi.WriteByte(svc_layout);
+	gi.WriteString(string);
+	//gi.unicast(ent, true);
+}
+
+void ACECM_BotScoreboardRemove(edict_t *ent) //SCORE_BOT_REMOVE
+{
+	int outCount;
+	edict_t	*bot;
+	char	color[MENU_Y_COUNT][4];
+	int		yofs[MENU_Y_COUNT + 3]; //y offset. +3 for headder.
+	int		i, j;
+	char	string[1024];
+	char	*choice2[] =
+	{
+		" N/A    ",
+		" N/A    ",
+		" N/A    ",
+		" N/A    ",
+		" N/A    ",
+		" N/A    ",
+		" N/A    ",
+		" N/A    ",
+		NULL
+	};
+
+	//reset
+	memset(VoteBotRemoveName, 0, sizeof(VoteBotRemoveName));
+
+	outCount = 0;
+	for_each_player_inc_bot(bot, i)
+	{
+		if (bot->acebot.is_bot) 
+		{	
+			strcpy(VoteBotRemoveName[outCount], bot->client->pers.netname);
+			choice2[outCount] = bot->client->pers.netname;
+			outCount++;	
+			continue;
+		}
+		if (outCount > 8)
+			break;
+
+	}
+
+	//no bot, return to menu
+	if (outCount < 1)
+	{
+		ent->client->showscores = SCORE_BOT_MENU;
+		DeathmatchScoreboard(ent);
+		return;
+	}
+
+	for (i = 1; i <= MENU_Y_COUNT; i++)
+	{
+		if (ent->menu == i)
+			strcpy(color[i - 1], MENU_ORANGE);
+		else
+			strcpy(color[i - 1], MENU_GREY);
+	}
+
+
+	j = MENU_Y_START;
+	for (i = 0; i < MENU_Y_COUNT+3; i++) //y offset. +3 for headder.
+	{
+		yofs[i] = j;
+		j += 20;
+	}
+
+
+	// send the layout
+	Com_sprintf(string, sizeof(string),
+		" xl 30 " //left margin
+		/*help*/"yv %i dmstr "MENU_YEL" \"Navigate with [ & ]\" "
+		/*help*/"yv %i dmstr "MENU_YEL" \"Accept with WepNum & Use Key's\" "
+		/*help*/"yv %i dmstr " MENU_YEL " \"Close with Score key(TAB/F1)\" "
+		/*1*/	"yv %i dmstr %s \"%s %s\" "
+		/*2*/	"yv %i dmstr %s \"%s %s\" "
+		/*3*/	"yv %i dmstr %s \"%s %s\" "
+		/*4*/	"yv %i dmstr %s \"%s %s\" "
+		/*5*/	"yv %i dmstr %s \"%s %s\" "
+		/*6*/	"yv %i dmstr %s \"%s %s\" "
+		/*7*/	"yv %i dmstr %s \"%s %s\" "
+		/*8*/	"yv %i dmstr %s \"%s %s\" ",
+
+		/*help*/yofs[0],
+		/*help*/yofs[1],
+		/*help*/yofs[2],
+		/*1*/	yofs[3], color[0], menu_str[0], choice2[0],
+		/*2*/	yofs[4], color[1], menu_str[1], choice2[1],
+		/*3*/	yofs[5], color[2], menu_str[2], choice2[2],
+		/*4*/	yofs[6], color[3], menu_str[3], choice2[3],
+		/*5*/	yofs[7], color[4], menu_str[4], choice2[4],
+		/*6*/	yofs[8], color[5], menu_str[5], choice2[5],
+		/*7*/	yofs[9], color[6], menu_str[6], choice2[6],
+		/*8*/	yofs[10], color[7], menu_str[7], choice2[7]);
+
+
+	gi.WriteByte(svc_layout);
+	gi.WriteString(string);
+	//gi.unicast(ent, true);
+}
+
+void ACECM_BotScoreboardSkill(edict_t *ent) //SCORE_BOT_SKIL
+{
+	char	string[1024];
+	char	color[MENU_Y_COUNT][4];
+	int		yofs[MENU_Y_COUNT + 3]; //y offset. +3 for headder.
+	int		i, j;
+	char	*val_str[] =
+	{
+		" 0 (low)",
+		" 1      ",
+		" 2      ",
+		" 3      ",
+		" 4      ",
+		" 5      ",
+		" 6      ",
+		" 7      ",
+		" 8      ",
+		" 9      ",
+		" 10 (hi)",
+		NULL
+	};
+
+	for (i = 1; i <= MENU_Y_COUNT; i++)
+	{
+		if (ent->menu == i)
+			strcpy(color[i - 1], MENU_ORANGE); // todo: score stay on death or fix ent->menu on death
+		else
+			strcpy(color[i - 1], MENU_GREY);
+	}
+
+	//setup y offset
+	j = 20; //start y pos
+	for (i = 0; i < MENU_Y_COUNT + 3; i++) //y offset. +3 for headder.
+	{
+		yofs[i] = j;
+		j += 20; //move next item down
+	}
+
+
+	// send the layout
+	Com_sprintf(string, sizeof(string),
+		" xl 30 " //left margin
+		/*help*/"yv %i dmstr " MENU_YEL " \"Navigate with [ or ]\" "
+		/*help*/"yv %i dmstr " MENU_YEL " \"Accept with WepNum or Activate Key\" "
+		/*help*/"yv %i dmstr " MENU_YEL " \"Close with Score key(TAB/F1)\" "
+		/*1*/	"yv %i dmstr %s \"%s %s\" "
+		/*2*/	"yv %i dmstr %s \"%s %s\" "
+		/*3*/	"yv %i dmstr %s \"%s %s\" "
+		/*4*/	"yv %i dmstr %s \"%s %s\" "
+		/*5*/	"yv %i dmstr %s \"%s %s\" "
+		/*6*/	"yv %i dmstr %s \"%s %s\" "
+		/*7*/	"yv %i dmstr %s \"%s %s\" "
+		/*8*/	"yv %i dmstr %s \"%s %s\" "
+		/*9*/	"yv %i dmstr %s \"%s %s\" "
+		/*10*/	"yv %i dmstr %s \"%s %s\" "
+		/*11*/	"yv %i dmstr %s \"%s %s\" "
+		,
+
+		/*help*/yofs[0],
+		/*help*/yofs[1],
+		/*help*/yofs[2],
+		/*1*/	yofs[3], color[0], "0 (  )     ", val_str[0],
+		/*2*/	yofs[4], color[1], menu_str[0], val_str[1],
+		/*3*/	yofs[5], color[2], menu_str[1], val_str[2],
+		/*4*/	yofs[6], color[3], menu_str[2], val_str[3],
+		/*5*/	yofs[7], color[4], menu_str[3], val_str[4],
+		/*6*/	yofs[8], color[5], menu_str[4], val_str[5],
+		/*7*/	yofs[9], color[6], menu_str[5], val_str[6],
+		/*8*/	yofs[10], color[7], menu_str[6], val_str[7],
+		/*9*/	yofs[11], color[8], menu_str[7], val_str[8],
+		/*10*/	yofs[12], color[9], menu_str[8], val_str[9],
+		/*10*/	yofs[13], color[10], menu_str[9], val_str[10]);
+
+
+	gi.WriteByte(svc_layout);
+	gi.WriteString(string);
+}
+// ACEBOT_END //MENU
+#endif
+
+
+
+
+
 //hypo vote add bot
 static void Cmd_VoteAddBot_f(edict_t *ent, int teamUse)
 {
@@ -217,7 +562,7 @@ void Cmd_VoteRemoveBot_f(edict_t *ent, qboolean isMenu, char botnames[32]) //VOT
 			gi.dprintf("Vote BotRemove accepted. by: %s\n", ent->client->pers.netname);
 			//safe_bprintf(PRINT_HIGH, "%s alowed to change map.\n", ent->client->pers.netname);
 			safe_cprintf(ent, PRINT_CHAT, "%s alowed to remove bot.\n", ent->client->pers.netname);
-			ACESP_RemoveBot(s);
+			ACESP_RemoveBot(s, true);
 			return;
 		}						//¡¢£¤¥¦§¨©ª«¬­­
 		safe_bprintf(PRINT_CHAT, "%s has requested to remove bot %s.\n\nPLEASE VOTE\n\n", ent->client->pers.netname, name);
@@ -305,12 +650,9 @@ void Cmd_VoteSkill_f(edict_t *ent, qboolean usedMenu) //VOTE_BOTSKILL;
 }
 
 
-
-
-
 qboolean ACECM_G_Activate_f(edict_t *ent)
 {
-	if (ent->client->showscores == SCORE_BOT_VOTE)
+	if (ent->client->showscores == SCORE_BOT_MENU)
 	{
 		switch (ent->menu)
 		{
@@ -328,10 +670,7 @@ qboolean ACECM_G_Activate_f(edict_t *ent)
 		case 6:Cmd_No_f(ent); ent->client->showscores = NO_SCOREBOARD; ent->menu = 0;	break;
 
 		default: ent->client->showscores = NO_SCOREBOARD; ent->menu = 0; break;
-			
-
 		}
-		//ent->menu = 0;
 		DeathmatchScoreboard(ent);
 		return true;
 	}
@@ -342,15 +681,15 @@ qboolean ACECM_G_Activate_f(edict_t *ent)
 		{
 			switch (ent->menu)
 			{
-			case 1: Cmd_VoteAddBot_f(ent,1) ; break;
-			case 2: Cmd_VoteAddBot_f(ent, 2); break;
-			case 3:Cmd_VoteAddBot_f(ent, 0); break;
+			case 1: Cmd_VoteAddBot_f(ent,1) ; break; //team1
+			case 2: Cmd_VoteAddBot_f(ent, 2); break; //team2
+			case 3:Cmd_VoteAddBot_f(ent, 0); break;  //no team
 			default: ; break;
 
 			}
 		}
 		//ent->client->showscores = NO_SCOREBOARD;
-		ent->client->showscores = SCORE_BOT_VOTE;
+		ent->client->showscores = SCORE_BOT_MENU;
 		ent->menu = 0;
 		DeathmatchScoreboard(ent);
 		return true;
@@ -375,8 +714,7 @@ qboolean ACECM_G_Activate_f(edict_t *ent)
 
 			}
 		}
-		//ent->client->showscores = NO_SCOREBOARD;
-		ent->client->showscores = SCORE_BOT_VOTE;
+		ent->client->showscores = SCORE_BOT_MENU;
 		ent->menu = 0;
 		DeathmatchScoreboard(ent);
 		return true;
@@ -399,8 +737,6 @@ qboolean ACECM_G_Activate_f(edict_t *ent)
 			case 9: menuBotSkill = 3.2; Cmd_VoteSkill_f(ent, 1); break;
 			case 10: menuBotSkill = 3.6; Cmd_VoteSkill_f(ent, 1); break;
 			case 11: menuBotSkill = 4.0; Cmd_VoteSkill_f(ent, 1); break;
-			//default:Cmd_VoteSkill_f(ent, 1); break;
-
 			}
 		}
 		ent->client->showscores = NO_SCOREBOARD;
@@ -412,6 +748,7 @@ qboolean ACECM_G_Activate_f(edict_t *ent)
 	return false;
 }
 
+
 qboolean ACECM_G_PutAway_f(edict_t *ent)
 {
 
@@ -419,7 +756,7 @@ qboolean ACECM_G_PutAway_f(edict_t *ent)
 		|| ent->client->showscores == SCORE_BOT_REMOVE
 		|| ent->client->showscores == SCORE_BOT_SKILL)
 	{
-		ent->client->showscores = SCORE_BOT_VOTE;
+		ent->client->showscores = SCORE_BOT_MENU;
 		//ent->client->showhelp = false;
 		ent->client->showinventory = false;
 		ent->client->resp.vote = 0;
@@ -432,35 +769,32 @@ qboolean ACECM_G_PutAway_f(edict_t *ent)
 
 qboolean ACECM_G_Use_f(edict_t *ent, char *s)
 {
-	if (ent->client->showscores == SCORE_BOT_VOTE)
+	if (ent->client->showscores == SCORE_BOT_MENU)
 	{
-		if (s)
+		if (!strcmp(s, "pipe")){
+			ent->client->showscores = SCORE_BOT_ADD; ent->menu = 0;		}
+		else if (!strcmp(s, "pistol")){
+			ent->client->showscores = SCORE_BOT_REMOVE; ent->menu = 0;		}
+		else if (!strcmp(s, "shotgun")){
+			ent->client->showscores = SCORE_BOT_SKILL; ent->menu = 0;		}
+		else if (!strcmp(s, "tommygun"))
 		{
-
-			if (!strcmp(s, "pipe")){
-				ent->client->showscores = SCORE_BOT_ADD; ent->menu = 0;		}
-			else if (!strcmp(s, "pistol")){
-				ent->client->showscores = SCORE_BOT_REMOVE; ent->menu = 0;		}
-			else if (!strcmp(s, "shotgun")){
-				ent->client->showscores = SCORE_BOT_SKILL; ent->menu = 0;		}
-			else if (!strcmp(s, "tommygun")){
-				if (ent->client->pers.noantilag)
-					Cmd_AntiLag_f(ent, "1");	//ent->client->pers.noantilag = 0;
-				else								
-					Cmd_AntiLag_f(ent, "0");	//ent->client->pers.noantilag = 1;
-				ent->menu = 4;
-			}
-			else if (!strcmp(s, "heavy machinegun")){
-				Cmd_Yes_f(ent); ent->client->showscores = NO_SCOREBOARD; ent->menu = 0;}
-			else if (!strcmp(s, "grenade launcher")){
-				Cmd_No_f(ent); ent->client->showscores = NO_SCOREBOARD;	ent->menu = 0;}
-			else if (!strcmp(s, "bazooka")){
-				ent->client->showscores = NO_SCOREBOARD; ent->menu = 0;}
-			else if (!strcmp(s, "flamethrower")){
-				ent->client->showscores = NO_SCOREBOARD; ent->menu = 0;}
-
+			if (ent->client->pers.noantilag)
+				Cmd_AntiLag_f(ent, "1");	//ent->client->pers.noantilag = 0;
+			else								
+				Cmd_AntiLag_f(ent, "0");	//ent->client->pers.noantilag = 1;
+			ent->menu = 4;
 		}
-
+		else if (!strcmp(s, "heavy machinegun")){
+			Cmd_Yes_f(ent); ent->client->showscores = NO_SCOREBOARD; ent->menu = 0;}
+		else if (!strcmp(s, "grenade launcher")){
+			Cmd_No_f(ent); ent->client->showscores = NO_SCOREBOARD;	ent->menu = 0;}
+		else if (!strcmp(s, "bazooka")){
+			ent->client->showscores = NO_SCOREBOARD; ent->menu = 0;}
+		else if (!strcmp(s, "flamethrower")){
+			ent->client->showscores = NO_SCOREBOARD; ent->menu = 0;}
+		else 
+			return true;
 
 		ent->client->resp.switch_teams_frame = level.framenum;
 		DeathmatchScoreboard (ent);
@@ -471,27 +805,26 @@ qboolean ACECM_G_Use_f(edict_t *ent, char *s)
 	{
 		if (level.modeset == MATCH || level.modeset == PUBLIC)
 		{
-			if (s)
-			{
-				if (!strcmp(s, "pipe"))
-					Cmd_VoteAddBot_f(ent, 1);
-				else if (!strcmp(s, "pistol"))
-					Cmd_VoteAddBot_f(ent, 2);
-				else if (!strcmp(s, "shotgun"))
-					Cmd_VoteAddBot_f(ent, 3);
-				else if (!strcmp(s, "tommygun"))
-					Cmd_VoteAddBot_f(ent, 3);
-				else if (!strcmp(s, "heavy machinegun"))
-					Cmd_VoteAddBot_f(ent, 3);
-				else if (!strcmp(s, "grenade launcher"))
-					Cmd_VoteAddBot_f(ent, 3);
-				else if (!strcmp(s, "bazooka"))
-					Cmd_VoteAddBot_f(ent, 3);
-				else if (!strcmp(s, "flamethrower"))
-					Cmd_VoteAddBot_f(ent, 3);
-			}
-			//ent->client->showscores = NO_SCOREBOARD;
-			ent->client->showscores = SCORE_BOT_VOTE;
+			if (!strcmp(s, "pipe"))
+				Cmd_VoteAddBot_f(ent, 1);
+			else if (!strcmp(s, "pistol"))
+				Cmd_VoteAddBot_f(ent, 2);
+			else if (!strcmp(s, "shotgun"))
+				Cmd_VoteAddBot_f(ent, 3);
+			else if (!strcmp(s, "tommygun"))
+				Cmd_VoteAddBot_f(ent, 3);
+			else if (!strcmp(s, "heavy machinegun"))
+				Cmd_VoteAddBot_f(ent, 3);
+			else if (!strcmp(s, "grenade launcher"))
+				Cmd_VoteAddBot_f(ent, 3);
+			else if (!strcmp(s, "bazooka"))
+				Cmd_VoteAddBot_f(ent, 3);
+			else if (!strcmp(s, "flamethrower"))
+				Cmd_VoteAddBot_f(ent, 3);
+			else 
+				return true; //hypov8 todo: exit?
+
+			ent->client->showscores = SCORE_BOT_MENU;
 			ent->menu = 0;
 			DeathmatchScoreboard(ent);
 			return true;
@@ -500,76 +833,61 @@ qboolean ACECM_G_Use_f(edict_t *ent, char *s)
 
 
 	if (ent->client->showscores == SCORE_BOT_REMOVE)
+	{
+		if (level.modeset == MATCH || level.modeset == PUBLIC)
 		{
-			if (level.modeset == MATCH || level.modeset == PUBLIC)
-			{
-				if (s)
-				{
-					if (!strcmp(s, "pipe"))
-						Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[0]);
-					else if (!strcmp(s, "pistol"))
-						Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[1]);
-					else if (!strcmp(s, "shotgun"))
-						Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[2]);
-					else if (!strcmp(s, "tommygun"))
-						Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[3]);
-					else if (!strcmp(s, "heavy machinegun"))
-						Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[4]);
-					else if (!strcmp(s, "grenade launcher"))
-						Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[5]);
-					else if (!strcmp(s, "bazooka"))
-						Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[6]);
-					else if (!strcmp(s, "flamethrower"))
-						Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[7]);
-				}
-				//ent->client->showscores = NO_SCOREBOARD;
-				ent->client->showscores = SCORE_BOT_VOTE;
-				ent->menu = 0;
-				DeathmatchScoreboard(ent);
-				return true;
-			}
+			if (!strcmp(s, "pipe"))
+				Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[0]);
+			else if (!strcmp(s, "pistol"))
+				Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[1]);
+			else if (!strcmp(s, "shotgun"))
+				Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[2]);
+			else if (!strcmp(s, "tommygun"))
+				Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[3]);
+			else if (!strcmp(s, "heavy machinegun"))
+				Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[4]);
+			else if (!strcmp(s, "grenade launcher"))
+				Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[5]);
+			else if (!strcmp(s, "bazooka"))
+				Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[6]);
+			else if (!strcmp(s, "flamethrower"))
+				Cmd_VoteRemoveBot_f(ent, true, VoteBotRemoveName[7]);
+			else 
+				return true; //hypov8 todo: exit?
+
+			ent->client->showscores = SCORE_BOT_MENU;
+			ent->menu = 0;
+			DeathmatchScoreboard(ent);
+			return true;
 		}
+	}
 
 
 	if (ent->client->showscores == SCORE_BOT_SKILL)
 		{
 			if (level.modeset == MATCH || level.modeset == PUBLIC)
 			{
-				if (s)
-				{
-					if (!strcmp(s, "pipe")){
-						menuBotSkill = 0.4;
-						Cmd_VoteSkill_f(ent, 1);
-					}
-					else if (!strcmp(s, "pistol")){
-						menuBotSkill = 0.8;
-						Cmd_VoteSkill_f(ent, 1);
-					}
-					else if (!strcmp(s, "shotgun")){
-						menuBotSkill = 1.2;
-						Cmd_VoteSkill_f(ent, 1);
-					}
-					else if (!strcmp(s, "tommygun")){
-						menuBotSkill = 1.6;
-						Cmd_VoteSkill_f(ent, 1);
-					}
-					else if (!strcmp(s, "heavy machinegun")){
-						menuBotSkill = 2.0;
-						Cmd_VoteSkill_f(ent, 1);
-					}
-					else if (!strcmp(s, "grenade launcher")){
-						menuBotSkill = 2.4;
-						Cmd_VoteSkill_f(ent, 1);
-					}
-					else if (!strcmp(s, "bazooka")){
-						menuBotSkill = 2.8;
-						Cmd_VoteSkill_f(ent, 1);
-					}
-					else if (!strcmp(s, "flamethrower")){
-						menuBotSkill = 3.2;
-						Cmd_VoteSkill_f(ent, 1);
-					}
-				}
+				if (!strcmp(s, "pipe"))
+					menuBotSkill = 0.4;
+				else if (!strcmp(s, "pistol"))
+					menuBotSkill = 0.8;
+				else if (!strcmp(s, "shotgun"))
+					menuBotSkill = 1.2;
+				else if (!strcmp(s, "tommygun"))
+					menuBotSkill = 1.6;
+				else if (!strcmp(s, "heavy machinegun"))
+					menuBotSkill = 2.0;
+				else if (!strcmp(s, "grenade launcher"))
+					menuBotSkill = 2.4;
+				else if (!strcmp(s, "bazooka"))
+					menuBotSkill = 2.8;
+				else if (!strcmp(s, "flamethrower"))
+					menuBotSkill = 3.2;
+				else 
+					return true; //hypov8 todo: exit?
+
+				Cmd_VoteSkill_f(ent, 1);
+
 				ent->client->showscores = NO_SCOREBOARD;
 				ent->menu = 0;
 				DeathmatchScoreboard(ent);
@@ -581,123 +899,76 @@ qboolean ACECM_G_Use_f(edict_t *ent, char *s)
 
 qboolean ACECM_G_SelectNextItem(edict_t *ent)
 {
-	if (ent->client->showscores == SCORE_BOT_VOTE)
-	{
 
-		if (level.framenum > (ent->client->resp.scoreboard_frame + 1))
-		{
+	switch (ent->client->showscores)
+	{
+		case SCORE_BOT_MENU:
 			ent->menu++;
 			if (ent->menu > 7)
 				ent->menu = 1;
-			ent->client->resp.scoreboard_frame = level.framenum;
-			DeathmatchScoreboard (ent);
-		}
-		return true;
-	}
+			DeathmatchScoreboard(ent);
+			return true;
 
-	if (ent->client->showscores == SCORE_BOT_ADD)
-	{
-
-		if (level.framenum > (ent->client->resp.scoreboard_frame + 1))
-		{
+		case SCORE_BOT_ADD:
 			ent->menu++;
 			if (ent->menu > 3)
 				ent->menu = 1;
-			ent->client->resp.scoreboard_frame = level.framenum;
-			DeathmatchScoreboard (ent);
-		}
-		return true;
-	}
+			DeathmatchScoreboard(ent);
+			return true;
 
-	if (ent->client->showscores == SCORE_BOT_REMOVE)
-	{
-
-		if (level.framenum > (ent->client->resp.scoreboard_frame + 1))
-		{
+		case  SCORE_BOT_REMOVE:
 			ent->menu++;
 			if (ent->menu > 8)
 				ent->menu = 1;
-			ent->client->resp.scoreboard_frame = level.framenum;
-			DeathmatchScoreboard (ent);
-		}
-		return true;
-	}
+			DeathmatchScoreboard(ent);
+			return true;
 
-	if (ent->client->showscores == SCORE_BOT_SKILL)
-	{
-
-		if (level.framenum > (ent->client->resp.scoreboard_frame + 1))
-		{
+		case  SCORE_BOT_SKILL:
 			ent->menu++;
 			if (ent->menu > 11)
 				ent->menu = 1;
-			ent->client->resp.scoreboard_frame = level.framenum;
-			DeathmatchScoreboard (ent);
-		}
-		return true;
+			DeathmatchScoreboard(ent);
+			return true;
 	}
-
 	return false;
 }
 
 qboolean ACECM_G_SelectPrevItem(edict_t *ent)
 {
-	if (ent->client->showscores == SCORE_BOT_VOTE)
+	switch (ent->client->showscores)
 	{
-		if (level.framenum >(ent->client->resp.scoreboard_frame + 1))
-		{
+		case SCORE_BOT_MENU:
 			ent->menu--;
 			if (ent->menu < 1)
 				ent->menu = 7;
-			ent->client->resp.scoreboard_frame = level.framenum;
-			DeathmatchScoreboard (ent);
-		}
-		return true;
-	}
+			DeathmatchScoreboard(ent);
+			return true;
 
-	if (ent->client->showscores == SCORE_BOT_ADD)
-	{
-		if (level.framenum > (ent->client->resp.scoreboard_frame + 1))
-		{
+		case SCORE_BOT_ADD:
 			ent->menu--;
 			if (ent->menu < 1)
 				ent->menu = 3;
-			ent->client->resp.scoreboard_frame = level.framenum;
-			DeathmatchScoreboard (ent);
-		}
-		return true;
-	}
+			DeathmatchScoreboard(ent);
+			return true;
 
-	if (ent->client->showscores == SCORE_BOT_REMOVE)
-	{
-		if (level.framenum > (ent->client->resp.scoreboard_frame + 1))
-		{
+		case SCORE_BOT_REMOVE:
+
 			ent->menu--;
 			if (ent->menu < 1)
 				ent->menu = 8;
-			ent->client->resp.scoreboard_frame = level.framenum;
-			DeathmatchScoreboard (ent);
-		}
-		return true;
-	}
-	if (ent->client->showscores == SCORE_BOT_SKILL)
-	{
-		if (level.framenum >(ent->client->resp.scoreboard_frame + 1))
-		{
+			DeathmatchScoreboard(ent);
+			return true;
+
+		case SCORE_BOT_SKILL:
 			ent->menu--;
 			if (ent->menu < 1)
 				ent->menu = 11;
-			ent->client->resp.scoreboard_frame = level.framenum;
 			DeathmatchScoreboard(ent);
-		}
-		return true;
+			return true;
 	}
 
 	return false;
-
 }
-
-
 
 
 
@@ -754,7 +1025,6 @@ float ACECM_ReturnBotSkillFloat(int skill)
 
 	return 0.0;
 }
-
 
 void ACECM_BotDebug(changeState)
 {
@@ -815,6 +1085,7 @@ void ACECM_BotDebug(changeState)
 		safe_bprintf(PRINT_MEDIUM, "ACE: Debug Mode Off\n");
 	}
 }
+
 void ACECM_BotAdd(char *name, char *skin, char *team, char *skill)
 {
 	float _skill = 1.0f;
@@ -857,13 +1128,13 @@ void ACECM_Menu_f(edict_t *ent)
 	ent->client->showinventory = false;
 	//ent->client->showhelp = false; //hypov8 todo?: check this
 
-	if (ent->client->showscores == SCORE_BOT_VOTE
+	if (ent->client->showscores == SCORE_BOT_MENU
 		|| ent->client->showscores == SCORE_BOT_ADD
 		|| ent->client->showscores == SCORE_BOT_REMOVE
 		|| ent->client->showscores == SCORE_BOT_SKILL)
 		ent->client->showscores = NO_SCOREBOARD;
 	else
-		ent->client->showscores = SCORE_BOT_VOTE;
+		ent->client->showscores = SCORE_BOT_MENU;
 
 	DeathmatchScoreboard(ent);
 }
@@ -931,12 +1202,10 @@ qboolean ACECM_Commands(edict_t *ent)
 	else if (Q_stricmp(cmd, "botskill") == 0)
 		ACECM_SetBotSkill_f(ent, gi.argv(1));
 	//else if (Q_stricmp(cmd, "votebotcount") == 0)		//hypo todo:
-	//	Cmd_VoteBotCount_f(ent);  
+	//	Cmd_VoteBotCount_f(ent); 
 
-
-	if (!debug_mode)
+	else if (!debug_mode)
 		return false;
-
 
 
 	//dev commands
@@ -1055,9 +1324,7 @@ qboolean ACECM_Commands(edict_t *ent)
 void ACECM_LevelEnd(void)
 {
 	ACEND_SaveNodes();
-	//num_players = 0;
 	botsRemoved = 0;
-	//num_bots = 0;
 }
 
 ///////////////////////////////////////////////////////////////////////

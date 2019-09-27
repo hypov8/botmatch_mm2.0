@@ -824,6 +824,11 @@ void think_new_first_raincloud_client (edict_t *self, edict_t *clent)
 {
 	vec3_t	neworigin, minmaxsize;
 	int		effectsizex, effectsizey, effectsizez;
+
+// ACEBOT_ADD
+	if (self->acebot.is_bot)
+		return;
+// ACEBOT_END
 	
 	// Find cloud size
 	VectorSubtract(self->mins, self->maxs, minmaxsize);
@@ -877,6 +882,11 @@ void think_new_first_snowcloud_client (edict_t *self, edict_t *clent)
 {
 	vec3_t	neworigin, minmaxsize;
 	int		effectsizex, effectsizey, effectsizez;
+
+// ACEBOT_ADD
+	if (self->acebot.is_bot)
+		return;
+// ACEBOT_END
 
 	// Find cloud size
 	VectorSubtract(self->mins, self->maxs, minmaxsize);

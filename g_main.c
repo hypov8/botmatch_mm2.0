@@ -62,6 +62,7 @@ cvar_t	*sv_gravity;
 
 // ACEBOT_ADD
 cvar_t *sv_botskill;
+cvar_t *sv_bot_hunt;
 cvar_t *sv_botpath;
 cvar_t *sv_botjump;
 cvar_t *sv_bot_allow_add;
@@ -538,10 +539,13 @@ void ExitLevel (void)
 // ACEBOT_ADD
 	ACECM_LevelEnd();
 	PrintScoreMatchEnd();
-	ACESP_RemoveBot("all");
-// ACEBOT_END
+	ACESP_RemoveBot("all", false);
 
-	Com_sprintf (command, sizeof(command), "gamemap \"%s\"\n", level.changemap);
+	if (teamplay->latched_string || dm_realmode->latched_string|| sv_hitmen->latched_string)
+		Com_sprintf (command, sizeof(command), "map \"%s\"\n", level.mapname);
+	else
+// ACEBOT_END
+		Com_sprintf (command, sizeof(command), "gamemap \"%s\"\n", level.changemap);
 	gi.AddCommandString (command);
 	level.changemap = NULL;
 }
@@ -591,29 +595,15 @@ void G_RunFrame (void)
 
 
 // ACEBOT_ADD
-	//if (level.framenum == 1)
-	//	ACESP_RemoveBot("all");
-
 	if (sv_botskill->value < 0.0f) 
-		gi.cvar_set("sv_botskill", "0");
+		gi.cvar_set("sv_botskill", "0.0");
 	else if (sv_botskill->value > 4.0f)
 		gi.cvar_set("sv_botskill", "4.0");
 
 	//run each bot and calc player movement
 	ACEAI_G_RunFrame();
-
-#if HYPOBOTS
-	for (i = 1; i < (int)maxclients->value; i++)
-	{
-		ent = g_edicts + i;
-		if (ent->acebot.is_bot)
-		{		//dont run bots when not ingame
-			if (level.modeset == MATCH || level.modeset == PUBLIC)
-				ACEAI_Think(ent);
-		}
-	}
-#endif
 // ACEBOT_END
+
 
 	//
 	// treat each object in turn
@@ -851,10 +841,13 @@ void G_RunFrame (void)
 // ACEBOT_ADD
 			ACECM_LevelEnd();
 			PrintScoreMatchEnd();
-			ACESP_RemoveBot("all");
-// ACEBOT_END
+			ACESP_RemoveBot("all", false);
 
-			Com_sprintf (command, sizeof(command), "gamemap \"%s\"\n", level.mapname);
+			if (teamplay->latched_string || dm_realmode->latched_string|| sv_hitmen->latched_string)
+				Com_sprintf (command, sizeof(command), "map \"%s\"\n", level.mapname);
+			else
+// ACEBOT_END
+				Com_sprintf (command, sizeof(command), "gamemap \"%s\"\n", level.mapname);
 			gi.AddCommandString (command);
 			return;
 		}

@@ -143,7 +143,7 @@ struct node_s
 	float		last_sight_check;
 	qboolean	last_sight_result;
 // ACEBOT_ADD
-	int type;
+	//int type;
 // ACEBOT_END
 };
 

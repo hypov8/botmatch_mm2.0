@@ -2402,7 +2402,7 @@ void teleporter_touch (edict_t *self, edict_t *other, cplane_t *plane, csurface_
 	}
 
 // ACEBOT_ADD
-	ACEND_PathToTeleporter(other);
+	ACEND_PathMap_ToTeleporter(other);
 // ACEBOT_END
 
 	// unlink to make sure it can't possibly interfere with KillBox
@@ -2413,7 +2413,7 @@ void teleporter_touch (edict_t *self, edict_t *other, cplane_t *plane, csurface_
 	other->s.origin[2] += 10;
 
 // ACEBOT_ADD
-	ACEND_PathToTeleporterDest(other);	//link to teleporter dest
+	ACEND_PathMap_ToTeleporterDest(other);	//link to teleporter dest
 	VectorCopy(other->s.origin, other->acebot.oldOrigin);
 // ACEBOT_END
 

@@ -263,7 +263,7 @@ Hitmenitem_t Hitmenlist[HMLISTITEMS] =
 //*************************************************************************
 
 // Variables and defines go here.
-#define	INI_FILE	"hitmen.ini"
+#define	HM_INI_FILE	"hitmen.ini"
 
 int			HmRandomWeapon		= true; 	// Are the weapons changed randomly
 int			HmSoundWarn			= true; 	// Do we want audible sound before weapon switch
@@ -1057,18 +1057,18 @@ void LoadHitmenWorldIni( void )
 
 	game_dir = gi.cvar ("game", "", 0);
 
-	Com_sprintf(filename, sizeof(filename), "./%s/%s", game_dir->string, INI_FILE);
+	Com_sprintf(filename, sizeof(filename), "./%s/%s", game_dir->string, HM_INI_FILE);
 
 
 	// open the *.ini file
 
 	if ((f = fopen (filename, "r")) == NULL)
 		{
-		gi.dprintf("Unable to read %s. Using defaults.\n", INI_FILE);
+		gi.dprintf("Unable to read %s. Using defaults.\n", HM_INI_FILE);
 		return;
 		}
 
-	gi.dprintf("\nProcessing Hitmen %s.. \n", INI_FILE);
+	gi.dprintf("\nProcessing Hitmen %s.. \n", HM_INI_FILE);
 
 	// read 256 characters or until we get to the eof or a return for a newline.
 

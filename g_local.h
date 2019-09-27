@@ -129,11 +129,11 @@ for(INDEX=1;INDEX<=(int)maxclients->value;INDEX++)\
 #define SCORE_REJOIN		5
 #define SCORE_MAP_VOTE		6
 // ACEBOT_ADD
-#define SCORE_BOT_VOTE		7
-#define SCORE_BOT_ADD		8
-#define SCORE_BOT_REMOVE	9
-#define SCORE_BOT_SKILL		10
-#define SCORE_INITAL_SPEC	11
+#define SCORE_BOT_MENU		7	//main menu
+#define SCORE_BOT_ADD		8	//add bot
+#define SCORE_BOT_REMOVE	9	//remove bot
+#define SCORE_BOT_SKILL		10	//bot skill
+#define SCORE_INITAL_SPEC	11	//
 // ACEBOT_END
 // BEGIN HITMEN
 #define SCORE_STATS			12
@@ -150,7 +150,7 @@ for(INDEX=1;INDEX<=(int)maxclients->value;INDEX++)\
 #define PLAYING				0
 
 // the "gameversion" client command will print this plus compile date
-#define	GAMEVERSION	"Botmatch.v38.M2" //	"MM2.0 +lagless +acebot +hitmen" //hypov8 gamename
+#define	GAMEVERSION	"Botmatch.v38.M4" //	"MM2.0 +lagless +acebot +hitmen" //hypov8 gamename
 
 // protocol bytes that can be directly added to messages
 #define	svc_muzzleflash		1
@@ -415,16 +415,15 @@ typedef struct gitem_s
 
 } gitem_t;
 
-
+// BEGIN HITMEN
+#define	MAXHMWEAPONS	7
+// END
 
 //
 // this structure is left intact through an entire game
 // it should be initialized at dll load time, and read/written to
 // the server.ssv file for savegames
 //
-// BEGIN HITMEN
-#define	MAXHMWEAPONS	7
-// END
 typedef struct
 {
 	gclient_t	*clients;		// [maxclients]
@@ -527,6 +526,8 @@ typedef struct
 // ACEBOT_ADD
 	qboolean bots_spawned; //hypov8 load bots once only while loading players
 	float bot_lastUdate;
+	qboolean scoresCalled; //only show scores once
+	qboolean aceNodesCurupt;
 // ACEBOT_END
 
 } level_locals_t;
@@ -851,6 +852,7 @@ extern	cvar_t	*sv_maxvelocity;
 // ACEBOT_ADD
 //extern cvar_t *sv_botcfg;
 extern cvar_t *sv_botskill;
+extern cvar_t *sv_bot_hunt;
 extern cvar_t *sv_botpath; //hypov8 disable auto path routing
 extern cvar_t *sv_botjump; //stop players creating jump nodes for bots 0=disabled
 extern cvar_t *sv_bot_allow_add; //stops players voting 

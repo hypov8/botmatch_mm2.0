@@ -1067,7 +1067,6 @@ static qboolean ACEMV_MoveToGoal(edict_t *self, usercmd_t *ucmd)
 	// Simple, but effective (could be rewritten to be more accurate)
 	if (strcmp(self->movetarget->classname, "rocket") == 0)
 	{
-
 		if (ACEMV_Attack_Dodge_bySkill(self))
 			ACEMV_MoveDodgeRocket(self, ucmd, false);
 		else
@@ -1082,7 +1081,7 @@ static qboolean ACEMV_MoveToGoal(edict_t *self, usercmd_t *ucmd)
 			else if (ACEMV_CanMove(self, MOVE_RIGHT) && ACEMV_CanMove_Simple(self, MOVE_RIGHT))
 				ucmd->sidemove = BOT_SIDE_VEL;
 		}
-		return true;
+		return true; //explosive
 	}
 	// acebot //hypo change grenade to move back. disable walk forward to?
 	else if (strcmp(self->movetarget->classname, "grenade") == 0)
@@ -1091,7 +1090,6 @@ static qboolean ACEMV_MoveToGoal(edict_t *self, usercmd_t *ucmd)
 			ACEMV_MoveDodgeNad(self, ucmd, false);
 		else
 		{
-
 			self->client->ps.viewangles[2] = 0;
 			VectorSubtract(self->movetarget->s.origin, self->s.origin, self->acebot.move_vector);
 			ACEMV_ChangeBotAngle(self);
@@ -1110,10 +1108,8 @@ static qboolean ACEMV_MoveToGoal(edict_t *self, usercmd_t *ucmd)
 			}
 			else if (ACEMV_CanMove(self, MOVE_LEFT) && ACEMV_CanMove_Simple(self, MOVE_LEFT))
 				ucmd->sidemove = -BOT_SIDE_VEL;
-
-
 		}
-		return true;
+		return true; //explosive
 	}
 	else if (strcmp(self->movetarget->classname, "trigger_push") == 0)
 	{
@@ -1133,16 +1129,13 @@ static qboolean ACEMV_MoveToGoal(edict_t *self, usercmd_t *ucmd)
 		return false; //not explosive
 	}
 	else
-	{		//hypov8 make bot crough if close to cash
-		if (self->movetarget)
+	{	//hypov8 make bot crough if close to cash
+		if (strcmp(self->movetarget->classname, "item_cashroll")==0)
 		{
-			if (strcmp(self->movetarget->classname, "item_cashroll")==0)
-			{
-				float distToTarget = VectorDistance(self->s.origin, self->movetarget->s.origin);
+			float distToTarget = VectorDistance(self->s.origin, self->movetarget->s.origin);
 
-				if (distToTarget <= 32)
-					ucmd->upmove = -400;
-			}
+			if (distToTarget <= 32)
+				ucmd->upmove = -400;
 		}
 
 		// Set bot's movement direction
@@ -1160,7 +1153,7 @@ qboolean ACEMV_CheckLadder(edict_t *self, usercmd_t *ucmd, qboolean isTopOfLadde
 {
 	int i;
 	trace_t tr; // for eyesight
-	qboolean checkDir= false;
+	qboolean checkDir= false, foundSurfaceDir = false;
 	vec3_t dir, forward, right, offset, wall;
 
 	if (!isKnownLadder && !self->acebot.isOnLadder)
@@ -1178,14 +1171,11 @@ qboolean ACEMV_CheckLadder(edict_t *self, usercmd_t *ucmd, qboolean isTopOfLadde
 
 	if (isKnownLadder || checkDir||self->acebot.isOnLadder)
 	{
-		qboolean foundSurfaceDir = false;
-
 		for (i = 0; i <= 3; i++)
 		{
-			vec3_t minx = { -2, -2, -22 };
+			vec3_t target, minx = { -2, -2, -22 };
 			vec3_t maxx = { 2, 2, 48 };
-			vec3_t angles;
-			vec3_t target;
+
 			VectorCopy(self->s.origin, target);
 			switch (i)
 			{
@@ -1198,11 +1188,10 @@ qboolean ACEMV_CheckLadder(edict_t *self, usercmd_t *ucmd, qboolean isTopOfLadde
 			tr = gi.trace(self->s.origin, minx, maxx, target, self, CONTENTS_SOLID | CONTENTS_LADDER);
 			if (tr.contents & CONTENTS_LADDER)
 			{ //face ladder
-				VectorSubtract(target, self->s.origin, self->acebot.move_vector);
-				vectoangles(self->acebot.move_vector, angles);
-				VectorCopy(angles, self->s.angles);
 				foundSurfaceDir = true;
-				ACEMV_ChangeBotAngle(self);
+				VectorSubtract(target, self->s.origin, self->acebot.move_vector);
+				vectoangles(self->acebot.move_vector, self->s.angles);
+				VectorNormalize(self->acebot.move_vector);
 				break;
 			}
 		}
@@ -1230,8 +1219,6 @@ qboolean ACEMV_CheckLadder(edict_t *self, usercmd_t *ucmd, qboolean isTopOfLadde
 	}
 
 	return false; //trace null
-
-
 }
 
 
@@ -1397,7 +1384,7 @@ void ACEMV_Move(edict_t *self, usercmd_t *ucmd)
 					vec3_t up = { 0.0, 0.0, 1.0 };
 
 					//check crate/dist. if close. dont jump full height so next jump will be grounded
-					if (dist > 32 && height < 32)	height = 60;		
+					if (dist > 32 /*&& height < 32*/)	height = 60;		
 					if (height > 80)	height = 80;//max crate jump is 60. add a little more just incase
 
 					if (dist < 128)		dist =128;
@@ -1416,12 +1403,20 @@ void ACEMV_Move(edict_t *self, usercmd_t *ucmd)
 				}
 				else // traveling in air to goal.
 				{
-					if (dist >48)
+					if (dist >32)
 					{	//dont look at close nodes
 						VectorSubtract(nodes[self->acebot.node_next].origin, self->s.origin, self->acebot.move_vector);
 						VectorNormalize(self->acebot.move_vector);
 						vectoangles(self->acebot.move_vector, self->s.angles);
-					ucmd->forwardmove = BOT_FORWARD_VEL;
+						ucmd->forwardmove = BOT_FORWARD_VEL;
+					}
+					//else//slow bot down if we can land on node
+					{
+					//	vec3_t moveDist;
+					//	VectorSubtract(nodes[self->acebot.node_next].origin, self->s.origin, moveDist);
+					//	VectorNormalize(moveDist);
+					//	self->velocity[0] = moveDist[0] * dist;
+					//	self->velocity[1] = moveDist[1] * dist;
 					}
 
 
@@ -1484,16 +1479,14 @@ void ACEMV_Move(edict_t *self, usercmd_t *ucmd)
 
 				trace = gi.trace(self->s.origin, self->mins, self->maxs, moveTO, self, MASK_BOT_SOLID_FENCE | CONTENTS_LADDER);
 				if (trace.fraction == 1.0f && !trace.allsolid /*&& !trace.startsolid*/) //double check our destintion. old maps..
-				{//note startsolid failing... why!!!
+				{//note startsolid failing... why?
 					self->s.origin[0] = moveTO[0];
 					self->s.origin[1] = moveTO[1];
 				}
 #if HYPODEBUG
 				else
-					gi.dprintf("ERROR Bot caught in void\n" );
-
+					gi.dprintf("ERROR: Bot trace failed on ladder\n" );
 #endif
-
 			}
 		}
 
@@ -1516,7 +1509,11 @@ void ACEMV_Move(edict_t *self, usercmd_t *ucmd)
 #else
 			ucmd->upmove = BOT_JUMP_VEL;
 			ucmd->forwardmove = BOT_FORWARD_VEL *0.75;
-			ACEMV_ChangeBotAngle(self);
+			//turn to ladder immediately!!
+			VectorSubtract(nodes[self->acebot.node_next].origin, self->s.origin, self->acebot.move_vector);
+			vectoangles(self->acebot.move_vector, self->s.angles);//angles
+			VectorNormalize(self->acebot.move_vector);
+			//ACEMV_ChangeBotAngle(self);
 			return;
 #endif
 		}
@@ -1536,12 +1533,10 @@ void ACEMV_Move(edict_t *self, usercmd_t *ucmd)
 			}
 			else//move only forward
 			{
-				vec3_t angles;
 				ucmd->forwardmove = BOT_FORWARD_VEL;
 				VectorSubtract(nodes[self->acebot.node_next].origin, self->s.origin, self->acebot.move_vector);
-				vectoangles(self->acebot.move_vector, angles);
-				VectorCopy(angles, self->s.angles);
-				ACEMV_ChangeBotAngle(self);
+				vectoangles(self->acebot.move_vector, self->s.angles);//angles
+				VectorNormalize(self->acebot.move_vector);
 			}
 		}
 		return;
@@ -1564,14 +1559,14 @@ void ACEMV_Move(edict_t *self, usercmd_t *ucmd)
 
 	}
 	
-	// Falling off ledge? //hypov8 or on ladder
+	// Falling off ledge? //hypov8 or on ladder //or landing from jump node
 	if (!self->groundentity && !self->acebot.isMovingUpPushed)
 	{
 
 		if (!ACEMV_CheckLadder(self, ucmd, false, false))
 		{
-			//if (self->acebot.node_next != INVALID)
-				//VectorSubtract(nodes[self->acebot.node_next].origin, self->s.origin, self->acebot.move_vector);
+			if (self->acebot.node_next != INVALID)
+				VectorSubtract(nodes[self->acebot.node_next].origin, self->s.origin, self->acebot.move_vector);
 
 			ACEMV_ChangeBotAngle(self);
 			self->velocity[0] = self->acebot.move_vector[0] * 360;
@@ -1902,6 +1897,88 @@ void ACEMV_BotTaunt(edict_t *self, edict_t *enemy)
 }
 
 
+void ACEMW_SpawnOrigin(vec3_t v)
+{
+#if HYPODEBUG //defined in project DEBUG
+	edict_t *ent;
+
+	//if (!debug_mode)
+	//	return;
+
+	ent = G_Spawn();
+	ent->movetype = MOVETYPE_NONE;
+	ent->solid = SOLID_NOT;
+
+	ent->s.effects = (EF_COLOR_SHELL||EF_ROTATE);
+	ent->s.renderfx2 = RF2_NOSHADOW;
+	ent->s.renderfx = RF_FULLBRIGHT;
+
+	ent->s.skinnum = 8;
+
+	ent->model = "models/bot/tris.md2";
+	ent->s.modelindex = gi.modelindex(ent->model);
+	ent->nextthink = level.time + 0.5;//localnode
+	ent->think = G_FreeEdict;                
+	ent->dmg = 0;
+
+	VectorCopy(v,ent->s.origin);
+	gi.linkentity (ent);
+#endif
+}
+
+
+
+void ACEMV_Attack_RL_Predict(edict_t *self, edict_t *enemy)
+{
+	vec3_t  offset ;
+	float range;
+
+	VectorClear(offset);
+
+	if (self->client->pers.weapon)
+	{
+		if ((Q_stricmp(self->client->pers.weapon->classname, "weapon_bazooka") == 0))
+		{
+			// Get distance.
+			range = VectorDistance(enemy->s.origin, self->s.origin);
+
+			if (range >= 300)
+			{
+				//predict player movement
+				vec3_t out, velFlat, vDist, minx = { -8, -8, -8 }, maxx = { 8, 8, 8 };
+				trace_t trace;
+				float skill = self->acebot.botSkillCalculated * .25; //0-1
+				float move = (range / 901) * skill;
+
+				VectorCopy(enemy->velocity, velFlat);
+				//player jumping?
+				if (velFlat[2] > -200.0f && velFlat[2] < 350.0f)
+					velFlat[2] = 0.0f;
+
+				VectorScale(velFlat, move, vDist);
+				VectorAdd(enemy->s.origin, vDist, out);
+
+				trace = gi.trace(enemy->s.origin, minx, maxx, out, self, MASK_BOT_ATTACK_NONLEAD);
+				if (trace.fraction != 1.0f)
+				{	//run into wall?
+					move *= trace.fraction;
+					VectorScale(vDist, move, vDist);
+					VectorAdd(enemy->s.origin, vDist, out);
+				}
+				VectorCopy(vDist, offset);
+
+				//spawn a temp node for testing		
+				ACEMW_SpawnOrigin(out);
+			}
+			offset[2] -= 24; //additional aim at ground
+		}
+	}
+
+
+	VectorCopy(offset, self->acebot.enemyRL_Offset);
+}
+
+
 static void ACEMV_Attack_AimRandom(edict_t *self)
 {
 	//inverse skill 1.0 to 0.0 (0.0 more accurate)
@@ -1911,51 +1988,54 @@ static void ACEMV_Attack_AimRandom(edict_t *self)
 	edict_t *enemy;
 	qboolean hunt = false;
 
-	if (self->enemy == NULL)
+	//skill = (skill*0.875)+0.125;  // 1.0 to 0.125
+
+	if (self->enemy == NULL) //hypov8 todo: get current state
 	{
-		if (self->acebot.new_target > 0)
+		if (self->acebot.enemyID_old > 0)
 		{
-			enemy = g_edicts + self->acebot.new_target;
+			enemy = g_edicts + self->acebot.enemyID_new;
 			hunt = enemy->acebot.is_hunted;
 			VectorCopy(enemy->velocity, velTmp);
 		}
 		else
-			return;//this should never happen!!!! but it does!! bug mostly fixed
+			return;	//enemy is probly dead
 	}
 	else{
 		hunt = self->enemy->acebot.is_hunted;
 		VectorCopy(self->enemy->velocity, velTmp);
 	}
 
-	if (hunt)
+
+	if (hunt && (int)sv_bot_hunt->value)
 		self->acebot.bot_accuracy = 0; //no randomness for top players
 	else
 	{
+		static const float bodyWidth = 6; //always maintain this distance
+		static const float max = 20; //close accuracy. lowers with dist
+		static const float metr = 600; //falloff
 		// Get distance.
+		range = VectorDistance(self->acebot.enemyOrigin, self->s.origin);
 		// the closer the distance, the more accurate..
 		// so we make it less accurate the closer we get
-		range = VectorDistance(self->acebot.enemyOrigin, self->s.origin);
-		disAcc = (25 - ((range / 800) * 25)) + 16;
+		if (range > metr)
+			range = metr;
+		disAcc = (max - ((range / metr) * max)) + bodyWidth;
 
 		ran = crandom();
-		//if (ran > -0.15 && ran < 0.15)
-		//	ran = crandom(); //2nd try at less accurecy
 
 
 #if 1 //HYPODEBUG
 		//get enemy speed
-		velTmp[2] = 0;
 		vel = (float)VectorLength(velTmp);
-		if (vel < 100)	
-			skill *= .5;
-		else if (vel < 150)	
-			skill *= .75;
+		if (vel < 100)		skill *= .5;
+		else if (vel < 150)	skill *= .75;
+		//velTmp[2] = 0;(debug)
 #endif
 		rand_y = skill * ran;
 
 		if (self->onfiretime > 0)
 			disAcc *= 2;
-			//rand_y *= 2;
 
 		if (Q_stricmp(self->client->pers.weapon->classname, "weapon_flamethrower") == 0)//hypov8 todo: check NULL
 			disAcc *= 1.5;//less skill for flammer
@@ -1966,24 +2046,27 @@ static void ACEMV_Attack_AimRandom(edict_t *self)
 
 void ACEMV_Attack_AimRandom_offset(edict_t *self, vec3_t aimdir)
 {
-	vec3_t v, v2, viewH;
+	vec3_t v, v2,  botOrigin, enemyOrigin;
+	edict_t *enemy;
 
+	if (self->acebot.enemyID_old < 1)//posibly dead?
+		return;
 
+	enemy = g_edicts + self->acebot.enemyID_old;
+	
+	VectorCopy(self->s.origin,botOrigin);
+	VectorCopy( enemy->s.origin, enemyOrigin);
 
-#if 0// HYPODEBUG
-	if (debug_mode && !debug_mode_origin_ents)
-	{
-		float range;
-		// Get distance.
-		range = VectorDistance(self->acebot.enemyOrigin, self->s.origin);
-		gi.dprintf("Bot range=%f acc=%f  \n", range, self->acebot.bot_accuracy);
-	}
-#endif
+	//VectorCopy( self->acebot.enemyOrigin, enemyOrigin);buggy!!!
 
-	VectorCopy(self->s.origin, viewH);
-	//viewH[2] += self->viewheight;
+	//predict rockets
+	ACEMV_Attack_RL_Predict(self, enemy);
+	VectorAdd(enemyOrigin, self->acebot.enemyRL_Offset, enemyOrigin);
 
-	VectorSubtract(self->acebot.enemyOrigin, viewH, v2);
+	//offset rocket height. legs..
+	enemyOrigin[2] += self->acebot.enemyOriginZoffset;
+
+	VectorSubtract(enemyOrigin, botOrigin, v2);
 	vectoangles(v2, v);
 
 	v[YAW] += self->acebot.bot_accuracy;
@@ -1994,60 +2077,12 @@ void ACEMV_Attack_AimRandom_offset(edict_t *self, vec3_t aimdir)
 
 	AngleVectors(v, v2, NULL, NULL);
 	VectorCopy(v2, aimdir);
-
-
-
 }
 
 //add hypov8
 //random bullet dir. stops bot view being jerky
 void ACEMV_Attack_CalcRandDir(edict_t *self, vec3_t aimdir)
 {
-#if 0
-	vec3_t		aimDir, dir;
-	vec3_t		forward, right, up;
-	vec3_t		end;
-	float		r;
-	float hspread = 500;
-	float vspread = 50;
-	float		u;
-	edict_t *enemy;
-	qboolean hunt = false;
-
-	if (self->enemy == NULL)
-	{
-		if (self->acebot.new_target > 0)
-		{
-			enemy = g_edicts + self->acebot.new_target;
-			hunt = enemy->acebot.is_hunted;
-		}
-		else
-			return;
-	}
-	else
-		hunt = self->enemy->acebot.is_hunted;
-
-	VectorSubtract(self->acebot.enemyOrigin, self->s.origin, aimDir);
-
-	vectoangles (aimDir, dir);
-	AngleVectors (dir, forward, right, up);
-
-	if (hunt){
-		r = 0.0;
-		//u = 0.0;
-	}
-	else{
-		r = crandom()*hspread;
-		u = crandom()*vspread;
-	}
-
-	VectorMA (self->s.origin, 8192, forward, end);
-	VectorMA (end, r, right, end);
-	VectorMA (end, u, up, end);
-
-	VectorNormalize(end);
-	VectorCopy( end,aimdir);
-#endif
 	//random aim
 	ACEMV_Attack_AimRandom(self);
 	ACEMV_Attack_AimRandom_offset(self, aimdir); //flammer just do view offset
@@ -2062,9 +2097,63 @@ static void ACEMV_Attack_Dodge(edict_t *self, usercmd_t *ucmd)
 	qboolean strafeDir;
 	static const int frames = 5;
 	float skill = self->acebot.botSkillCalculated;
+	qboolean is_hunted = self->enemy->acebot.is_hunted;
+	
+	// must still have pistol
+	if (!(int)sv_hitmen->value && 
+		(self->acebot.num_weps <= 2 || (self->client->pers.weapon && !strcmp(self->client->pers.weapon->classname, "weapon_pistol"))) )
+	{
+		if (self->movetarget && strncmp(self->movetarget->classname, "weapon_", 7) == 0 && self->enemy)
+		{
+			float ang;
+			vec3_t enmy, enemy_ang, item, item_ang;
+			VectorSubtract(self->enemy->s.origin, self->s.origin, enmy);
+			VectorSubtract(self->movetarget->s.origin, self->s.origin, item);
+			vectoangles(enmy, enemy_ang);
+			vectoangles(item, item_ang);
+			ang = AngleDiff(enemy_ang[YAW], item_ang[YAW]);
+#if HYPODEBUG
+			if (!self->enemy->acebot.is_bot)
+				safe_bprintf (PRINT_CHAT, "GOING TO WEAPON %s\n",self->movetarget->classname );
+#endif
+				
+			// forward
+			if (ang > -75 && ang < 75) //walk forward more oftern
+			{
+				if (ACEMV_CanMove_Simple(self, MOVE_FORWARD))
+					ucmd->forwardmove = BOT_FORWARD_VEL;
+				else if (ACEMV_CanMove_Simple(self, MOVE_BACK))
+					ucmd->forwardmove = -BOT_FORWARD_VEL;
+			}//back
+			else if (ang < -130 || ang >130)
+			{
+				if (ACEMV_CanMove_Simple(self, MOVE_BACK))
+					ucmd->forwardmove = -BOT_FORWARD_VEL;
+				else if (ACEMV_CanMove_Simple(self, MOVE_FORWARD))
+					ucmd->forwardmove = BOT_FORWARD_VEL;
+			}
+
+			// right
+			if (ang > 40 && ang < 140)
+			{
+				if (ACEMV_CanMove_Simple(self, MOVE_LEFT))
+					ucmd->sidemove = -BOT_SIDE_VEL;
+				else if (ACEMV_CanMove_Simple(self, MOVE_RIGHT))
+					ucmd->sidemove = BOT_SIDE_VEL;
+			}// left
+			else if (ang < -40 && ang >-140)
+			{
+				if (ACEMV_CanMove_Simple(self, MOVE_RIGHT))
+					ucmd->sidemove = BOT_SIDE_VEL;
+				else if (ACEMV_CanMove_Simple(self, MOVE_LEFT))
+					ucmd->sidemove = -BOT_SIDE_VEL;
+			}
+			return;
+		}
+	}
 
 	//stop strafe with low skill
-	if (skill <= 3)	
+	if (skill <= 3 && ! is_hunted)	
 	{
 		float c;
 		skill *= .25; //0 to 1
@@ -2099,7 +2188,7 @@ static void ACEMV_Attack_Dodge(edict_t *self, usercmd_t *ucmd)
 	}
 
 #if 1
-	if (self->movetarget && self->movetarget->owner == self->enemy && ACEMV_Attack_Dodge_bySkill(self))
+	if (self->movetarget && self->movetarget->owner == self->enemy && ( is_hunted|| ACEMV_Attack_Dodge_bySkill(self)))
 	{
 		if (strcmp(self->movetarget->classname, "rocket") == 0)
 		{
@@ -2200,44 +2289,6 @@ static void ACEMV_Attack_Dodge(edict_t *self, usercmd_t *ucmd)
 
 }
 
-void ACEMW_SpawnOrigin(vec3_t v)
-{
-	edict_t *ent;
-
-#ifndef HYPODEBUG //defined in project DEBUG
-	if (dedicated->value)
-		return;
-#endif
-
-	//if (!debug_mode)
-	//	return;
-
-
-	ent = G_Spawn();
-
-	ent->movetype = MOVETYPE_NONE;
-	ent->solid = SOLID_NOT;
-
-	ent->s.effects = (EF_COLOR_SHELL||EF_ROTATE);
-	ent->s.renderfx2 = RF2_NOSHADOW;
-	ent->s.renderfx = RF_FULLBRIGHT;
-
-	ent->s.skinnum = 8;
-
-	ent->model = "models/bot/tris.md2";
-	ent->s.modelindex = gi.modelindex(ent->model);
-
-
-
-	ent->nextthink = level.time + 0.5;//localnode
-	ent->think = G_FreeEdict;                
-	ent->dmg = 0;
-
-	VectorCopy(v,ent->s.origin);
-	gi.linkentity (ent);
-
-}
-
 
 
 
@@ -2257,13 +2308,6 @@ void ACEMV_Attack (edict_t *self, usercmd_t *ucmd)
 	qboolean grenad = false;
 	qboolean flameGun = false;
 
-// BEGIN HITMEN
-	if (sv_hitmen->value /*enable_hitmen*/)
-		ACEAI_ResetLRG_HM(self); //attack instead of going to goal
-// END
-
-	//setup dodge
-	//ACEMV_Attack_Dodge(self, ucmd); //hypov8 meved down. after we look at enemy
 
 	//hypov8 taunt
 	if (self->acebot.tauntTime < level.framenum)
@@ -2273,6 +2317,7 @@ void ACEMV_Attack (edict_t *self, usercmd_t *ucmd)
 		ACEMV_BotTaunt(self, self->enemy);
 		self->acebot.tauntTime = level.framenum + (100+ (c *skill * 300)); 
 	}
+
 
 	//on hook while attacking
 	if (self->client->hookstate != 0 &&
@@ -2292,82 +2337,27 @@ void ACEMV_Attack (edict_t *self, usercmd_t *ucmd)
 		}
 	}
 	
+
 	// Set the attack 
 	ucmd->buttons = BUTTON_ATTACK;
 	
 	// Location to Aim at
-	VectorCopy(self->enemy->s.origin,target);
-	//target[2] -= 8; //move down some for recoil
+	VectorCopy(self->enemy->s.origin, target);
+	//target[2] -= 8; //move down some for recoil?
 
 	// Get distance.
 	range = VectorDistance(target, self->s.origin);
 
-#if 0	//ATTACK RANDOM
-	{	
-		float rand_xy, skillMove_xy, disAcc;
-		float ran = (random() - 0.5);
-
-		// closer the distance, the more accurate
-		if (range < 120)		disAcc = 10;
-		else if (range < 200)	disAcc = 20;
-		else if (range < 350)	disAcc = 30;
-		else if (range < 550)	disAcc = 40;
-		else if (range < 750)	disAcc = 50;
-		else					disAcc = 60;
-
-		rand_xy = (4 * ran) - (sv_botskill->value * ran);
-		skillMove_xy = (4 * disAcc) - (sv_botskill->value * disAcc);
-
-		if (self->onfiretime > 0)
-			skillMove_xy += (disAcc* 0.75);
-
-		if (self->enemy->acebot.is_hunted)
-			skillMove_xy = 1;
-
-		//modify attack angles based on accuracy (mess this up to make the bot's aim not so deadly)
-		target[0] += rand_xy * skillMove_xy;
-		target[1] += rand_xy * skillMove_xy;
-	}
-#endif	//end ATTACK RANDOM
 
 #if 1 // hypov8 special movement for crouch enemy and using GL/RL
-	
 	if (self->client->pers.weapon)
 	{
 		if ((Q_stricmp(self->client->pers.weapon->classname, "weapon_bazooka") == 0))
 		{
-			if (range >= 300)
-			{
-				//predict player movement
-				vec3_t out, velFlat, minx = {-8,-8,-8}, maxx = {8,8,8};
-				trace_t trace;
-				float skill = self->acebot.botSkillCalculated * .25; //0-1
-				float move = (range/901) * skill;
-
-				VectorCopy(self->enemy->velocity, velFlat);
-				//player jumping?
-				if (velFlat[2] > -200.0f && velFlat[2] < 350.0f)
-					velFlat[2] = 0.0f;
-
-				VectorScale(velFlat, move, velFlat);
-				VectorAdd(self->enemy->s.origin, velFlat,out);
-
-				trace= gi.trace(self->enemy->s.origin, minx, maxx, out, self, MASK_BOT_ATTACK_NONLEAD);
-				if (trace.fraction != 1.0f)
-				{	//run into wall?
-					move *= trace.fraction;
-					VectorScale(velFlat, move, velFlat);
-					VectorAdd(self->enemy->s.origin, velFlat,out);
-				}
-
-				VectorCopy(out,target);
-				ACEMW_SpawnOrigin(target);			
-			}
-
-
 			if (self->acebot.aimLegs)	{
 				boozooka = true;
 				target[2] -= 32; //hypov8 move bots aim at feet (72 kp)
+				self->acebot.enemyOriginZoffset = -32;
 			}
 
 			if (range < 80)	{
@@ -2375,21 +2365,27 @@ void ACEMV_Attack (edict_t *self, usercmd_t *ucmd)
 					ucmd->forwardmove -= BOT_FORWARD_VEL;
 				ucmd->buttons = 0;
 			}
+			//set aim hieght
+			//predict aim ahead
+			//ACEMV_Attack_RL_Predict(self, self->enemy);
+			//VectorAdd(target, self->acebot.enemyRL_Offset, target);
+
 		}
 		else if ((Q_stricmp(self->client->pers.weapon->classname, "weapon_grenadelauncher") == 0))
 		{
-			float range;
-			vec3_t v;
-			VectorSubtract(self->enemy->s.origin, self->s.origin, v);
-			range = VectorLength(v);
+			int offset=0;
+
 			if (range >=300) 
-				target[2] += 100;
+				offset = 100;
 			else if (range <150)
-				target[2] -= 50;
+				offset = -50;
 			else if (range <80)
-				target[2] -= 70;
+				offset = -70;
 			else if (range <40)
-				target[2] -= 90;
+				offset = -90;
+
+			target[2] += offset;
+			self->acebot.enemyOriginZoffset = offset;
 
 			grenad = true;
 		}
@@ -2452,10 +2448,14 @@ void ACEMV_Attack (edict_t *self, usercmd_t *ucmd)
 	//move aim down if player is crouch. not for RL or GL
 	if (!boozooka && !grenad)
 	{
-		if ((self->enemy->client->ps.pmove.pm_flags & PMF_DUCKED) && !self->acebot.aimLegs)
+		if ((self->enemy->client->ps.pmove.pm_flags & PMF_DUCKED) && !self->acebot.aimLegs){
 			target[2] -= 28; //hypov8 move bots aim down todo: check fence???
-		else if (self->acebot.aimLegs)
+		self->acebot.enemyOriginZoffset = -28;
+	}
+		else if (self->acebot.aimLegs){
 			target[2] -= 36; //player obstructed with something above legs
+			self->acebot.enemyOriginZoffset = -36;
+		}
 	}
 
 
@@ -2464,11 +2464,12 @@ void ACEMV_Attack (edict_t *self, usercmd_t *ucmd)
 
 	if (flameGun)
 	{
-		vec3_t fDir;
+		//vec3_t fDir;
 		if (self->acebot.flame_frameNum < level.framenum)
 		{
 			self->acebot.flame_frameNum = level.framenum + 20;
-			ACEMV_Attack_CalcRandDir(self, fDir);
+			//ACEMV_Attack_CalcRandDir(self, fDir);
+			ACEMV_Attack_AimRandom(self);
 		}
 
 		VectorSubtract(self->acebot.enemyOrigin, self->s.origin, self->acebot.move_vector);
@@ -2485,6 +2486,7 @@ void ACEMV_Attack (edict_t *self, usercmd_t *ucmd)
 
 	//setup dodge
 	ACEMV_Attack_Dodge(self, ucmd); //hypov8 moved down here
+
 #if 0
 	//set aim dir, compensate for movement. todo not needed anymore??
 	{
@@ -2537,9 +2539,11 @@ void ACEMV_Attack (edict_t *self, usercmd_t *ucmd)
 		ucmd->sidemove = 0;
 	}
 
+	//if (self->acebot.)
+
 	if (self->client->hookstate == 0) //if not on hook
 	{
-			//add hypov8. try to stop bots being jerky after target is dead
+		//add hypov8. try to stop bots being jerky after target is dead
 		if (self->acebot.isChasingEnemy)
 			ACEAI_Reset_Goal_Node(self, 1.0, "Found Enemy. Stop Chasing");
 		else
@@ -2547,6 +2551,6 @@ void ACEMV_Attack (edict_t *self, usercmd_t *ucmd)
 	}
 
 	self->acebot.isChasingEnemy = false;
-	self->acebot.chaseEnemyFrame = 0;
+	self->acebot.enemyChaseFrame = 0;
 
 }

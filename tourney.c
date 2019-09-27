@@ -94,10 +94,8 @@ void MatchSetup () // Places the server in prematch mode
 	level.intermissiontime = 0;
 
 // ACEBOT_ADD
-	//num_players = 0;
 	botsRemoved = 0;
-	//num_bots = 0;
-	ACESP_RemoveBot("all");
+	ACESP_RemoveBot("all", false);
 	level.bots_spawned = false;
 // ACEBOT_END
 
@@ -153,10 +151,11 @@ qboolean ResetServer (qboolean ifneeded) // completely resets the server includi
 		)
 		return false;
 
-//hitmen
+// BEGIN HITMEN
 	if (enable_hitmen)
 		sv_hitmen =	gi.cvar_set("hitmen", "1");
-//end
+// END
+
 	if (default_teamplay[0])
 		gi.cvar_set("teamplay", default_teamplay);
 	if (default_dm_realmode[0])
@@ -187,9 +186,7 @@ void MatchStart()  // start the match
 	edict_t		*ent;
 
 	// ACEBOT_ADD
-	//num_players = 0;
 	botsRemoved = 0;
-	//num_bots = 0;
 	level.bots_spawned = false;
 	// ACEBOT_END	
 		
@@ -209,7 +206,7 @@ void MatchStart()  // start the match
 	{
 // ACEBOT_ADD
 		if (ent->acebot.is_bot){
-			ACESP_RemoveBot(ent->client->pers.netname); //disco
+			ACESP_RemoveBot(ent->client->pers.netname, false); //disco
 			continue;
 		}
 // ACEBOT_END
@@ -470,10 +467,9 @@ void CheckIdleMatchSetup () // restart the server if its empty in matchsetup mod
 
 // ACEBOT_ADD
 	level.bots_spawned = 0;
-	//num_players = 0;
 	botsRemoved = 0;
-	//num_bots = 0;
 // ACEBOT_END
+
 	for_each_player_not_bot(doot, i)
 	{ //hypov8 bots count??
 		count++;

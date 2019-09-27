@@ -292,7 +292,7 @@ void	ServerCommand (void)
 	else if (Q_stricmp(cmd, "addbot") == 0)
 		ACECM_BotAdd(gi.argv(2), gi.argv(3), gi.argv(4), gi.argv(5)); //add skill
 	else if (Q_stricmp(cmd, "removebot") == 0 || Q_stricmp(cmd, "removebots") == 0)
-		ACESP_RemoveBot(gi.argv(2));
+		ACESP_RemoveBot(gi.argv(2), true);
 	else if (Q_stricmp(cmd, "savenodes") == 0 || Q_stricmp(cmd, "savenode") == 0)
 		ACEND_SaveNodes();
 // ACEBOT_END

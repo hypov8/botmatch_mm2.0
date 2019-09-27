@@ -113,7 +113,7 @@
       <AdditionalDependencies>winmm.lib;navlib\navlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>.\game.def</ModuleDefinitionFile>
       <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
-      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
       <AssemblyDebug>false</AssemblyDebug>
       <TurnOffAssemblyGeneration>true</TurnOffAssemblyGeneration>
       <GenerateMapFile>

@@ -744,27 +744,17 @@ void ED_CallSpawn (edict_t *ent)
 	}
 
 	// BEGIN Hitmen
-	if (sv_hitmen->value /*enable_hitmen*/){
+	if (sv_hitmen->value /*enable_hitmen*/)
+	{
 		// Remove all weapons, mods and ammo from the game.
 		if ((!strncmp(ent->classname, "weapon_", 7)) || (!strncmp(ent->classname, "ammo_", 5))
 			|| (!strncmp(ent->classname, "item_health_", 12))|| (!strncmp(ent->classname, "pistol_mod_", 11))			)
 			if (ent->model)
-			{
 				ent->classname = "misc_model"; //add hypov8 fix for map q3dm1_hellgate etc..
-			}
 			else
 				return;
 	}
-
-
-
 	// END
-#if HYPODEBUG
-	if ((!strncmp(ent->classname, "weapon_", 7)) )
-		ent->classname = "weapon_bazooka";
-		//ent->classname = "weapon_heavymachinegun";
-
-#endif
 
 
 	if (!Q_stricmp( ent->classname, "weapon_barmachinegun" ))
@@ -781,9 +771,13 @@ void ED_CallSpawn (edict_t *ent)
 		ent->classname = "hmg_mod_cooling";
 
 
-#if 0// HYPODEBUG //test bot aim per weapon
+#if  HYPODEBUG //test bot aim per weapon
 	if (strncmp(ent->classname, "weapon_", 7) == 0)
-		ent->classname = "weapon_spistol"; //"weapon_flamethrower";
+		ent->classname = "weapon_bazooka"; 
+	//"weapon_flamethrower"
+	//"weapon_heavymachinegun"
+	//"weapon_spistol"
+	//"weapon_shotgun"
 #endif
 
 
@@ -1694,7 +1688,7 @@ char *teamplay_statusbar =
 "	yt	150 "
 "	string \"Time\" "
 
-"	yt	13`5 "
+"	yt	135 "
 "	xr	-53 "
 "	num 3 23 "
 "endif "

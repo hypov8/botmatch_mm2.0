@@ -82,7 +82,7 @@ static qboolean ACEAI_CheckNonLeadShot(edict_t *self, qboolean isRocket)
 	if (!self->enemy)
 		return false; //double check
 
-	self->acebot.aimLegs = 0;
+	//self->acebot.aimLegs = 0;
 
 	VectorCopy(self->s.origin, eyes);	// bots eyes
 	eyes[2] += self->viewheight;
@@ -100,10 +100,10 @@ static qboolean ACEAI_CheckNonLeadShot(edict_t *self, qboolean isRocket)
 	//check rocket(lower) first, then upper, then lower as last resort
 	if (tr_lower.fraction == 1.0 || tr_upper.fraction == 1.0)
 	{
-		if (isRocket && tr_lower.fraction == 1.0)
+		/*if (isRocket && tr_lower.fraction == 1.0)
 			self->acebot.aimLegs = 1;
 		else if (tr_upper.fraction != 1.0 && tr_lower.fraction == 1.0)
-			self->acebot.aimLegs = 1;
+			self->acebot.aimLegs = 1;*/
 
 		return true;
 	}
@@ -139,6 +139,7 @@ static char* ACEAI_Randwep(int index, int type)
 			case 5: return "FlameThrower";
 			}
 		}
+	default:
 	case 2:
 		{
 			switch (type)
@@ -152,6 +153,8 @@ static char* ACEAI_Randwep(int index, int type)
 			}
 		}
 	}
+
+
 }
 
 
@@ -325,6 +328,16 @@ qboolean ACEAI_InfrontBot(edict_t *self, edict_t *other)
 	float	dot;
 	vec3_t	forward;
 
+	//look in 360 deg if pistol
+	if (!(int)sv_hitmen->value 
+		&& 	(self->acebot.num_weps <= 2 || (self->client->pers.weapon && !strcmp(self->client->pers.weapon->classname, "weapon_pistol")) ) 
+		)
+	{
+		if (strncmp(other->classname, "weapon_", 7) == 0)
+			return true;
+	}
+
+
 	//hypov8 make safe/cash look in 360 deg
 	if (strcmp(other->classname, "item_cashroll") == 0
 		|| strcmp(other->classname, "item_cashbagsmall") == 0
@@ -344,61 +357,6 @@ qboolean ACEAI_InfrontBot(edict_t *self, edict_t *other)
 }
 
 
-static void ACEAI_PickShortRangeGoal_HM(edict_t *self)
-{
-	edict_t *target;
-	float weight, best_weight = 0.0;
-	edict_t *best = NULL;
-	int index;
-
-	// look for a target (should make more efficent later)
-	target = findradius(NULL, self->s.origin, 200);
-	while (target)
-	{
-		if (target->classname == NULL)
-			return;
-
-		// Missle avoidance code
-		// Set our movetarget to be the rocket or grenade fired at us. 
-		if (strcmp(target->classname, "rocket") == 0)
-		{
-			if (ACEAI_InfrontBot(self, target)){
-				self->movetarget = target;//hypov8 todo: timeout loop
-				return;
-			}
-		}
-
-		if ( strcmp(target->classname, "grenade") == 0)
-		{
-			self->movetarget = target;//hypov8 todo: timeout loop
-			return;
-		}
-
-
-		if (ACEIT_IsReachable(self, target->s.origin) && target->solid != SOLID_NOT)
-		{
-			if (ACEAI_InfrontBot(self, target))
-			{
-				index = ACEIT_ClassnameToIndex(target->classname, target->style); //hypov8 add safe styles
-				weight = ACEIT_ItemNeed(self, index, target->timestamp, target->spawnflags);
-
-				if (weight > best_weight)
-				{
-					best_weight = weight;
-					best = target;
-				}
-			}
-		}
-
-		// next target
-		target = findradius(target, self->s.origin, 200); //true=bot
-	}
-
-
-
-}
-
-
 ///////////////////////////////////////////////////////////////////////
 // Pick best goal based on importance and range. This function
 // overrides the long range goal selection for items that
@@ -410,9 +368,29 @@ static void ACEAI_PickShortRangeGoal(edict_t *self)
 	float weight, best_weight = 0.0;
 	edict_t *best = NULL;
 	int index;
+	int lookDist = 200;
+
+
+
+	//hypov8 add. stop bots trying to get SRG if on ladder
+	if (self->acebot.isOnLadder)	
+	{
+		self->acebot.SRGoal_frameNum = level.framenum + 10;
+		self->movetarget = NULL;
+		return;
+	}
+	if (self->acebot.SRGoal_frameNum > level.framenum)
+		return;
+
+	//look further if we just spawned or attacking
+	if (!(int)sv_hitmen->value && 
+		(self->acebot.num_weps <= 2|| (self->client->pers.weapon && !strcmp(self->client->pers.weapon->classname, "weapon_pistol"))))
+	{
+		lookDist = 512;
+	}
 
 	// look for a target (should make more efficent later)
-	target = findradius(NULL, self->s.origin, 200);
+	target = findradius(NULL, self->s.origin, lookDist);
 
 	while (target)
 	{
@@ -423,24 +401,21 @@ static void ACEAI_PickShortRangeGoal(edict_t *self)
 		if (target->classname == NULL)
 			return;
 
-		//int index_1 = ITEM_INDEX(FindItemByClassname(target->item->classname));
 	
 		// Missle avoidance code
 		// Set our movetarget to be the rocket or grenade fired at us. 
-		if (strcmp(target->classname, "rocket") == 0 )	{
-			// acebot ToDo: hypo add player as rocket  target, so strafe/dodge is correct
-			//need to work out when to dodge left or right?
-			//self->acebot.rocketOwner = target->owner>
-			//
+		if (strcmp(target->classname, "rocket") == 0 )	
+		{
 			if (ACEAI_InfrontBot(self, target))
 			{
-				self->movetarget = target;//hypov8 todo: timeout loop;
+				self->movetarget = target;//hypov8 todo: timeout loop
 				return;
 			}
 			isRocket = true;
 		}
-		if (strcmp(target->classname, "grenade") == 0)			{
-			self->movetarget = target;//hypov8 todo: timeout loop;
+		if (strcmp(target->classname, "grenade") == 0)			
+		{
+			self->movetarget = target;//hypov8 todo: timeout loop
 			return;
 		}
 
@@ -460,10 +435,13 @@ static void ACEAI_PickShortRangeGoal(edict_t *self)
 
 			if (ACEIT_IsReachable(self, itemOrigin))
 			{
-				if (ACEAI_InfrontBot(self, target))
+				if (ACEAI_InfrontBot(self, target)) //look 360 deg for weapons
 				{
+					float dist = VectorDistance(target->s.origin, self->s.origin);
 					index = ACEIT_ClassnameToIndex(target->classname, target->style); //hypov8 add safe styles
 					weight = ACEIT_ItemNeed(self, index, target->timestamp, target->spawnflags);
+
+					weight /= dist;//closer??
 
 					if (weight > best_weight)
 					{
@@ -474,17 +452,16 @@ static void ACEAI_PickShortRangeGoal(edict_t *self)
 			}
 		}
 		// next target
-		target = findradius(target, self->s.origin, 200); //true=bot
+		target = findradius(target, self->s.origin, lookDist); //true=bot
 	}
 
 	if (best_weight)
 	{
-
 		self->movetarget = best;
 
 		if (debug_mode && self->goalentity != self->movetarget && !debug_mode_origin_ents) //add hypo stop console nag when localnode is on )
 			debug_printf("%s selected a %s for SR goal.\n", self->client->pers.netname, self->movetarget->classname);
-
+		
 		self->goalentity = best;
 	}
 
@@ -579,7 +556,7 @@ static qboolean ACEAI_WeaponCount(edict_t *self)
 	return false;
 }
 
- //recheck keeps looking 4 same layer once node reached
+ //recheck keeps looking 4 same player once node reached
 qboolean ACEAI_PickShortRangeGoal_Player (edict_t *self, qboolean reCheck)
 {
 	if (self->acebot.state != BOTSTATE_WANDER && !self->acebot.isChasingEnemy)
@@ -591,20 +568,20 @@ qboolean ACEAI_PickShortRangeGoal_Player (edict_t *self, qboolean reCheck)
 	// enemy not valid yet(skill time)
 	if (self->acebot.botSkillDeleyTimer > level.time)
 		return false;
-	if (self->acebot.old_targetID == -1)
+	if (self->acebot.enemyID_old <1 && self->acebot.enemyID_new <1)
 		return false;
 	//no longer intrested in enemy
-	if (self->acebot.old_targetFrame <= level.framenum - 150)
+	if (self->acebot.enemyAddFrame <= level.framenum - 150)
 		return false;
 
 	//check our enemy. again?
-	if (reCheck || self->acebot.chaseEnemyFrame <= level.framenum)
+	if (reCheck || self->acebot.enemyChaseFrame <= level.framenum)
 	{
 		if (random() > 0.5/*&&self->acebot.isChasingEnemy*/)
 		{
 			self->acebot.isChasingEnemy = false;
-			self->acebot.old_targetID = -1;
-			self->acebot.old_targetFrame = 0;
+			self->acebot.enemyID_old = -1;
+			self->acebot.enemyAddFrame = 0;
 			ACEAI_PickLongRangeGoal(self);
 			return false;
 		}
@@ -616,8 +593,6 @@ qboolean ACEAI_PickShortRangeGoal_Player (edict_t *self, qboolean reCheck)
 			short current_node, goal_node = INVALID;
 			self->acebot.targetPlayerNode = 0;
 
-			//for (i = 0; i<num_players; i++)
-			//{
 			for (i = 1; i <= (int)maxclients->value; i++)
 			{
 				edict_t *players = g_edicts + i;
@@ -631,7 +606,7 @@ qboolean ACEAI_PickShortRangeGoal_Player (edict_t *self, qboolean reCheck)
 					|| players->client->invincible_framenum > level.framenum)
 					continue;
 
-				if (i != self->acebot.old_targetID)
+				if (i != self->acebot.enemyID_old)
 					continue;
 
 				node = ACEND_FindClosestNode(players, BOTNODE_DENSITY, BOTNODE_ALL);
@@ -656,7 +631,7 @@ qboolean ACEAI_PickShortRangeGoal_Player (edict_t *self, qboolean reCheck)
 				self->acebot.state = BOTSTATE_MOVE;
 				self->acebot.node_tries = 0; // Reset the count of how many times we tried this goal
 				if (!self->acebot.isChasingEnemy)
-					self->acebot.chaseEnemyFrame = level.framenum + 80;
+					self->acebot.enemyChaseFrame = level.framenum + 80;
 				self->acebot.isChasingEnemy = true;
 				self->acebot.node_goal = node;
 
@@ -747,8 +722,6 @@ void ACEAI_PickLongRangeGoal(edict_t *self)
 	///////////////////////////////////////////////////////
 	// This should be its own function and is for now just
 	// finds a player to set as the goal.
-	//for(i=0;i<num_players;i++)
-	//{
 	for (i = 1; i <= (int)maxclients->value; i++)
 	{
 		players = g_edicts + i;
@@ -772,9 +745,21 @@ void ACEAI_PickLongRangeGoal(edict_t *self)
 
 		// BEGIN HITMEN
 		if (sv_hitmen->value /*enable_hitmen*/)
-			weight = 2.5; 
+		{
+			weight = 2.5;
+			if (players->acebot.is_hunted){
+				cost /= 2; //perswade some more
+				weight = 6; //lets go hunting
+			}
+		}
 		else
-			 weight = 0.3; 
+		{
+			weight = 0.3;
+			if (players->acebot.is_hunted && self->health>80 && self->acebot.num_weps > 3){
+				cost /= 2; //perswade some more
+				weight = 6; //lets go hunting
+			}
+		}
 		
 		weight *= random(); // Allow random variations
 		weight /= (float)cost; // Check against cost of getting there
@@ -800,7 +785,10 @@ void ACEAI_PickLongRangeGoal(edict_t *self)
 	self->acebot.node_tries = 0; // Reset the count of how many times we tried this goal
 	 
 	if (goal_ent != NULL && debug_mode && !debug_mode_origin_ents) //add hypo stop console nag when localnode is on )
-		debug_printf("%s selected a %s at node %d for LR goal.\n",self->client->pers.netname, goal_ent->classname, goal_node);
+		if (goal_ent->client)
+			debug_printf("%s selected %s at node %d for LR goal.\n",self->client->pers.netname, goal_ent->client->pers.netname, goal_node);
+		else
+			debug_printf("%s selected a %s at node %d for LR goal.\n",self->client->pers.netname, goal_ent->classname, goal_node);
 
 	ACEND_SetGoal(self,goal_node, goal_ent);
 
@@ -954,8 +942,8 @@ static void ACEAI_CalculatePlayerState()
 			num_bots++;
 			players->acebot.botSkillCalculated = ACEAI_SkillMP(players->acebot.botSkillMultiplier, skill);
 		}
-			else
-				num_players++;
+		else
+			num_players++;
 
 
 		if (players->client->invincible_framenum > level.framenum)	{
@@ -1031,10 +1019,10 @@ void ACEAI_G_RunFrame(void)
 				ACEAI_Think(ent);
 			else
 			{
-				if (!ent->acebot.is_validTarget){
+				/*if (!ent->acebot.is_validTarget){
 					ent->acebot.pm_last_node = INVALID;
 					continue;
-				}
+				}*/
 				ent->acebot.PM_firstPlayer = false;
 				if (!foundFirstPlyr) //auto route on player 1
 				{
@@ -1136,11 +1124,17 @@ static qboolean ACEAI_FindEnemy(edict_t *self)
 	float range, range_tmp = 0;
 	qboolean underAttack = false;
 
+#if 0// HYPODEBUG
+	if (self->s.number == 25)
+		return false;
+
+#endif
+
 	//reloading?
 	if (self->client->weaponstate != WEAPON_READY && self->client->weaponstate != WEAPON_FIRING)
 		return false;
 	//hypo stop bot attacking on ladders
-	if (self->acebot.isOnLadder == 1) //allow attackt at top of ladder
+	if (self->acebot.isOnLadder)//  == 1) //allow attackt at top of ladder??
 		return false;
 	//hypo add timer for bot to not own so much
 	if (self->acebot.botSkillDeleyTimer > level.time)
@@ -1163,10 +1157,16 @@ static qboolean ACEAI_FindEnemy(edict_t *self)
 			 continue;
 
 		 //reset to no players stop bot hunting same player after death
-		 if (self->acebot.old_targetID == i && players->health < 1)		{
-			 self->acebot.old_targetID = -1;
+		 if (self->acebot.enemyID_old == i && players->health < 1)		{
+			 self->acebot.enemyID_old = -1;
+			 self->enemy = NULL;
 			 continue;
 		 }
+
+		 if (players->deadflag)
+			 continue;
+		 if (players->health < 1)
+			 continue;
 
 		 if (players == self
 			 || players->solid == SOLID_NOT
@@ -1194,8 +1194,11 @@ static qboolean ACEAI_FindEnemy(edict_t *self)
 		// player is in direct sight. no solid walls
 		 if (!players->deadflag && ACEAI_VisibleEnemyPVS(self, players))
 		{
-			if (players->acebot.is_bot == 0 	&& players->acebot.is_hunted //hypov8 add. stop top player with force!! :)
-				&& ACEAI_VisibleEnemy(self, players, true))
+			qboolean visable = ACEAI_VisibleEnemy(self, players, players->acebot.is_hunted);
+
+			if ((int)sv_bot_hunt->value && players->acebot.is_bot == 0 	
+				&& players->acebot.is_hunted //hypov8 add. stop top player with force!! :)
+				&& visable)
 			{
 				self->enemy = players;
 				self->acebot.botSkillDeleyTimer = 0;
@@ -1203,26 +1206,30 @@ static qboolean ACEAI_FindEnemy(edict_t *self)
 			}
 
 			//line of sight?
-			if (!ACEAI_VisibleEnemy(self, players, false)) //HYPODEBUG.. enable true to test
+			if (!visable) //HYPODEBUG.. enable true to test
 				continue;
 			
-			//just keep shooting last target for now or hit attacker NOW
-			if (self->acebot.old_targetID == i /*|| (underAttack && self->acebot.old_targetID)*/)
+			//just keep shooting last target for now
+			if (self->acebot.enemyID_old == i /*|| (underAttack && self->acebot.old_targetID)*/)
 			{
+				//self->acebot.enemyID_new = i;//hypov8 add. ok??
 				self->enemy = players;
 				return true;
 			}
 
-			//if (self->acebot.old_targetFrame < level.framenum - 150) //15 seconds, forget about old target
-			//	self->acebot.old_targetID = -1;
+			//if (self->acebot.enemyAddFrame < level.framenum - 150) //15 seconds, forget about old target
+			//	self->acebot.enemyID_old = -1;
 
 
-			//hypo dont add a new target if not infront
-			if (!ACEAI_InfrontEnemy(self, players)&&  !underAttack)  //hypo stop bot turning a full 360? using skill %))
+			//hypo dont add a new target if not infront. ignore if hunted or under attack
+			//this stops bot turning a full 360. using skill %))
+			if (!players->acebot.is_hunted && !underAttack && !ACEAI_InfrontEnemy(self, players))
 				continue;
 
 			// Base selection on distance.	
 			range = VectorDistance(self->s.origin, players->s.origin);
+			if (players->acebot.is_hunted)
+				range /= 2;
 			
 			if (range_tmp)
 			{
@@ -1240,12 +1247,12 @@ static qboolean ACEAI_FindEnemy(edict_t *self)
 	// set a new target
 	if (j != -1)
 	{
-		self->acebot.new_target = j;
-		self->acebot.old_targetFrame = level.framenum;
+		self->acebot.enemyID_new = j;
+		self->acebot.enemyAddFrame = level.framenum;
 
-		if (self->acebot.new_target != self->acebot.old_targetID)
+		if (self->acebot.enemyID_new != self->acebot.enemyID_old)
 		{
-			self->acebot.old_targetID = j;
+			self->acebot.enemyID_old = j;
 			if (self->client->weaponstate == WEAPON_FIRING)
 				self->acebot.botSkillDeleyTimer = level.time + ((4.0f - self->acebot.botSkillCalculated) *0.35f); //hypov8 target changed. shoot next closer player sooner
 			else if (underAttack)
@@ -1256,6 +1263,7 @@ static qboolean ACEAI_FindEnemy(edict_t *self)
 			return false;
 		}
 
+		self->acebot.enemyID_old = j;
 		self->enemy = g_edicts + j;// players[j];
 		return true;
 	}
@@ -1265,10 +1273,12 @@ static qboolean ACEAI_FindEnemy(edict_t *self)
   
 }
 
+
+
 ///////////////////////////////////////////////////////////////////////
 // Choose the best weapon for bot (hypo)
 ///////////////////////////////////////////////////////////////////////
-static void ACEAI_PreChooseWeapon(edict_t *self)
+static void ACEAI_PreChooseWeaponDM(edict_t *self)
 {	
 	switch (self->acebot.randomWeapon)
 	{
@@ -1326,7 +1336,15 @@ static void ACEAI_PreChooseWeapon(edict_t *self)
 
 }
 
- //ACEAI_Reset_Goal_Node(self, 1.0, "Found Enemy")
+// select a weapon b4 we find enamy
+static void ACEAI_PreChooseWeapon(edict_t *self)
+{
+	if (sv_hitmen->value) /*enable_hitmen*/
+		ACEAI_ChooseWeaponHM(self);//select wep if it has ammo
+	else if (ACEAI_WeaponCount(self))
+		ACEAI_PreChooseWeaponDM(self);
+}
+
 
 //add hypov8
 //found an enemy, forget out goal
@@ -1346,30 +1364,15 @@ void ACEAI_Reset_Goal_Node(edict_t *self, float wanderTime, char* eventName)
 	}
 }
 
-//add hypov8
-//found an enemy, forget out goal
-void ACEAI_ResetLRG_HM(edict_t *self)
-{
-	//if (self->acebot.node_goal != INVALID)
-	{
-		self->acebot.node_next = INVALID;
-		self->acebot.node_goal = INVALID;
-		self->acebot.state = BOTSTATE_WANDER;
-		self->acebot.wander_timeout = level.time + 1.0;
-		if (debug_mode&& !debug_mode_origin_ents) //add hypo stop console nag when localnode is on )
-			debug_printf("%s found enemy, remove LRG.\n", self->client->pers.netname);
-	}
-}
-
 
 #if HYPODEBUG
 //#define BOT_TIME_DIFF(base,diff) (diff=Sys_Milliseconds()-base;if(diff>1)gi.dprintf("timediff LRG=%d.\n",diff);)
-#define BOT_TIME_DIFF(base,diff,str)\
+#define BOT_TIME_DIFF(base,diff,str,mode)\
 			diff=Sys_Milliseconds()-base;\
 			if(diff>1)\
-				gi.dprintf("Bot TimeDiff %s: %d.\n",str,diff);
+				gi.dprintf("Bot SyncDelay At %s (%dms) MoveMode: %s\n",str,diff, (mode==1)?"MOVE": "WANDER");
 #else
-#define BOT_TIME_DIFF(a,b,c) (b=a)
+#define BOT_TIME_DIFF(a,b,c,d)//(b=b)
 #endif
 
 ///////////////////////////////////////////////////////////////////////
@@ -1386,41 +1389,32 @@ void ACEAI_Think(edict_t *self)
 	if (!gi.inPVS(self->s.origin, self->s.origin))
 		gi.dprintf("Bot %s In Void at XYZ:(%f, %f, %f)\n",self->client->pers.netname, self->s.origin[0], self->s.origin[1], self->s.origin[2]);
 #endif
-
+	////////////////////
+	// reset some values
+	////////////////////
 	VectorCopy(self->s.angles, self->acebot.deathAngles);
 	VectorCopy(self->client->ps.viewangles, self->s.angles);
 	VectorSet(self->client->ps.pmove.delta_angles, 0, 0, 0);
 	memset(&ucmd, 0, sizeof(ucmd));
-	//self->enemy = NULL; //hypov8. this was enabled!!! HYPOBOTS
 	self->movetarget = NULL;
 	self->client->resp.idle = level.framenum; //hypov8 just incase
-	//self->acebot.aimLegs = 0;
-
 	//todo check if needed??
 	self->client->pers.idle = curtime;
 	self->client->pers.lastpacket = curtime;
 
-
 	if (self->acebot.isMovingUpPushed)	{ 
 		self->acebot.next_move_time = level.time + 0.1f; //stops wander
-		if (self->groundentity && self->acebot.trigPushTimer < level.framenum) //allow some time for lunch
-		{
+		if (self->groundentity && self->acebot.trigPushTimer < level.framenum){ //allow some time for lunch	
 			self->acebot.isMovingUpPushed = false;
 			self->acebot.wander_timeout = level.time -0.1f;
 		}
 	}
-
-	//hypov8
 	if (self->acebot.isJumpToCrate)	{
 		if (level.framenum > self->acebot.crate_time)
 			self->acebot.isJumpToCrate = false;
 	}
-
-	//hypov8
-	if (self->acebot.water_time >= level.framenum)
-	{
-		if (!self->groundentity)
-		{
+	if (self->acebot.water_time >= level.framenum){
+		if (!self->groundentity){
 			ucmd.forwardmove = BOT_FORWARD_VEL;
 			ucmd.upmove = BOT_JUMP_VEL;
 			ucmd.angles[PITCH] = ANGLE2SHORT(self->s.angles[PITCH]);
@@ -1428,105 +1422,88 @@ void ACEAI_Think(edict_t *self)
 			ucmd.angles[ROLL] = ANGLE2SHORT(self->s.angles[ROLL]);
 			ucmd.msec = 100;
 			self->client->ping = 0;
-
 			ClientThink(self, &ucmd);
-#if HYPOBOTS
-			self->nextthink = level.time + BOTFRAMETIME;
-#endif
 			return;
 		}
 		else
 			self->acebot.water_time = 0;
 	}
-
-	if (level.framenum > self->acebot.ladder_time)
-		self->acebot.isOnLadder = false; //hypo stop bot attacking on ladders
-
-	// Force respawn 
-	if (self->deadflag)
+	if (self->acebot.isOnLadder)
 	{
+		if (self->acebot.ladder_time < level.framenum || (self->groundentity && !self->groundentity->client))
+		{
+			self->acebot.ladder_time = 0;
+			self->acebot.isOnLadder = false; //hypo stop bot attacking on ladders
+		}
+	}
+
+	//////////////////////////
+	// Force respawn when dead
+	//////////////////////////
+	if (self->deadflag)	{
 		self->client->buttons = 0;
 		ucmd.buttons = BUTTON_ATTACK;
-		//VectorSet(self->velocity, 0, 0, 0);	//hypo stop movement
 		if (self->velocity[2] > 0)
 			self->velocity[2] = 0;
-		//hypo add this to stop bots moving while dead. may need to reset some values?
 		ClientThink(self, &ucmd);
-#if HYPOBOTS
-		self->nextthink = level.time + BOTFRAMETIME;
-#endif
 		return;
 	}
 
+	/////////////////////////////////////////////
 	//stop bot looking for recent enemy that didnt die
-	if (self->acebot.isChasingEnemy)
-	{
-		if (self->acebot.chaseEnemyFrame < level.framenum)
-		{
+	/////////////////////////////////////////////
+	if (self->acebot.isChasingEnemy){
+		if (self->acebot.enemyChaseFrame < level.framenum){
 			ACEAI_Reset_Goal_Node(self, 1.0, "Stoped looking for Enemy.");
 			self->acebot.isChasingEnemy = false;
-			self->acebot.old_targetID = -1;
+			self->acebot.enemyID_old = -1;
 			self->enemy = NULL;
 		}
 	}
-	if (self->acebot.old_targetFrame < level.framenum - 150){ //15 seconds, forget about old target
-		self->acebot.new_target = -1;
-		self->acebot.old_targetID = -1;
+	if (self->acebot.enemyAddFrame < level.framenum - 150){ //15 seconds, forget about old target
+		self->acebot.enemyID_new = -1;
+		self->acebot.enemyID_old = -1;
 		self->enemy = NULL;
 	}
 
+	/////////////////////////////////////////////
 	// pick a new long range goal
+	/////////////////////////////////////////////
 	if (self->acebot.state == BOTSTATE_WANDER && self->acebot.wander_timeout < level.time
 	&& !self->acebot.isMovingUpPushed && !self->acebot.isChasingEnemy)
 		ACEAI_PickLongRangeGoal(self);
 
-	BOT_TIME_DIFF(base, timediff, "LRG" );
+	BOT_TIME_DIFF(base, timediff, "LRG" , self->acebot.state);
 
 	/////////////////////////////////////////////
 	// check if bot is moving?
 	/////////////////////////////////////////////
-	self->acebot.moveDirVel = VectorDistance(self->acebot.oldOrigin, self->s.origin);	// setup velocity for timeouts
-	if (self->acebot.moveDirVel > 2) //if (VectorLength(self->velocity) > 37) //
+	self->acebot.moveDirVel = VectorDistance(self->acebot.oldOrigin, self->s.origin);
+	if (self->acebot.moveDirVel > 2)
 		self->acebot.suicide_timeout = level.time + 10.0;
 
 	tmpTimeout = self->acebot.suicide_timeout - level.time;
-	if (tmpTimeout < 6 && self->acebot.isOnLadder)
-	{
+	if (tmpTimeout < 6 && self->acebot.isOnLadder){
 		ACEAI_Reset_Goal_Node(self, 1.0, "Stuck on ladder, Turn 180.");
-
 		self->acebot.isOnLadder = false;
-
-		if (self->s.angles[YAW]>0) self->s.angles[YAW] -= 180.0;
-		else					   self->s.angles[YAW] += 180.0;
+		if (self->s.angles[YAW]>0) 
+			self->s.angles[YAW] -= 180.0;
+		else					   
+			self->s.angles[YAW] += 180.0;
 
 		ucmd.forwardmove = BOT_FORWARD_VEL;
 		ucmd.angles[YAW] = ANGLE2SHORT(self->s.angles[YAW]);
-
 		ClientThink(self, &ucmd);
-#if HYPOBOTS
-		self->nextthink = level.time + BOTFRAMETIME+0.1f;//hypo add a frame between think
-#endif
 		return;
 	}
+
 	///////////////////
 	// Stuck. Kill bot
 	///////////////////
 	if (tmpTimeout < 0)
 	{
-		//respawn(self);
-		self->client->latched_buttons = 0;
-		self->acebot.suicide_timeout = level.time + 10.0; //reset since not using ACESP
-#if 1// HYPOBOTS
-		self->flags &= ~FL_GODMODE; //hypov8 added. shown as player killed them selves now
-		self->health = 0;
-		meansOfDeath = MOD_BOT_SUICIDE;		//hypov8 added. shown as player killed them selves now
-		VectorSet(self->velocity, 0, 0, 0);	//hypo stop movement
-		#if HYPODEBUG
-		gi.dprintf("Bot %s Died at XYZ:(%f, %f, %f)\n",self->client->pers.netname, self->s.origin[0], self->s.origin[1], self->s.origin[2]);
-		#endif
-		player_die(self, self, self, 100000, vec3_origin, 0, 0); //hypov8 add null
-
-#endif
+		ACESP_KillBot(self);
+		return;
 	}
 
 	////////////////////////////
@@ -1535,52 +1512,56 @@ void ACEAI_Think(edict_t *self)
 	if (!self->acebot.isMovingUpPushed && !self->client->hookstate)
 	{
 		ACEAI_PickShortRangeGoal(self);
-		BOT_TIME_DIFF(base, timediff, "SRG" );
+		BOT_TIME_DIFF(base, timediff, "SRG" , self->acebot.state);
 	}
 
 
 	////////////////////////////////////////
 	// Chose Weapons Before we see an anemy
 	///////////////////////////////////////
-	// BEGIN HITMEN
-	if (sv_hitmen->value) /*enable_hitmen*/
-		ACEAI_ChooseWeaponHM(self);//select wep if it has ammo
-	else
-	// END
-		//select a weapon b4 we find enamy
-		if (ACEAI_WeaponCount(self))
-			ACEAI_PreChooseWeapon(self);
-	
+	ACEAI_PreChooseWeapon(self);
 
-	/////////////////////////
+
+	////////////////////////////////////
 	// Find enemies OR items 
-	// hypo serch weps if reloading etc. can make it serch while fireing
-	/////////////////////////
+	// hypo serch weps if reloading etc.
+	////////////////////////////////////
 	if (ACEAI_FindEnemy(self))
 	{
-		BOT_TIME_DIFF(base, timediff, "Enemy" );
+		//todo BOTSTATE_ATTACK. resume LRG
+		BOT_TIME_DIFF(base, timediff, "Enemy" , self->acebot.state);
 		ACEAI_ChooseWeapon(self);
-		BOT_TIME_DIFF(base, timediff, "Choose Wep" );
+		BOT_TIME_DIFF(base, timediff, "Choose Wep" , self->acebot.state);
 		ACEMV_Attack(self, &ucmd);
-		BOT_TIME_DIFF(base, timediff, "Atack" );
+		BOT_TIME_DIFF(base, timediff, "Atack" , self->acebot.state);
 	}
-	else //if (!self->acebot.isMovingUpPushed)
+	else 		// Execute the move, or wander
 	{
 		ACEAI_PickShortRangeGoal_Player(self, false); 	// keep chasing enemy?
-		BOT_TIME_DIFF(base, timediff, "SRG Player");
+		BOT_TIME_DIFF(base, timediff, "SRG Player", self->acebot.state);
 
-		// Execute the move, or wander
-		if (self->acebot.state == BOTSTATE_WANDER)
-		{
+		if (self->acebot.state == BOTSTATE_WANDER)	{
 			ACEMV_Wander(self, &ucmd);
-			BOT_TIME_DIFF(base, timediff, "Wander");
+			BOT_TIME_DIFF(base, timediff, "Wander", self->acebot.state);
 		}
-		else if (self->acebot.state == BOTSTATE_MOVE)
-		{
+		else if (self->acebot.state == BOTSTATE_MOVE)	{
 			ACEMV_Move(self, &ucmd);
-			BOT_TIME_DIFF(base, timediff, "Move");
+			BOT_TIME_DIFF(base, timediff, "Move", self->acebot.state);
 		}
 	}
+
+#if 0// HYPODEBUG
+	if (self->enemy)
+	{
+		if (self->s.number == 25)
+		{
+			ucmd.forwardmove = 0;
+			ucmd.sidemove = 0;
+		}
+	}
+
+#endif
+
 
 	//////////////////////////////
 	// Setup Final player movement
@@ -1601,8 +1582,6 @@ void ACEAI_Think(edict_t *self)
 	// send command through id's code
 	/////////////////////////////////
 	ClientThink(self, &ucmd);
-#if HYPOBOTS
-	self->nextthink = level.time + BOTFRAMETIME;
-#endif
-	BOT_TIME_DIFF(base, timediff, "END" );
+
+	BOT_TIME_DIFF(base, timediff, "END", self->acebot.state);
 }

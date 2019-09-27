@@ -109,7 +109,7 @@ vec3_t ACE_look_out; //hypov8 global var
 #define BOTNODE_MOVE_8 8		//player droped entity
 #define BOTNODE_LADDER_8 8		//player droped entity
 #define BOTNODE_PLATFORM_32 32
-#define BOTNODE_TELEPORTER_32 32 //hypov8 todo: use 16??
+#define BOTNODE_TELEPORTER_16 16 //hypov8 todo: use 16??
 #define BOTNODE_ITEM_16 16
 #define BOTNODE_WATER_8 8		//player droped entity
 #define BOTNODE_GRAPPLE_0 0
@@ -125,6 +125,7 @@ vec3_t ACE_look_out; //hypov8 global var
 #define BOTNODE_DENSITY			128
 #define BOTNODE_DENSITY_DBL		(BOTNODE_DENSITY*2)
 #define BOTNODE_DENSITY_LRG		(BOTNODE_DENSITY*3)
+#define BOTNODE_DENSITY_JUMP	320
 #define BOTNODE_DENSITY_HALVE	64
 #define BOTNODE_DENSITY_THIRD	42
 #define BOTNODE_DENSITY_QUART	32
@@ -253,14 +254,14 @@ typedef struct bot_skin_s
 typedef struct //bot->acebot.xxx
 {
 	qboolean	is_bot;
-	qboolean	is_jumping;
+	//qboolean	is_jumping;
 
 	// For bot movement
-	int	isOnLadder; //hypov8 add. stop bots aiming when on ladders. added top of latter = 2
-	qboolean	isJumpToCrate; //hypov8 tryto get bot to jump upto item
-	qboolean	isTrigPush; //add hypov8 trig push. dont move
+	int	isOnLadder;						//hypov8 add. stop bots aiming when on ladders. added top of latter = 2
+	qboolean	isJumpToCrate;			//hypov8 tryto get bot to jump upto item
+	qboolean	isTrigPush;				//add hypov8 trig push. dont move
 
-	int			ladder_time; //server framenum bot was on a ladder
+	int			ladder_time;			//server framenum bot was on a ladder
 	int			crate_time; 
 
 	vec3_t		move_vector;
@@ -270,68 +271,71 @@ typedef struct //bot->acebot.xxx
 
 
 	// bot node movement
-	short		node_current;		// current node
-	short		node_goal;			// current goal node
-	short		node_next;			// the node that will take us one step closer to our goal
+	short		node_current;			// current node
+	short		node_goal;				// current goal node
+	short		node_next;				// the node that will take us one step closer to our goal
 	int			node_timeout;
 	int			node_tries;
-	edict_t		*node_ent; //store goal. its posible it was picked up early with SRG
+	edict_t		*node_ent;				//store goal. its posible it was picked up early with SRG
 	
-	int			state;			//wander/goal
+	int			state;					//wander/goal
 
 	//hypov8 aim recalculate on shoot
-	vec3_t		enemyOrigin; //store enamy origin untill we shoot with filre_lead
-	float		bot_accuracy; //store accuracy untill we shoot with filre_lead
+	vec3_t		enemyOrigin;			//store enamy origin untill we shoot with filre_lead
+	float		bot_accuracy;			//store accuracy untill we shoot with filre_lead
 
-	int			flame_frameNum;		//aim accurecy last's longer
+	int			flame_frameNum;			//aim accurecy last's longer
 
 	//hypo new bot skill func
-	int			new_target;			//if new target. dont shoot straight away
-	int			old_targetID;			//old player target. shoot if more than xx seconds
-	int			old_targetFrame;	//dont keep old targets in memory for to long? will ignore skill on 2nd sight
-	int			chaseEnemyFrame;	//enemy search	
-	float		botSkillDeleyTimer;	//timer to allow bot to start attacking. level.time
+	int			enemyID_new;			//if new target. dont shoot straight away
+	int			enemyID_old;			//old player target. shoot if more than xx seconds
+	int			enemyAddFrame;			//dont keep old targets in memory for to long? will ignore skill on 2nd sight
+	int			enemyChaseFrame;		//enemy search	
+	vec_t		enemyOriginZoffset;		//look down amount for rl, fence etc..
+	vec3_t		enemyRL_Offset;			//store rocket offset untill we can shoot
+
+	float		botSkillDeleyTimer;		//timer to allow bot to start attacking. level.time
 	int			botSkillDeleyTimer2;	//timer for rocket/nal dodge
 	qboolean	last_dodgeRocket;		//true/false
 	float		botSkillMultiplier;		//add skill per bot 0.0 to 2.0
-	float		botSkillCalculated; //store skill+multiplyer here. quick acess
+	float		botSkillCalculated;		//store skill+multiplyer here. quick acess
 
 	qboolean	isChasingEnemy; //
 
-	int			water_time; //add hypov8 keep jumping out of water
+	int			water_time;				//add hypov8 keep jumping out of water
 
-	int			plateWaitTim; //give up waiting at func_plat
-	int			dodge_time; // time bot last moved sideways from player
+	int			plateWaitTim;			//give up waiting at func_plat
+	int			dodge_time;				// time bot last moved sideways from player
 
-	int			uTurnCount; //hypov8 count times bot got stuck n turned
-	int			uTurnTime; //hypov8 get last time bot turned
+	int			uTurnCount;				//hypov8 count times bot got stuck n turned
+	int			uTurnTime;				//hypov8 get last time bot turned
 
-	int			num_weps; //hypov8 added to compare bots invitory changed. select weapon?
-	int			randomWeapon; //hypov8 select a random weapon to be there poirity, reset per level
+	int			num_weps;				//hypov8 added to compare bots invitory changed. select weapon?
+	int			randomWeapon;			//hypov8 select a random weapon to be there poirity, reset per level
 
-	float		moveDirVel; // 360 deg velocity
-	//float		moveFlatVel; //horozontal velocity
+	float		moveDirVel;				// 360 deg velocity
+	//float		moveFlatVel;			//horozontal velocity
 
-	vec3_t		oldOrigin; //hypov8 store last position for calculating velocity
+	vec3_t		oldOrigin;				//hypov8 store last position for calculating velocity
 	vec3_t		oldAngles;
-	vec3_t		deathAngles; //hypov8 store angles for dead body
+	vec3_t		deathAngles;			//hypov8 store angles for dead body
 
-	qboolean	is_validTarget; //set who is shootable. once every frame
-	qboolean	is_hunted; //bot will attack this persone with brute force:)
-	int			lastDamageTimer; //last time bot took damage. make bot attack quicker
+	qboolean	is_validTarget;			//set who is shootable. once every frame
+	qboolean	is_hunted;				//bot will attack this persone with brute force:)
+	int			lastDamageTimer;		//last time bot took damage. make bot attack quicker
 
-	int			tauntTime; //hypov8 random taunt timmer
-	qboolean	aimLegs; //hypo aim for head with rl. used when a low fence/rail is blocking player
+	int			tauntTime;				//hypov8 random taunt timmer
+	qboolean	aimLegs;				//hypo aim for head with rl. used when a low fence/rail is blocking player
 
-	int			trigPushTimer; // bot will free move with trigger push
+	int			trigPushTimer;			// bot will free move with trigger push
 	qboolean	isMovingUpPushed; 
 
-	int			spawnedTime; //store time just spawned, so they can collect better weps
+	int			spawnedTime;			//store time just spawned, so they can collect better weps
 
-	int			last_strafeTime; //frame since strafed. make strafe go for longer
+	int			last_strafeTime;		//frame since strafed. make strafe go for longer
 	int			last_strafeDir;
 	int			last_moveFwdTime;
-	int			targetPlayerNode;	//add hypov8. target node was a player LRG
+	int			targetPlayerNode;		//add hypov8. target node was a player LRG
 
 
 	//player movement auto route
@@ -340,13 +344,11 @@ typedef struct //bot->acebot.xxx
 	int			pm_jumpPadMove;			//add hypov8. connect nodes after using a trig_push
 	int			pm_hookActive;			//add hypov8. hook 1=route, 2=enabled but dont route
 	qboolean	PM_firstPlayer;			//use this player to route
+	int			PM_Jumping;				//PathMap jump. 1=jump 2=landing
 
-	float hookDistLast;
-	float hookDistCurrent; //
-
-	// hypov8 real player routing node varables
-	//qboolean	P_wasOnTrigPush; //allow node to link to higher ground
-	//int			P_trig_pushTme; // stop this call to soon. b4 lunch happned 
+	float	hookDistLast;
+	float	hookDistCurrent;			//
+	int		SRGoal_frameNum;			//stop bot trying for SR goal so oftern
 
 } acebot_t;
 
@@ -401,7 +403,6 @@ void FetchClientEntData(edict_t *ent); // HYPOV8_ADD
 void     ACEAI_Think (edict_t *self);
 void     ACEAI_PickLongRangeGoal(edict_t *self);
 qboolean ACEAI_PickShortRangeGoal_Player(edict_t *self, qboolean reCheck); //add hypov8
-void	 ACEAI_ResetLRG_HM(edict_t *self); //add hypov8
 void	 ACEAI_Reset_Goal_Node(edict_t *self, float wanderTime, char* eventName);
 qboolean ACEAI_PickShortRangeGoalSpawned(edict_t *self);
 //qboolean ACEAI_InfrontBot(edict_t *self, edict_t *other) //add hypov8
@@ -423,6 +424,11 @@ qboolean ACECM_G_Use_f(edict_t *ent, char*s);
 qboolean ACECM_G_SelectNextItem(edict_t *ent);
 qboolean ACECM_G_SelectPrevItem(edict_t *ent);
 
+void ACECM_BotScoreboardVote(edict_t *ent);
+void ACECM_BotScoreboardAdd(edict_t *ent);
+void ACECM_BotScoreboardRemove(edict_t *ent);
+void ACECM_BotScoreboardSkill(edict_t *ent);
+
 
 /////////////////
 // acebot_items.c protos
@@ -436,7 +442,7 @@ int		 ACEIT_ClassnameToIndex(char *classname, int style);
 void     ACEIT_BuildItemNodeTable (qboolean rebuild);
 float	 ACEIT_ItemNeedSpawned(edict_t *self, int item, float timestamp, int spawnflags); //add hypov8
 qboolean ACEIT_CheckIfItemExists(edict_t *self); //add hypov8
-void	 ACEIT_checkIfGoalEntPickedUp(edict_t *self);
+
 
 ////////////////////
 // acebot_movement.c protos
@@ -445,7 +451,8 @@ void     ACEMV_Attack (edict_t *self, usercmd_t *ucmd);
 void     ACEMV_Wander (edict_t *self, usercmd_t *ucmd);
 void	 ACEMV_JumpPadUpdate(edict_t *bot/*, float pushSpeed*/); //add hypov8
 void	 ACEMV_Attack_CalcRandDir(edict_t *self, vec3_t aimdir); //aim directly at enamy but shoot off target(random)
-//float	 ACEMV_SkillMP(edict_t *self); //hypov8 skill per bot multiplier
+void	 ACESP_KillBot(edict_t *self);
+
 
 /////////////////
 // acebot_nodes.c protos
@@ -468,17 +475,15 @@ void		ACEND_RemoveallPaths(edict_t *self); //add hypov8
 void		ACEND_SaveNodes();
 void		ACEND_LoadNodes();
 void		ACEND_DebugNodesLocal(void); //add hypov8
-void		ACEND_PathToTeleporter(edict_t *player); //add hypov8
-void		ACEND_PathToTeleporterDest(edict_t *player); //add hypov8
+void		ACEND_PathMap_ToTeleporter(edict_t *player); //add hypov8
+void		ACEND_PathMap_ToTeleporterDest(edict_t *player); //add hypov8
 void		ACEND_PathToTrigPush(edict_t *player); //add hypov8
 void		ACEND_PathToTrigPushDest(edict_t *player); //add hypov8
 short		ACEND_FindClosestNode(edict_t *self, int range, short type); //add hypov8
-
 void		ACEND_HookActivate(edict_t *self); //add hypov8
 void		ACEND_HookDeActivate(edict_t *self); //add hypov8
-//qboolean ACEND_PathMapIsFirstPlayer(edict_t *self); //add hypov8
-qboolean ACEND_PathMapValidPlayer(edict_t *self);
-float VectorDistanceFlat(vec3_t vec1, vec3_t vec2);
+qboolean	ACEND_PathMapValidPlayer(edict_t *self);
+float		VectorDistanceFlat(vec3_t vec1, vec3_t vec2);
 
 /////////////////
 // acebot_spawn.c protos
@@ -488,7 +493,7 @@ void		ACESP_SetName(edict_t *bot, char *name, char *skin/*, char *team*/);
 void		ACESP_SpawnBot (char *team, char *name, char *skin, char *userinfom, float skill);
 void		ACESP_SpawnBot_Random(char *team, char *name, char *skin, char *userinfo); //add hypov8
 void		ACESP_ReAddBots();
-void		ACESP_RemoveBot(char *name);
+void		ACESP_RemoveBot(char *name, qboolean print);
 void		FreeBots(void); //add hypov8
 void		safe_cprintf (edict_t *ent, int printlevel, char *fmt, ...);
 void		safe_centerprintf (edict_t *ent, char *fmt, ...);

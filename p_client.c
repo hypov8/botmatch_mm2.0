@@ -1265,14 +1265,6 @@ void respawn (edict_t *self)
 // HYPOV8_END
 
 
-// ACEBOT_ADD special respawning code
-#if HYPOBOTS
-		if (self->acebot.is_bot){
-			ACESP_Respawn(self);
-			return;	}
-#endif
-// ACEBOT_END
-
 		if (!(self->svflags & SVF_NOCLIENT))
 			CopyToBodyQue (self);
 		PutClientInServer (self);
@@ -1415,13 +1407,9 @@ void PutClientInServer (edict_t *ent)
 	ent->hasSelectedPistol = false; // HYPOV8_ADD
 
 // ACEBOT_ADD
-#if HYPOBOTS
-	ent->acebot.is_bot = false;
-#endif
+	ent->acebot.PM_Jumping = 0;
 	ent->acebot.pm_last_node = INVALID;
-	ent->acebot.is_jumping = false;
 	ent->acebot.pm_jumpPadMove = false;
-	ent->acebot.num_weps = 2;
 // ACEBOT_END
 
 	if (ent->solid)
@@ -1518,8 +1506,11 @@ void PutClientInServer (edict_t *ent)
 	VectorCopy (ent->s.origin, ent->s.old_origin);
 
 // ACEBOT_ADD
+	if (ent->acebot.is_bot)
+		ACESP_Respawn(ent);
 	VectorCopy( ent->s.origin,ent->acebot.oldOrigin);
 // ACEBOT_END 
+
 // bikestuff
 ent->biketime = 0;
 ent->bikestate = 0;
@@ -1644,11 +1635,11 @@ ent->bikestate = 0;
 	// set the delta angle
 	for (i=0 ; i<3 ; i++)
 	{
-// HYPOV8_ADD
+// HYPOV8_ADD 
 		if (!isUsingSpec)
 			client->ps.pmove.delta_angles[i] = ANGLE2SHORT(spawn_angles[i] - client->resp.cmd_angles[i]);
 		else
-// HYPOV8_END
+// HYPOV8_END 
 			client->ps.pmove.delta_angles[i] = delta_anglesOld[i];
 
 	}
@@ -1685,13 +1676,16 @@ ent->bikestate = 0;
 		ent->client->resp.spawntime = level.framenum;
 
 		Hm_Set_Timers(client);
-
 	}
 	// END
 
 	// force the current weapon up
 	client->newweapon = client->pers.weapon;
 	ChangeWeapon (ent);
+
+// ACEBOT_ADD
+	if (!ent->acebot.is_bot)
+// ACEBOT_END
 
 	if (ent->solid != SOLID_NOT || client->resp.enterframe == level.framenum)
 	{
@@ -2279,7 +2273,6 @@ qboolean ClientConnect (edict_t *ent, char *userinfo)
 	if (!ent->acebot.is_bot || (ent->acebot.is_bot && level.bots_spawned))
 	{
 // ACEBOT_END
-
 		//print in develope console
 		if (ent->client->pers.country[0]) //GeoIP2
 			gi.dprintf("%s (%s) connected from %s\n", ent->client->pers.netname, ent->client->pers.ip, ent->client->pers.country);
@@ -2287,7 +2280,7 @@ qboolean ClientConnect (edict_t *ent, char *userinfo)
 			gi.dprintf("%s (%s) connected\n", ent->client->pers.netname, ent->client->pers.ip);
 
 		//print in clients console
-		for_each_player_inc_bot(doot, j)// ACEBOT_ADD
+		for_each_player_not_bot(doot, j)// ACEBOT_ADD
 		{
 			if ((doot->client->pers.admin == ADMIN) || doot->client->pers.rconx[0])
 			{
@@ -2304,20 +2297,17 @@ qboolean ClientConnect (edict_t *ent, char *userinfo)
 					safe_cprintf(doot, PRINT_CHAT, "%s connected\n", ent->client->pers.netname);
 			}
 		}
-// ACEBOT_ADD
 	}
-#if HYPOBOTS
+
+// ACEBOT_ADD
 	if (!ent->acebot.is_bot)
-#endif
-	{
 // ACEBOT_END
+	{
 		if (teamplay->value)
 			ent->client->pers.spectator = SPECTATING;
 		else
 			ent->client->pers.spectator = PLAYING;
-// ACEBOT_ADD
 	}
-// ACEBOT_END
 
 	// check to see if a player was disconnected
 	if (CheckClientRejoin(ent) >= 0)
@@ -2334,6 +2324,7 @@ qboolean ClientConnect (edict_t *ent, char *userinfo)
 	if (ent->acebot.is_bot)
 	{
 		ent->client->pers.is_bot = true;
+		ent->client->pers.spectator = PLAYING;
 		ent->client->showscores = NO_SCOREBOARD;
 	}
 // ACEBOT_END
@@ -2426,7 +2417,13 @@ skiplist:
 			if (ent->client->pers.spectator != SPECTATING)
 			ACEIT_PlayerRemoved(ent);
 		}
-	ent->acebot.is_bot = false; //bug fix
+		if (ent->acebot.is_bot) //fix for "bot checked out"
+		{
+			ent->acebot.is_bot = false; //bug fix
+			ent->classname = "disconnected";
+			ent->client->pers.connected = 0;
+			return;
+		}
 // ACEBOT_END
 		
 		
@@ -2551,7 +2548,14 @@ void ClientThink (edict_t *ent, usercmd_t *ucmd)
 			else
 				ent->client->chasemode = LOCKED_CHASE;
 			if (ent->client->prechase_ps.fov)
+			{
+				if (ent->client->chasemode == FREE_CHASE) //hypov8 todo: check this
+				{
+					ent->client->prechase_ps.pmove.delta_angles[PITCH] = ANGLE2SHORT(ent->client->ps.viewangles[PITCH] - ent->client->resp.cmd_angles[PITCH] + 10);
+					ent->client->prechase_ps.pmove.delta_angles[YAW] = ANGLE2SHORT(ent->client->ps.viewangles[YAW] - ent->client->resp.cmd_angles[YAW]);
+				}
 				ent->client->ps = ent->client->prechase_ps;
+			}
 			ent->client->resp.scoreboard_frame = 0;
 		}//end snap
 		if (ent->solid != SOLID_NOT || ent->client->chase_target->solid == SOLID_NOT)
@@ -2716,9 +2720,7 @@ chasing:
 	if (ent->groundentity && !pm.groundentity && (pm.cmd.upmove >= 10) && (pm.waterlevel == 0))
 	{
 		int rval;
-// ACEBOT_ADD
-		ent->acebot.is_jumping = true;
-// ACEBOT_END
+
 		rval = rand()%100;
 		if (rval > 66)	
 			gi.sound(ent, CHAN_VOICE, gi.soundindex("*jump1.wav"), 1, ATTN_NORM, 0);
@@ -2751,8 +2753,27 @@ chasing:
 		}
 	}
 	if (!ent->groundentity && pm.groundentity) // client landing
+	{
 		client->land_framenum = level.framenum;
+
+	}
 // END Snap
+
+
+// ACEBOT_ADD
+	//normal move
+	if (ent->acebot.PM_Jumping && ent->groundentity && pm.groundentity)
+		ent->acebot.PM_Jumping = 0;
+
+	//start jump
+	else if (ent->groundentity && !pm.groundentity && (pm.cmd.upmove >= 10) && (pm.waterlevel == 0))
+		ent->acebot.PM_Jumping = 1;
+
+	//landing
+	else if (!ent->groundentity && pm.groundentity)
+		ent->acebot.PM_Jumping = 2;
+// ACEBOT_END
+
 
 
 #if 0 //!DEMO
@@ -2961,15 +2982,16 @@ chasing:
 		other->touch (other, ent, NULL, NULL);
 	}
 
+// ACEBOT_ADD 
+#if 0	//hypov8 disable ASC. allow players grace against bots.
+// ACEBOT_END
 	//they shoot...they are mortal
-	/*if (((client->latched_buttons|client->buttons) & BUTTON_ATTACK)
+	if (((client->latched_buttons|client->buttons) & BUTTON_ATTACK)
 		&& (client->invincible_framenum < level.framenum + 29))
-		client->invincible_framenum = 0;*/ //hypov8 ASC ToDo: disable this. allow players grace
-
-	// HYPOV8_ADD //todo: check this
-	//if ((client->latched_buttons | client->buttons) & BUTTON_ATTACK)
-	//	ent->check_shoot = level.framenum;
-	// HYPOV8_END
+		client->invincible_framenum = 0;
+// ACEBOT_ADD 
+#endif
+// ACEBOT_END
 
 	// JOSEPH 22-JAN-99
 	// Activate button is pressed
@@ -3041,9 +3063,13 @@ car_resume:
 // END
 
 // ACEBOT_ADD 
-	// hypov8 auto generate path for bots
-	ACEND_PathMap(ent, true);
-	if (ent->acebot.is_bot)
+	if (!ent->acebot.is_bot)
+	{
+		if (ent->acebot.PM_Jumping)
+			ACEND_PathMap(ent, true);	// hypov8 auto generate path for bots
+		ent->acebot.PM_Jumping = 0;
+	}
+	else
 		ent->client->flashlight = false; //skip flastlight
 // ACEBOT_END
 
@@ -3080,18 +3106,21 @@ void ClientBeginServerFrame (edict_t *ent)
 	if (level.intermissiontime)
 		return;
 
+#if HYPODEBUG
+	client->pers.lastpacket = curtime;
+	client->pers.idle = curtime;
+#endif
+
+
 	if (client->pers.spectator != SPECTATING && curtime-client->pers.lastpacket >= 5000)
 	{
-#ifndef HYPODEBUG
 		// 5 seconds since last contact from the client
 		safe_bprintf(PRINT_HIGH, "%s has lost contact with the server\n", client->pers.netname);
-// make them a spectator
+		// make them a spectator
 		Cmd_Spec_f(ent);
-#endif
 	}
-	else if (client->pers.spectator != SPECTATING && (level.modeset == MATCH || level.modeset == PUBLIC))
+	else if (client->pers.spectator != SPECTATING && (level.modeset == MATCH || level.modeset == PUBLIC) && level.framenum - level.startframe >= 30)
 	{
-#ifndef HYPODEBUG
 		if (curtime - client->pers.idle > idle_client->value * 1000)
 		{
 			safe_bprintf(PRINT_HIGH, "%s has been idle for over %d seconds\n", client->pers.netname, (int)idle_client->value);
@@ -3099,18 +3128,28 @@ void ClientBeginServerFrame (edict_t *ent)
 			Cmd_Spec_f(ent);
 		}
 		else
-#endif
 			client->resp.time++;
 	}
-
-
+#if 0 //hypov8 not used
+	else if (client->pers.spectator != SPECTATING && level.modeset == PREGAME && level.framenum < level.pregameframes - 40)
+	{
+		if (client->latched_buttons & BUTTON_ATTACK)
+		{
+			if (client->showscores != SCOREBOARD)
+				client->showscores = SCOREBOARD;
+			else
+				client->resp.ready ^= 1;
+			client->resp.scoreboard_frame = 0;
+		}
+	}
+#endif
 	// Ridah, hack, make sure we duplicate the episode flags
 	ent->episode_flags |= ent->client->pers.episode_flags;
 	ent->client->pers.episode_flags |= ent->episode_flags;
 
 	// run weapon animations if it hasn't been done by a ucmd_t
 	if (!client->weapon_thunk)
-		Think_Weapon (ent);
+		Think_Weapon (ent); //run once per serverframe. catch bot not allowed to shoot earlyer?
 	else
 		client->weapon_thunk = false;
 

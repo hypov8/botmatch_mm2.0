@@ -106,6 +106,10 @@ static void fire_lead (edict_t *self, vec3_t start, vec3_t aimdir, int damage, i
 	if (self->acebot.is_bot)
 		ACEMV_Attack_CalcRandDir(self, aimdir);
 // ACEBOT_END
+#if HYPODEBUG
+	damage = 2;
+
+#endif
 
 	self->client->resp.accshot++;
 	hit = 0;
@@ -594,6 +598,10 @@ bolt:
 
 	if (hit)
 		self->client->resp.acchit++;
+#if HYPODEBUG
+	else if (self->acebot.is_bot)
+		safe_bprintf(PRINT_MEDIUM, "BOT %s MISSED!!!\n", self->client->pers.netname);
+#endif
 }
 // END JOSEPH
 

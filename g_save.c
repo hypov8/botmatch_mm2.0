@@ -226,35 +226,34 @@ void InitGame (void)
 
 	gi.dprintf ("==== InitGame ====\n");
 
-	// BEGIN HITMEN
-	//sl_Logging( &gi, GAMEVERSION );	// StdLog 
-	// END
 	srand( (unsigned)time( NULL ) );
 
-	gun_x = gi.cvar ("gun_x", "0", 0);
-	gun_y = gi.cvar ("gun_y", "0", 0);
-	gun_z = gi.cvar ("gun_z", "0", 0);
+	gun_x = gi.cvar ("gun_x", "0.0", 0);
+	gun_y = gi.cvar ("gun_y", "0.0", 0);
+	gun_z = gi.cvar ("gun_z", "0.0", 0);
 
 	//FIXME: sv_ prefix is wrong for these
 	sv_rollspeed = gi.cvar ("sv_rollspeed", "200", 0);
-	sv_rollangle = gi.cvar ("sv_rollangle", "0", 0);
+	sv_rollangle = gi.cvar ("sv_rollangle", "0.0", 0);
 	sv_maxvelocity = gi.cvar ("sv_maxvelocity", "2000", 0);
 	sv_gravity = gi.cvar ("sv_gravity", "800", 0);
 
 // ACEBOT_ADD
-	//sv_botcfg			= gi.cvar("sv_botcfg", "1", CVAR_NOSET);
-	sv_botskill			= gi.cvar("sv_botskill", "2", CVAR_SERVERINFO);
+	sv_botskill			= gi.cvar("sv_botskill", "2.0", CVAR_SERVERINFO);
+	sv_bot_hunt			= gi.cvar("sv_bot_hunt", "1", 0); //give bot skill 10 against player winning by 4+ frags
+
 	sv_botpath			= gi.cvar("sv_botpath", "1", 0);
 	sv_botjump			= gi.cvar("sv_botjump", "0", 0); //todo remove this
 
-	sv_bot_allow_add	= gi.cvar("sv_bot_allow_add", "0", 0); //stops players voting 
-	sv_bot_allow_skill	= gi.cvar("sv_bot_allow_skill", "0", 0); //stops players voting 
+	sv_bot_allow_add	= gi.cvar("sv_bot_allow_add", "1", 0); //stops players voting if 0
+	sv_bot_allow_skill	= gi.cvar("sv_bot_allow_skill", "1", 0); //stops players voting if 0
 
 	sv_bot_max			= gi.cvar("sv_bot_max", "8", 0);
 	sv_bot_max_players	= gi.cvar("sv_bot_max_players", "0", 0);
-	sv_hitmen			= gi.cvar("hitmen", "0", CVAR_SERVERINFO|CVAR_LATCH);
+	sv_hitmen			= gi.cvar("hitmen", "0", CVAR_LATCH|CVAR_SERVERINFO);
 	sv_hook				= gi.cvar("sv_hook", "0", 0); //HmHookAvailable //enable hook to work out of hitman
 // ACEBOT_END
+
 
 	// add hypov8
 	sv_keeppistol = gi.cvar("sv_keeppistol", "1", 0);
@@ -390,6 +389,30 @@ void InitGame (void)
 	if (sv_hitmen->value /*enable_hitmen*/)
 			hm_Initialise();
 // END
+
+// HYPOV8_ADD
+	/////////////////////////////////////////////////////////////////////////////////////////////////////
+	// hypov8 fix for lan bug in kingpin.exe. when inital .dll is loaded
+	// if cvar does not exist in the exe or configs it will fail setting the flags.
+	// missing CVAR_LATCH is causing crashes.
+	/////////////////////////////////////////////////////////////////////////////////////////////////////
+	sv_botskill			= gi.cvar("sv_botskill", "", CVAR_SERVERINFO);
+	sv_hitmen			= gi.cvar("hitmen", "", CVAR_LATCH|CVAR_SERVERINFO);
+
+	maxentities			= gi.cvar ("maxentities", "", CVAR_LATCH);
+	antilag				= gi.cvar("antilag", "", CVAR_SERVERINFO);
+	kick_flamehack		= gi.cvar ("kick_flamehack", "", CVAR_SERVERINFO);
+	g_select_empty		= gi.cvar ("g_select_empty", "", CVAR_ARCHIVE);
+
+
+	teamplay			= gi.cvar("teamplay", "0.0", CVAR_LATCH|CVAR_SERVERINFO);
+
+	cashlimit			= gi.cvar ("cashlimit", "", teamplay->value == 1 ? CVAR_SERVERINFO : 0);
+	g_cashspawndelay	= gi.cvar("g_cashspawndelay", "", CVAR_ARCHIVE|CVAR_LATCH);
+	dm_realmode			= gi.cvar( "dm_realmode", "", CVAR_LATCH|CVAR_SERVERINFO);
+// HYPOV8_END
+
+
 
 
 	if (kpded2)
