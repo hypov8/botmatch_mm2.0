@@ -1195,7 +1195,10 @@ void DeathmatchScoreboardMessage (edict_t *ent)
 			tag = "779";
 // ACEBOT_ADD
 		else if (cl_ent->acebot.is_bot)
-			tag = "966";
+			tag = "966"; //orange 255, 140, 0||
+		//9 * 0.1 * 255
+		//9=229.5		//8=204		//7=178		//6=153		//5=127	
+		//4=102		//3=76.5		//2=51		//1=25.5		//0=0
 // ACEBOT_END
 		else
 			tag = "999";	// fullbright

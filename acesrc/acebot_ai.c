@@ -351,7 +351,7 @@ qboolean ACEAI_InfrontBot(edict_t *self, edict_t *other)
 	VectorNormalize(vec);
 	dot = DotProduct(vec, forward);
 
-	if (dot > -0.25)
+	if (dot > 0.25)
 		return true;
 	return false;
 }
@@ -380,6 +380,9 @@ static void ACEAI_PickShortRangeGoal(edict_t *self)
 		return;
 	}
 	if (self->acebot.SRGoal_frameNum > level.framenum)
+		return;
+
+	if (self->groundentity == NULL)
 		return;
 
 	//look further if we just spawned or attacking
@@ -568,7 +571,7 @@ qboolean ACEAI_PickShortRangeGoal_Player (edict_t *self, qboolean reCheck)
 	// enemy not valid yet(skill time)
 	if (self->acebot.botSkillDeleyTimer > level.time)
 		return false;
-	if (self->acebot.enemyID_old <1 && self->acebot.enemyID_new <1)
+	if (!self->acebot.enemyID)
 		return false;
 	//no longer intrested in enemy
 	if (self->acebot.enemyAddFrame <= level.framenum - 150)
@@ -580,7 +583,7 @@ qboolean ACEAI_PickShortRangeGoal_Player (edict_t *self, qboolean reCheck)
 		if (random() > 0.5/*&&self->acebot.isChasingEnemy*/)
 		{
 			self->acebot.isChasingEnemy = false;
-			self->acebot.enemyID_old = -1;
+			self->acebot.enemyID = -1;
 			self->acebot.enemyAddFrame = 0;
 			ACEAI_PickLongRangeGoal(self);
 			return false;
@@ -606,7 +609,7 @@ qboolean ACEAI_PickShortRangeGoal_Player (edict_t *self, qboolean reCheck)
 					|| players->client->invincible_framenum > level.framenum)
 					continue;
 
-				if (i != self->acebot.enemyID_old)
+				if (i != self->acebot.enemyID)
 					continue;
 
 				node = ACEND_FindClosestNode(players, BOTNODE_DENSITY, BOTNODE_ALL);
@@ -830,6 +833,7 @@ static qboolean ACEAI_VisibleEnemy(edict_t *self, edict_t *other, qboolean isBes
 	qboolean isBooz=false,isBullet=true;
 
 	self->acebot.aimLegs = 0;
+	self->acebot.enemyOriginZoffset = 0;
 
 	if (self->client->pers.weapon)
 	{
@@ -914,17 +918,15 @@ static void ACEAI_CalculatePlayerState()
 	num_players = 0;
 	num_bots = 0;
 
-	// sort the clients by score
+
 	total = 0;
 	for (i = 1; i <= (int)maxclients->value; i++)
 	{
 		players = g_edicts + i;
 
-		//reset valid
+		//reset values every frame
 		players->acebot.is_validTarget = false;
-		//reset players hunted state
 		players->acebot.is_hunted = false;
-
 
 		//make sure they are in game and ready to die
 		if (!players->inuse
@@ -934,8 +936,6 @@ static void ACEAI_CalculatePlayerState()
 			|| players->client == NULL
 			|| players->client->pers.spectator == SPECTATING)
 			continue;
-
-
 
 		if (players->acebot.is_bot)
 		{
@@ -947,15 +947,13 @@ static void ACEAI_CalculatePlayerState()
 
 
 		if (players->client->invincible_framenum > level.framenum)	{
-			players->acebot.pm_last_node = INVALID;	
+			players->acebot.pm_last_node = INVALID;	//is_validTarget = false;
 		}
 		else // route/attack this player		
 			players->acebot.is_validTarget = true;	
 
-
-
+		// sort the clients by score
 		score = players->client->resp.score;
-
 		for (j = 0; j<total; j++)
 		{
 			if (score > botRankScores[j])
@@ -971,13 +969,13 @@ static void ACEAI_CalculatePlayerState()
 		total++;
 	}
 
+	//set hunted
 	count = num_bots + num_players;
 	if (count >1)
 	{
 		score = botRankScores[0] - botRankScores[1];
 		if (score > 3 && !g_edicts[botRankPlayerNum[0]].acebot.is_bot)
-			memset(&g_edicts[botRankPlayerNum[0]].acebot.is_hunted, true, sizeof(qboolean));
-			//players[botRankPlayerNum[0]]->acebot.is_hunted;
+			(g_edicts + botRankPlayerNum[0])->acebot.is_hunted = true;
 	}
 }
 #if HYPOBOTS
@@ -1005,10 +1003,15 @@ void ACEAI_G_RunFrame(void)
 	int i, foundFirstPlyr = false;
 	edict_t *ent;
 
+	if (sv_botskill->value < 0.0f) 
+		gi.cvar_set("sv_botskill", "0.0");
+	else if (sv_botskill->value > 4.0f)
+		gi.cvar_set("sv_botskill", "4.0");
+
+	ACEAI_CalculatePlayerState(); //set hunted, player/bot count etc..
+
 	if (level.bots_spawned && (level.modeset == MATCH || level.modeset == PUBLIC))
 	{
-		ACEAI_CalculatePlayerState(); //set is_hunted etc
-
 		ent = &g_edicts[0];
 		ent++;
 		for (i = 1; i <= (int)maxclients->value; i++, ent++)
@@ -1019,10 +1022,6 @@ void ACEAI_G_RunFrame(void)
 				ACEAI_Think(ent);
 			else
 			{
-				/*if (!ent->acebot.is_validTarget){
-					ent->acebot.pm_last_node = INVALID;
-					continue;
-				}*/
 				ent->acebot.PM_firstPlayer = false;
 				if (!foundFirstPlyr) //auto route on player 1
 				{
@@ -1065,7 +1064,7 @@ static qboolean ACEAI_InfrontEnemy(edict_t *self, edict_t *other)
 	//hypov8
 	fov = .25;
 	if (skill>3.0f)
-		fov = (4 - skill) / 2.25 - 1;	//fov = (4 - skill) / 2.25 - 1;//-1 to 0.77 
+		fov = (4 - skill) - 1;	//-1 to 0.0 
 	//1.0 is dead ahead
 	if (dot > fov)
 		return true;
@@ -1157,8 +1156,8 @@ static qboolean ACEAI_FindEnemy(edict_t *self)
 			 continue;
 
 		 //reset to no players stop bot hunting same player after death
-		 if (self->acebot.enemyID_old == i && players->health < 1)		{
-			 self->acebot.enemyID_old = -1;
+		 if (self->acebot.enemyID == i && players->health < 1)		{
+			 self->acebot.enemyID = -1;
 			 self->enemy = NULL;
 			 continue;
 		 }
@@ -1210,16 +1209,11 @@ static qboolean ACEAI_FindEnemy(edict_t *self)
 				continue;
 			
 			//just keep shooting last target for now
-			if (self->acebot.enemyID_old == i /*|| (underAttack && self->acebot.old_targetID)*/)
+			if (self->acebot.enemyID == i)
 			{
-				//self->acebot.enemyID_new = i;//hypov8 add. ok??
 				self->enemy = players;
 				return true;
 			}
-
-			//if (self->acebot.enemyAddFrame < level.framenum - 150) //15 seconds, forget about old target
-			//	self->acebot.enemyID_old = -1;
-
 
 			//hypo dont add a new target if not infront. ignore if hunted or under attack
 			//this stops bot turning a full 360. using skill %))
@@ -1247,25 +1241,18 @@ static qboolean ACEAI_FindEnemy(edict_t *self)
 	// set a new target
 	if (j != -1)
 	{
-		self->acebot.enemyID_new = j;
+		self->acebot.enemyID = j;
 		self->acebot.enemyAddFrame = level.framenum;
 
-		if (self->acebot.enemyID_new != self->acebot.enemyID_old)
-		{
-			self->acebot.enemyID_old = j;
-			if (self->client->weaponstate == WEAPON_FIRING)
-				self->acebot.botSkillDeleyTimer = level.time + ((4.0f - self->acebot.botSkillCalculated) *0.35f); //hypov8 target changed. shoot next closer player sooner
-			else if (underAttack)
-				self->acebot.botSkillDeleyTimer = level.time + ((4.0f - self->acebot.botSkillCalculated) *0.5f); //hypov8 attacked. shoot faster. 2 sec max
-			else
-				self->acebot.botSkillDeleyTimer = level.time + ((4.0f - self->acebot.botSkillCalculated) *0.75f); //give player 3 seconds(default) leway between seeing n being shot
+		if (self->client->weaponstate == WEAPON_FIRING)
+			self->acebot.botSkillDeleyTimer = level.time + ((4.0f - self->acebot.botSkillCalculated) *0.35f); //hypov8 target changed. shoot next closer player sooner
+		else if (underAttack)
+			self->acebot.botSkillDeleyTimer = level.time + ((4.0f - self->acebot.botSkillCalculated) *0.5f); //hypov8 attacked. shoot faster. 2 sec max
+		else
+			self->acebot.botSkillDeleyTimer = level.time + ((4.0f - self->acebot.botSkillCalculated) *0.75f); //give player 3 seconds(default) leway between seeing n being shot
 
-			return false;
-		}
+		return false;
 
-		self->acebot.enemyID_old = j;
-		self->enemy = g_edicts + j;// players[j];
-		return true;
 	}
 
 
@@ -1372,7 +1359,7 @@ void ACEAI_Reset_Goal_Node(edict_t *self, float wanderTime, char* eventName)
 			if(diff>1)\
 				gi.dprintf("Bot SyncDelay At %s (%dms) MoveMode: %s\n",str,diff, (mode==1)?"MOVE": "WANDER");
 #else
-#define BOT_TIME_DIFF(a,b,c,d)//(b=b)
+#define BOT_TIME_DIFF(a,b,c,d)(b=1)
 #endif
 
 ///////////////////////////////////////////////////////////////////////
@@ -1413,6 +1400,13 @@ void ACEAI_Think(edict_t *self)
 		if (level.framenum > self->acebot.crate_time)
 			self->acebot.isJumpToCrate = false;
 	}
+	if (self->acebot.is_Jumping)
+	{
+		if (self->groundentity)
+			self->acebot.is_Jumping = false;
+	}
+
+
 	if (self->acebot.water_time >= level.framenum){
 		if (!self->groundentity){
 			ucmd.forwardmove = BOT_FORWARD_VEL;
@@ -1456,13 +1450,12 @@ void ACEAI_Think(edict_t *self)
 		if (self->acebot.enemyChaseFrame < level.framenum){
 			ACEAI_Reset_Goal_Node(self, 1.0, "Stoped looking for Enemy.");
 			self->acebot.isChasingEnemy = false;
-			self->acebot.enemyID_old = -1;
+			self->acebot.enemyID = -1;
 			self->enemy = NULL;
 		}
 	}
 	if (self->acebot.enemyAddFrame < level.framenum - 150){ //15 seconds, forget about old target
-		self->acebot.enemyID_new = -1;
-		self->acebot.enemyID_old = -1;
+		self->acebot.enemyID = -1;
 		self->enemy = NULL;
 	}
 

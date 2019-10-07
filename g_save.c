@@ -243,7 +243,6 @@ void InitGame (void)
 	sv_bot_hunt			= gi.cvar("sv_bot_hunt", "1", 0); //give bot skill 10 against player winning by 4+ frags
 
 	sv_botpath			= gi.cvar("sv_botpath", "1", 0);
-	sv_botjump			= gi.cvar("sv_botjump", "0", 0); //todo remove this
 
 	sv_bot_allow_add	= gi.cvar("sv_bot_allow_add", "1", 0); //stops players voting if 0
 	sv_bot_allow_skill	= gi.cvar("sv_bot_allow_skill", "1", 0); //stops players voting if 0

@@ -80,6 +80,14 @@ int proccess_ini_file()
 	disable_curse = false;
 	unlimited_curse = false;
 	pickup_sounds = false;
+
+// ACEBOT_ADD
+	 //Lx_map_request.cfg
+	 //LB_chat_request.cfg
+
+	default_botskill = -1;
+// ACEBOT_END
+
 	// BEGIN HITMEN
 	enable_hitmen = false;
 	//END
@@ -227,13 +235,17 @@ int proccess_ini_file()
 			enable_killerhealth = true;
 		else if (!strcmp(key, "wait_for_players"))
 			wait_for_players = true;
-		// BEGIN HITMEN
+// ACEBOT_ADD
+		else if (!strcmp(key, "default_botskill"))
+			default_botskill = atof(param);
+// ACEBOT_END
+// BEGIN HITMEN
 		else if (!strcmp(key, "enable_hitmen"))
 		{
 			enable_hitmen = true;
 			sv_hitmen = gi.cvar_forceset("hitmen", "1");
 		}
-		//END
+//END
 		else
 			gi.dprintf("Unknown comp.ini line: %s\n",buffer);
 	}
@@ -369,36 +381,36 @@ skiprconx:
 		infile = fopen(va("%s/%s", dir, map_list_filename), "r");
 		if (infile != NULL)
 		{
-	while (fgetline(infile, buffer))	// Retrieve line from the file
-	{
-		// Check to see if this is a comment line
-		if (buffer[0] == '/' && buffer[1] == '/')
-			continue;
-
-		c = sscanf(buffer, "%s %s", map, map2);
-				if (c == 2 && map[0]>='1' && map[0]<='9') // old map list with rank included?
-					strncpy(maplist[num_maps], map2, sizeof(maplist[num_maps]) - 1);
-				else if (c)
-			strncpy(maplist[num_maps], map, sizeof(maplist[num_maps]) - 1);
-		else
-			continue;
-		kp_strlwr(maplist[num_maps]); // prevent MAX_GLTEXTURES errors caused by uppercase letters in the map vote pic names
-				if (!file_exist(va("maps/%s.bsp", maplist[num_maps])))
-		{
-			if (kpded2)
+			while (fgetline(infile, buffer))	// Retrieve line from the file
 			{
-				// check for an "override" file
-						if (file_exist(va("maps/%s.bsp.override", maplist[num_maps])))
-							goto mapok;
-			}
-			gi.dprintf("warning: \"%s\" map is missing (removed from map list)\n", maplist[num_maps]);
-			continue;
-		}
+				// Check to see if this is a comment line
+				if (buffer[0] == '/' && buffer[1] == '/')
+					continue;
+
+				c = sscanf(buffer, "%s %s", map, map2);
+						if (c == 2 && map[0]>='1' && map[0]<='9') // old map list with rank included?
+							strncpy(maplist[num_maps], map2, sizeof(maplist[num_maps]) - 1);
+						else if (c)
+					strncpy(maplist[num_maps], map, sizeof(maplist[num_maps]) - 1);
+				else
+					continue;
+				kp_strlwr(maplist[num_maps]); // prevent MAX_GLTEXTURES errors caused by uppercase letters in the map vote pic names
+						if (!file_exist(va("maps/%s.bsp", maplist[num_maps])))
+				{
+					if (kpded2)
+					{
+						// check for an "override" file
+								if (file_exist(va("maps/%s.bsp.override", maplist[num_maps])))
+									goto mapok;
+					}
+					gi.dprintf("warning: \"%s\" map is missing (removed from map list)\n", maplist[num_maps]);
+					continue;
+				}
 mapok:
-		num_maps++;
-		if (num_maps == 1024) break;
-	}
-	fclose(infile);
+				num_maps++;
+				if (num_maps == 1024) break;
+			}
+			fclose(infile);
 			gi.dprintf("Processed map list file (%s = %d maps)\n", map_list_filename, num_maps);
 		}
 	}

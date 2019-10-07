@@ -150,7 +150,7 @@ for(INDEX=1;INDEX<=(int)maxclients->value;INDEX++)\
 #define PLAYING				0
 
 // the "gameversion" client command will print this plus compile date
-#define	GAMEVERSION	"Botmatch.v38.M4" //	"MM2.0 +lagless +acebot +hitmen" //hypov8 gamename
+#define	GAMEVERSION	"Botmatch.v38.M7" //	"MM2.0 +lagless +acebot +hitmen" //hypov8 gamename
 
 // protocol bytes that can be directly added to messages
 #define	svc_muzzleflash		1
@@ -524,10 +524,11 @@ typedef struct
 
 
 // ACEBOT_ADD
-	qboolean bots_spawned; //hypov8 load bots once only while loading players
-	float bot_lastUdate;
-	qboolean scoresCalled; //only show scores once
-	qboolean aceNodesCurupt;
+	qboolean	bots_spawned; //hypov8 load bots once only while loading players
+	float		bot_lastUdate;
+	qboolean	scoresCalled; //only show scores once
+	qboolean	aceNodesCurupt;
+	int			botsRemoved;
 // ACEBOT_END
 
 } level_locals_t;
@@ -854,7 +855,6 @@ extern	cvar_t	*sv_maxvelocity;
 extern cvar_t *sv_botskill;
 extern cvar_t *sv_bot_hunt;
 extern cvar_t *sv_botpath; //hypov8 disable auto path routing
-extern cvar_t *sv_botjump; //stop players creating jump nodes for bots 0=disabled
 extern cvar_t *sv_bot_allow_add; //stops players voting 
 extern cvar_t *sv_bot_allow_skill; //stops players voting 
 
@@ -1432,6 +1432,7 @@ typedef struct
 	int			anonwarn;
 	// ACEBOT_ADD
 	qboolean is_bot; //hypov8 used to free bots on level change
+	qboolean is_ready; //hypov8 print for M. player finished d.l etc..
 	// ACEBOT_END
 
 } client_persistant_t;
@@ -2044,6 +2045,9 @@ extern int enable_password;
 extern int keep_admin_status;
 extern int default_random_map;
 extern int disable_curse;
+// ACEBOT_ADD
+extern float default_botskill;
+// ACEBOT_END
 // BEGIN HITMEN
 extern int enable_hitmen;
 // END

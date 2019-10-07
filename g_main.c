@@ -64,7 +64,6 @@ cvar_t	*sv_gravity;
 cvar_t *sv_botskill;
 cvar_t *sv_bot_hunt;
 cvar_t *sv_botpath;
-cvar_t *sv_botjump;
 cvar_t *sv_bot_allow_add;
 cvar_t *sv_bot_allow_skill;
 cvar_t *sv_bot_max;
@@ -433,7 +432,8 @@ void CheckDMRules (void)
 		for_each_player_inc_bot(doot, i)
 		count++;
 
-		if (count)		{
+		if (count)		
+		{
 			ACEND_InitNodes();
 			ACEND_LoadNodes();
 			ACESP_LoadBots();
@@ -595,11 +595,6 @@ void G_RunFrame (void)
 
 
 // ACEBOT_ADD
-	if (sv_botskill->value < 0.0f) 
-		gi.cvar_set("sv_botskill", "0.0");
-	else if (sv_botskill->value > 4.0f)
-		gi.cvar_set("sv_botskill", "4.0");
-
 	//run each bot and calc player movement
 	ACEAI_G_RunFrame();
 // ACEBOT_END
@@ -858,8 +853,7 @@ void G_RunFrame (void)
 // all the called functions are found in tourney.c
 
 	if (level.modeset == PREGAME)
-		CheckStartPub (); 		//CheckStartDM(); //hypov8 edited, game is allways dm mode?, make teamplay games use TEAM_PRE_MATCH
-
+		CheckStartPub ();
 
 	if (level.modeset == MATCHSETUP)
 		CheckIdleMatchSetup ();

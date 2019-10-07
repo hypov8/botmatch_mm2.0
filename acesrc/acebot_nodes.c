@@ -1627,8 +1627,11 @@ void ACEND_DebugNodesLocal(void)
 	{
 		memset(count, INVALID, sizeof(count));
 		//only used first player
-		for_each_player_not_bot(firstPlayer, iPlyr) //hypoo todo: fix player used
+		for_each_player_not_bot(firstPlayer, iPlyr)
 		{
+			if (!firstPlayer->acebot.PM_firstPlayer)
+				continue;
+
 			//hypov8 show all close nodes
 			for (j = NODE0; j < numnodes; j++)
 			{
@@ -1682,7 +1685,7 @@ void ACEND_DebugNodesLocal(void)
 					}
 				}
 			}
-			break; //only use first valid player "for_each_player_not_bot"
+			break; //found first valid player
 		}
 	}
 }

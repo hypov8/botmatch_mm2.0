@@ -205,8 +205,8 @@ static qboolean ACEMV_SpecialMove(edict_t *self, usercmd_t *ucmd)
 			if (distToTarget < 64)
 			{
 				trace_t trace;
-
-				trace = gi.trace(player_move_up, self->mins, self->maxs, nodes[self->acebot.node_next].origin, self, MASK_BOT_SOLID_FENCE); //hypo can we jump up? minus 12, jump to 60 units hypo: todo
+				//hypo can we jump up? minus 12, jump to 60 units hypo: todo
+				trace = gi.trace(player_move_up, self->mins, self->maxs, nodes[self->acebot.node_next].origin, self, MASK_BOT_SOLID_FENCE);
 
 				if (trace.allsolid == 0 && trace.startsolid == 0 && trace.fraction == 1.0)
 				{
@@ -1142,6 +1142,8 @@ static qboolean ACEMV_MoveToGoal(edict_t *self, usercmd_t *ucmd)
 		self->client->ps.viewangles[2] = 0;
 		VectorSubtract(self->movetarget->s.origin, self->s.origin, self->acebot.move_vector);
 		ACEMV_ChangeBotAngle(self);
+		if (self->acebot.isJumpToCrate)
+			ucmd->upmove+= BOT_JUMP_VEL;
 		ucmd->forwardmove = BOT_FORWARD_VEL;
 		return false;
 	}
@@ -1244,14 +1246,11 @@ void ACEMV_JumpPadUpdate(edict_t *bot/*, float pushSpeed*/)
 		bot->acebot.node_goal = INVALID;
 		bot->acebot.node_ent = NULL;
 
-		{ //hypov8 new ver
-			bot->acebot.isTrigPush = true;
-			VectorCopy(bot->s.origin, bot->acebot.oldOrigin);
-			bot->acebot.state = BOTSTATE_WANDER; //reset goal
-			bot->acebot.targetPlayerNode = 0;
-			bot->acebot.wander_timeout = level.time + 0.2;
-			bot->s.angles[PITCH] = 0;
-		}
+		bot->acebot.isTrigPush = true;
+		VectorCopy(bot->s.origin, bot->acebot.oldOrigin);
+		bot->acebot.targetPlayerNode = 0;
+		bot->acebot.wander_timeout = level.time + 0.2;
+		bot->s.angles[PITCH] = 0;
 	}
 }
 
@@ -1381,24 +1380,38 @@ void ACEMV_Move(edict_t *self, usercmd_t *ucmd)
 
 				if (self->groundentity)
 				{
-					vec3_t up = { 0.0, 0.0, 1.0 };
+					vec3_t up = { 0.0, 0.0, 1.0 }, flat;
 
 					//check crate/dist. if close. dont jump full height so next jump will be grounded
-					if (dist > 32 /*&& height < 32*/)	height = 60;		
-					if (height > 80)	height = 80;//max crate jump is 60. add a little more just incase
+					if (dist > 128 && height < 30)
+						height = 60;
 
-					if (dist < 128)		dist =128;
-					if (dist > 288)		dist = 288;
+					if (height > 100)	
+						height = 100;//max crate jump is 60. add a little more just incase
+					if (height > 0)
+						dist += height;
+
+					if (dist < 128)		
+						dist = 128;
+					if (dist > 288)		
+						dist = 288;
+
 					dist /= 288;
 
 					VectorSubtract(nodes[self->acebot.node_next].origin, self->s.origin, self->acebot.move_vector);
+					VectorCopy(self->acebot.move_vector, flat);
 					VectorNormalize(self->acebot.move_vector);
 					vectoangles(self->acebot.move_vector, self->s.angles);
+					flat[2] = 0.0f;
+					VectorNormalize(flat);
+
 
 					VectorScale(up, ((height / 60) * 360), self->velocity);
-					self->velocity[0] = self->acebot.move_vector[0] * 360*dist;
-					self->velocity[1] = self->acebot.move_vector[1] * 360*dist;
+					self->velocity[0] = flat[0] * 360*dist;
+					self->velocity[1] = flat[1] * 360*dist;
 					self->groundentity = NULL;
+					self->acebot.is_Jumping = true;
+					ucmd->forwardmove = BOT_FORWARD_VEL;
 					
 				}
 				else // traveling in air to goal.
@@ -1569,10 +1582,14 @@ void ACEMV_Move(edict_t *self, usercmd_t *ucmd)
 				VectorSubtract(nodes[self->acebot.node_next].origin, self->s.origin, self->acebot.move_vector);
 
 			ACEMV_ChangeBotAngle(self);
-			self->velocity[0] = self->acebot.move_vector[0] * 360;
-			self->velocity[1] = self->acebot.move_vector[1] * 360;
-			//if (self->velocity[2] >= -20.0f && self->velocity[2] <=0.0f)
-			//	self->velocity[2] -= self->gravity * sv_gravity->value * FRAMETIME;
+
+			if (!self->acebot.is_Jumping)//falling to jump node. didnt touch ground yet
+			{
+				self->velocity[0] = self->acebot.move_vector[0] * 360; //hypov8 todo. scale??
+				self->velocity[1] = self->acebot.move_vector[1] * 360;
+				//if (self->velocity[2] >= -20.0f && self->velocity[2] <=0.0f)
+				//	self->velocity[2] -= self->gravity * sv_gravity->value * FRAMETIME;
+			}
 		}
 		return;	
 	}
@@ -1970,10 +1987,12 @@ void ACEMV_Attack_RL_Predict(edict_t *self, edict_t *enemy)
 				//spawn a temp node for testing		
 				ACEMW_SpawnOrigin(out);
 			}
-			offset[2] -= 24; //additional aim at ground
+
+			//is enemy below us? then shoot floor
+			if (enemy->groundentity && enemy->s.origin[2] <= self->s.origin[2]+4)
+				offset[2] -= 16;
 		}
 	}
-
 
 	VectorCopy(offset, self->acebot.enemyRL_Offset);
 }
@@ -1988,13 +2007,13 @@ static void ACEMV_Attack_AimRandom(edict_t *self)
 	edict_t *enemy;
 	qboolean hunt = false;
 
-	//skill = (skill*0.875)+0.125;  // 1.0 to 0.125
+	skill = (skill*0.875)+0.125;  // 1.0 to 0.125
 
 	if (self->enemy == NULL) //hypov8 todo: get current state
 	{
-		if (self->acebot.enemyID_old > 0)
+		if (self->acebot.enemyID > 0)
 		{
-			enemy = g_edicts + self->acebot.enemyID_new;
+			enemy = g_edicts + self->acebot.enemyID;
 			hunt = enemy->acebot.is_hunted;
 			VectorCopy(enemy->velocity, velTmp);
 		}
@@ -2011,7 +2030,7 @@ static void ACEMV_Attack_AimRandom(edict_t *self)
 		self->acebot.bot_accuracy = 0; //no randomness for top players
 	else
 	{
-		static const float bodyWidth = 6; //always maintain this distance
+		static const float bodyWidth = 8; //always maintain this distance
 		static const float max = 20; //close accuracy. lowers with dist
 		static const float metr = 600; //falloff
 		// Get distance.
@@ -2025,11 +2044,14 @@ static void ACEMV_Attack_AimRandom(edict_t *self)
 		ran = crandom();
 
 
+
 #if 1 //HYPODEBUG
 		//get enemy speed
 		vel = (float)VectorLength(velTmp);
-		if (vel < 100)		skill *= .5;
-		else if (vel < 150)	skill *= .75;
+		if (vel < 20)
+			skill *= .5;
+		else if (vel < 50)	
+			skill *= .75;
 		//velTmp[2] = 0;(debug)
 #endif
 		rand_y = skill * ran;
@@ -2049,15 +2071,15 @@ void ACEMV_Attack_AimRandom_offset(edict_t *self, vec3_t aimdir)
 	vec3_t v, v2,  botOrigin, enemyOrigin;
 	edict_t *enemy;
 
-	if (self->acebot.enemyID_old < 1)//posibly dead?
+	if (self->acebot.enemyID < 1)//posibly dead?
 		return;
 
-	enemy = g_edicts + self->acebot.enemyID_old;
+	enemy = g_edicts + self->acebot.enemyID;
 	
 	VectorCopy(self->s.origin,botOrigin);
 	VectorCopy( enemy->s.origin, enemyOrigin);
 
-	//VectorCopy( self->acebot.enemyOrigin, enemyOrigin);buggy!!!
+	//VectorCopy( self->acebot.enemyOrigin, enemyOrigin);buggy!!! delayd by 1 frame
 
 	//predict rockets
 	ACEMV_Attack_RL_Predict(self, enemy);
@@ -2065,6 +2087,7 @@ void ACEMV_Attack_AimRandom_offset(edict_t *self, vec3_t aimdir)
 
 	//offset rocket height. legs..
 	enemyOrigin[2] += self->acebot.enemyOriginZoffset;
+	//enemyOrigin[2] -= 8; //move down some for recoil?
 
 	VectorSubtract(enemyOrigin, botOrigin, v2);
 	vectoangles(v2, v);
@@ -2222,6 +2245,7 @@ static void ACEMV_Attack_Dodge(edict_t *self, usercmd_t *ucmd)
 	//dont move on jump pads
 	if (!self->acebot.isMovingUpPushed)
 	{
+		//hypov8 todo: check if we are going to strafe into a wall!!!! esp with boozooka
 		//Com_Printf("strafeDir=%i, strafe=%i, rand=%d\n", self->acebot.last_strafeDir, strafe, c);
 
 		if (((c < 0.500f && !strafe) || (strafe && strafeDir == MOVE_LEFT))
@@ -2288,9 +2312,6 @@ static void ACEMV_Attack_Dodge(edict_t *self, usercmd_t *ucmd)
 #endif
 
 }
-
-
-
 
 
 ///////////////////////////////////////////////////////////////////////
@@ -2487,41 +2508,7 @@ void ACEMV_Attack (edict_t *self, usercmd_t *ucmd)
 	//setup dodge
 	ACEMV_Attack_Dodge(self, ucmd); //hypov8 moved down here
 
-#if 0
-	//set aim dir, compensate for movement. todo not needed anymore??
-	{
-		float fwd;
-		float side;
-		vec3_t dist;
-		vec3_t forward3, right3;
-		vec3_t offset3, botMoveComp; //compensate for movement error
-		vec3_t angles3;
 
-		if (!self->acebot.isMovingUpPushed)
-		{
-			fwd = (float)ucmd->forwardmove / 11;
-			side = (float)ucmd->sidemove / 11; //10 fps
-
-			VectorSet(offset3, fwd, side, 0);
-			VectorCopy(self->s.angles, angles3);
-			AngleVectors(angles3, forward3, right3, NULL);
-			G_ProjectSource(self->s.origin, offset3, forward3, right3, botMoveComp);
-		}
-		else
-		{	// use momentum on jump pad
-			VectorSubtract(self->s.origin, self->acebot.oldOrigin, dist);
-			VectorMA(self->acebot.oldOrigin, 2.0f, dist, botMoveComp);
-		}
-
-		// Set Aim direction
-		if (!flameGun)
-		{
-			VectorSubtract(target, botMoveComp, self->acebot.move_vector);
-			vectoangles(self->acebot.move_vector, angles);
-			VectorCopy(angles, self->s.angles);
-		}
-	}
-#endif
 	//hypov8 move player up if it has a target in water
 	VectorCopy(self->s.origin, player_origin);
 	player_origin[2] += 8; //hypov8 was 24
@@ -2541,9 +2528,9 @@ void ACEMV_Attack (edict_t *self, usercmd_t *ucmd)
 
 	//if (self->acebot.)
 
-	if (self->client->hookstate == 0) //if not on hook
+	if (self->client->hookstate == 0 &&	self->acebot.state == BOTSTATE_MOVE) //if not on hook
 	{
-		//add hypov8. try to stop bots being jerky after target is dead
+		//add hypov8. try to stop bots being jerky after target is dead/lost
 		if (self->acebot.isChasingEnemy)
 			ACEAI_Reset_Goal_Node(self, 1.0, "Found Enemy. Stop Chasing");
 		else

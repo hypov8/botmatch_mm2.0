@@ -82,7 +82,6 @@ void ACESP_LoadBots()
 	cvar_t	*game_dir, *map_name;
 	char filename[MAX_QPATH];
 	static qboolean flip;
-	char *team;
 	qboolean valid;
 
 	char *line, *token;
@@ -102,16 +101,18 @@ void ACESP_LoadBots()
 		return; // bail
 
 
-	fgetline(pIn, buffer);
-	while (!feof(pIn))
+	while (fgetline(pIn, buffer))
 	{
 		valid = false;
 		line = buffer;
+
 		for (i = 1; i <= 4; i++)
 		{
 			token = COM_Parse(&line);
-			if (token[0] == '\0')
-				break;
+			if (token[0] == '\0'){
+				if (i != 2 && i != 3) //allow null skin and null team
+					break;
+			}
 
 			switch (i)
 			{	
@@ -123,13 +124,13 @@ void ACESP_LoadBots()
 						break;
 			}
 
-			if (!valid && i >= 1)
+			if (!valid && i == 1)
 			{
 				valid = true; //valid with only name
-				flip = flip ? false : true;
-				team = flip ? "nikki": "dragon";
-				strcpy(player.skin, "male_thug/001 001 001");
-				strcpy(player.team, team);
+				//flip = flip ? false : true;
+				//team = flip ? "nikki": "dragon";
+				strcpy(player.skin, ""); //male_thug/001 001 001
+				strcpy(player.team, ""); //team
 				player.skill = 1.0f; //default. if missing from old versions
 			}
 		}
@@ -144,14 +145,9 @@ void ACESP_LoadBots()
 			else // name, skin			
 				ACESP_SpawnBot("\0", player.name, player.skin, NULL, player.skill); //sv addbot thugBot "male_thug/009 031 031"
 		}
-
-		fgetline(pIn, buffer);
-		continue;
 	}
 
 	fclose(pIn);
-
-
 }
 
 static  void ACESP_PutClientInServer(edict_t *bot, qboolean respawn, int team);
@@ -220,6 +216,8 @@ static void ACESP_ClientConnect(edict_t *ent, char *userinfo)
 	case 2: bestWepName = "Tommygun"; break;
 	}
 
+	gi.dprintf("%s (bestwep: %s)\n", ent->client->pers.netname, bestWepName);
+
 	if (password->string[0])
 		Info_SetValueForKey(userinfo, "password", password->string);
 
@@ -249,7 +247,7 @@ static  void ACESP_PutClientInServer(edict_t *bot, qboolean respawn, int team)
 	bot->classname = "bot"; // "bot"
 	//bot->acebot.is_jumping = false;
 	bot->acebot.isTrigPush = false;
-	bot->acebot.enemyID_old = -1; //hypo add
+	bot->acebot.enemyID = -1; //hypo add
 	bot->acebot.num_weps = 2;  //hypo add. 2= pistol+pipe
 	bot->acebot.lastDamageTimer = 0;  //hypo add
 	bot->acebot.enemyAddFrame = 0;	//hypov8 add
@@ -396,7 +394,7 @@ static  void ACESP_PutClientInServer(edict_t *bot, qboolean respawn, int team)
 	//acebot
 	//bot->acebot.is_jumping = false;
 	bot->acebot.isTrigPush = false;
-	bot->acebot.enemyID_old = -1; //hypo add
+	bot->acebot.enemyID = -1; //hypo add
 	bot->acebot.num_weps = 2;  //hypo add. 2= pistol+pipe
 	bot->acebot.lastDamageTimer = 0;  //hypo add
 	bot->acebot.enemyAddFrame = 0;	//hypov8 add
@@ -719,7 +717,7 @@ void ACESP_Respawn (edict_t *ent)
 		if (ent->acebot.is_bot)
 	{
 		ent->acebot.isTrigPush = false;
-		ent->acebot.enemyID_old = -1; //hypo add
+		ent->acebot.enemyID = -1; //hypo add
 		ent->acebot.num_weps = 2;  //hypo add. 2= pistol+pipe
 		ent->acebot.lastDamageTimer = 0;  //hypo add
 		ent->acebot.enemyAddFrame = 0;	//hypov8 add
@@ -783,6 +781,19 @@ static edict_t *ACESP_FindFreeClient (void)
 	edict_t *bot = NULL;
 	int	i;
 	int max_count=0;
+
+	//only effective after level playable
+	if (num_bots || num_players)
+	{
+		int total = num_bots + num_players;
+		int maxBotPlyr = (int)sv_bot_max_players->value;
+		int maxBot = (int)sv_bot_max->value;
+
+		if (maxBotPlyr && total >= maxBotPlyr)
+			return NULL;
+		if (maxBot && num_bots >= maxBot)
+			return NULL;			
+	}
 	
 	// This is for the naming of the bots
 	for (i = (int)maxclients->value; i > 0; i--)
@@ -855,7 +866,7 @@ void ACESP_SetName(edict_t *bot, char *name, char *skin/*, char *team*/)
 	else
 		strcpy(bot_name,name);
 
-	Com_sprintf(bot->client->pers.netname, sizeof(bot->client->pers.netname),"%s", name);
+	Com_sprintf(bot->client->pers.netname, sizeof(bot->client->pers.netname),"%s", bot_name);
 
 	//strcpy(bot->client->pers.netname, name);
 	
@@ -998,16 +1009,18 @@ void ACESP_SpawnBot (char *team, char *name, char *skin, char *userinfo, float s
 	
 	if (!bot)
 	{
-		gi.dprintf("Server is full, increase Maxclients.\n");
+		gi.dprintf("Server is full, increase bot/player max values.\n");
 		return;
 	}
+
+ //hypov8 added here when multiple bots get added at match start(g_runframe not called yet)
+	num_bots++;
 
 
 	bot->flags &= ~FL_GODMODE;
 	bot->health = 0;
 	meansOfDeath = MOD_UNKNOWN;
-	bot->acebot.enemyID_new = -1;
-	bot->acebot.enemyID_old = -1;
+	bot->acebot.enemyID = -1;
 	bot->yaw_speed = 100; // yaw speed
 	bot->inuse = true;
 	bot->acebot.is_bot = true;
@@ -1071,7 +1084,6 @@ int ACESP_LoadRandomBotCFG(void)
 	char filename[MAX_QPATH];
 	char *line, *token;
 	static qboolean flip;
-	char*team;
 	qboolean valid;
 
 	level.bots_spawned = true;
@@ -1083,37 +1095,38 @@ int ACESP_LoadRandomBotCFG(void)
 	count = 0;
 	if ((pIn = fopen(filename, "r")) != NULL)
 	{
-		fgetline(pIn, buffer);
-		while (!feof(pIn))
+		while (fgetline(pIn, buffer))
 		{
 			valid = false;
-
 			line = buffer;
+
 			for (i = 1; i <= 4; i++)
 			{
 				token = COM_Parse(&line);
-				if (token[0] == '\0' && i != 4)
-					break;
+				if (token[0] == '\0'){
+					if (i != 2 && i != 3) //allow null skin and null team
+						break;
+				}
+
 
 				switch (i)
 				{
 				case 1: strcpy(randomBotSkins[count].name, token); break;
 				case 2: strcpy(randomBotSkins[count].skin, token); break;
 				case 3: strcpy(randomBotSkins[count].team, token); break;
-				case 4: if (token[0] != '\0') 
-						randomBotSkins[count].skill = (float)atof((const char *)token); 
+				case 4: randomBotSkins[count].skill = (float)atof((const char *)token); 
 						break;
 				}
 
-				//all varables exist?
-				if (!valid && i >= 1)
+				//only name needs to exist
+				if (!valid && i == 1)
 				{
-					flip = flip ? false : true;
-					team = flip ? "nikki": "dragon";
-					strcpy(randomBotSkins[count].skin, "male_thug/001 001 001");
-					strcpy(randomBotSkins[count].team, team);
-					randomBotSkins[count].skill = 1.0f;
 					valid = true;
+					//flip = flip ? false : true;
+					//team = flip ? "nikki": "dragon";
+					strcpy(randomBotSkins[count].skin, ""); //male_thug/001 001 001
+					strcpy(randomBotSkins[count].team, "");//team
+					randomBotSkins[count].skill = 1.0f;
 				}
 			}
 			if (valid)
@@ -1124,9 +1137,6 @@ int ACESP_LoadRandomBotCFG(void)
 				else if (randomBotSkins[count].skill < 0.0f)
 					randomBotSkins[count].skill = 0.0f;
 			}
-
-			fgetline(pIn, buffer);
-			continue;
 		}
 
 		fclose(pIn);
@@ -1164,7 +1174,7 @@ void ACESP_SpawnBot_Random(char *team, char *name, char *skin, char *userinfo)
 				for_each_player_inc_bot(bot, i)
 				{
 					//if (!bot->acebot.is_bot) continue; //hypo allow clients to use bot names?
-					if (_strcmpi(randomBotSkins[randm].name, bot->client->pers.netname) == 0)
+					if (Q_stricmp(randomBotSkins[randm].name, bot->client->pers.netname) == 0)
 					{
 						count++;
 						break;
@@ -1210,15 +1220,19 @@ void ACESP_RemoveBot(char *name, qboolean print)
 	qboolean freed=false;
 	edict_t *bot;
 
-	//if (!(level.modeset == MATCH || level.modeset == PUBLIC))
-	//	return;
+
+	if (!level.bots_spawned /*|| !(level.modeset == MATCH || level.modeset == PUBLIC)*/)
+	{
+		//gi.dprintf("Cannot use removebot right now\n");
+		return;
+	}
 
 	for(i=1;i<=(int)maxclients->value;i++)
 	{
 		bot = g_edicts + i ;
-		if(bot->inuse && bot->acebot.is_bot) 
+		if(bot->inuse && bot->acebot.is_bot) //hypov8 Q_stricmp
 		{
-			if (_strcmpi(bot->client->pers.netname, name) == 0 || strcmp(name, "all") == 0 || strcmp(name, "single") == 0)
+			if (Q_stricmp(bot->client->pers.netname, name) == 0 || Q_stricmp(name, "all") == 0 || Q_stricmp(name, "single") == 0)
 			{
 				freed = true;
 				if (print)
@@ -1232,7 +1246,7 @@ void ACESP_RemoveBot(char *name, qboolean print)
 					memset(&game.clients[i-1], 0, sizeof(gclient_t)) ;
 
 
-				if (strcmp(name, "single") == 0) //hypov8 remove 1 bot then exit
+				if (Q_stricmp(name, "single") == 0) //hypov8 remove 1 bot then exit
 					break;
 			}
 		}
@@ -1261,7 +1275,7 @@ void ACESP_KillBot(edict_t *self)
 
 
 //fix for using console to change map
-void FreeBots(void)
+void ACESP_FreeBots(void)
 {
 	int		i;
 

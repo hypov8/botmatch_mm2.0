@@ -838,6 +838,7 @@ void Use_Weapon2 (edict_t *ent, gitem_t *item)
 	else
 		ent->hasSelectedPistol = false;
 // HYPOV8_END
+
 	// change to this weapon when down
 	ent->client->newweapon = item;
 	
@@ -853,12 +854,11 @@ void Drop_Weapon (edict_t *ent, gitem_t *item)
 {
 	int		index;
 
-	//hypov8 todo: dont dro in spec
-
 	// BEGIN HITMEN
 	if (sv_hitmen->value /*enable_hitmen*/)
 		return;
 	// END
+
 	if ((int)(dmflags->value) & DF_WEAPONS_STAY)
 		return;
 

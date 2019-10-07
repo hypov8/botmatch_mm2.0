@@ -771,7 +771,7 @@ void ED_CallSpawn (edict_t *ent)
 		ent->classname = "hmg_mod_cooling";
 
 
-#if  HYPODEBUG //test bot aim per weapon
+#if 0//  HYPODEBUG //test bot aim per weapon
 	if (strncmp(ent->classname, "weapon_", 7) == 0)
 		ent->classname = "weapon_bazooka"; 
 	//"weapon_flamethrower"
@@ -1158,7 +1158,7 @@ void SpawnEntities (char *mapname, char *entities, char *spawnpoint)
 // END:		Xatrix/Ridah/Navigator/19-mar-1998
 
 // ACEBOT_ADD
-	FreeBots(); //add hypov8
+	ACESP_FreeBots(); //add hypov8
 // ACEBOT_END
 
 
@@ -1196,7 +1196,7 @@ void SpawnEntities (char *mapname, char *entities, char *spawnpoint)
 			}
 // ACEBOT_ADD
 			//fix for bots only
-			if (!_strcmpi(level.mapname, "stdm5"))
+			if (!Q_stricmp(level.mapname, "stdm5"))
 			{
 				if (!strcmp(ent->classname, "misc_teleporter_dest")){
 					ent->target = "";
@@ -1236,12 +1236,12 @@ void SpawnEntities (char *mapname, char *entities, char *spawnpoint)
 						ent->s.origin[0] -= 128;
 				}
 			}
-			else if (!_strcmpi(level.mapname, "dm_fis_b1"))
+			else if (!Q_stricmp(level.mapname, "dm_fis_b1"))
 			{
 				if (!strcmp(ent->classname, "trigger_hurt"))
 					ent->dmg = 9999;
 			}
-			else if (!_strcmpi(level.mapname, "dm_mm")) //add hypov8
+			else if (!Q_stricmp(level.mapname, "dm_mm")) //add hypov8
 			{
 				if (!strcmp(ent->classname, "func_door_secret")){
 					ent->classname = "func_door";
@@ -1254,14 +1254,14 @@ void SpawnEntities (char *mapname, char *entities, char *spawnpoint)
 			//end bot fix
 
 			//davs_room
-			else if (!_strcmpi(level.mapname, "davs_room")) //add hypov8
+			else if (!Q_stricmp(level.mapname, "davs_room")) //add hypov8
 			{
 				if (!strcmp(ent->classname, "func_timer"))
 				{
 					ent->wait = 0.8;
 				}
 			}
-			else if (!_strcmpi(level.mapname, "q3dm1_hellgate")) //add hypov8
+			else if (!Q_stricmp(level.mapname, "q3dm1_hellgate")) //add hypov8
 			{
 				if (!strcmp(ent->classname, "junior"))
 				{
@@ -1288,7 +1288,7 @@ void SpawnEntities (char *mapname, char *entities, char *spawnpoint)
 					ent->style = 1;
 //#if 0
 					//add hypov8 map fix for 420dm1
-					if (!_strcmpi(level.mapname, "420dm1"))
+					if (!Q_stricmp(level.mapname, "420dm1"))
 					{
 						if (VectorCompare(ent->s.origin, spawnvecs[6])
 							|| VectorCompare(ent->s.origin, spawnvecs[7]))
@@ -1304,12 +1304,12 @@ void SpawnEntities (char *mapname, char *entities, char *spawnpoint)
 							ent->s.origin[2] += 16;
 					}
 
-					if (!_strcmpi(level.mapname, "8mile") && VectorCompare(ent->s.origin, spawnvecs[13]))
+					if (!Q_stricmp(level.mapname, "8mile") && VectorCompare(ent->s.origin, spawnvecs[13]))
 					{
 						ent->s.origin[0] = -888;
 						ent->s.origin[1] = 80;
 					}
-					if (!_strcmpi(level.mapname, "nycdm2_kp") && VectorCompare(ent->s.origin, spawnvecs[14]))
+					if (!Q_stricmp(level.mapname, "nycdm2_kp") && VectorCompare(ent->s.origin, spawnvecs[14]))
 					{
 						ent->s.origin[2] -= 16;
 					}

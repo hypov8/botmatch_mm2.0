@@ -74,7 +74,7 @@ qboolean debug_mode_origin_ents = true; //local node
 // scoreboard
 //===================================================================
 //hypo add voting options
-#if 1 // HYPODEBUG
+
 // ACEBOT_ADD //MENU
 #define MENU_Y_START 20 //menu height
 #define MENU_Y_COUNT 11 //headder= +2 (max list items)
@@ -276,8 +276,8 @@ void ACECM_BotScoreboardRemove(edict_t *ent) //SCORE_BOT_REMOVE
 	if (outCount < 1)
 	{
 		ent->client->showscores = SCORE_BOT_MENU;
-		DeathmatchScoreboard(ent);
-		return;
+		//DeathmatchScoreboard(ent);
+		//return;
 	}
 
 	for (i = 1; i <= MENU_Y_COUNT; i++)
@@ -408,8 +408,6 @@ void ACECM_BotScoreboardSkill(edict_t *ent) //SCORE_BOT_SKIL
 	gi.WriteString(string);
 }
 // ACEBOT_END //MENU
-#endif
-
 
 
 
@@ -537,7 +535,7 @@ void Cmd_VoteRemoveBot_f(edict_t *ent, qboolean isMenu, char botnames[32]) //VOT
 		{
 			if (!dude->acebot.is_bot)
 				continue;
-			if (_strcmpi(dude->client->pers.netname, s) == 0)
+			if (Q_stricmp(dude->client->pers.netname, s) == 0)
 				count++;
 		}
 
@@ -626,7 +624,7 @@ void Cmd_VoteSkill_f(edict_t *ent, qboolean usedMenu) //VOTE_BOTSKILL;
 		{
 			char sSkill[16];
 			Com_sprintf(sSkill, sizeof(sSkill), "%1.1f", skill_f);
-			sv_botskill = gi.cvar_set("sv_botskill", sSkill);
+			gi.cvar_set("sv_botskill", sSkill);
 			safe_bprintf(PRINT_HIGH, "Bot-Skill set to %d of 10 (sv_botskill %s)\n", ACECM_ReturnBotSkillWeb(), sv_botskill->string);
 			cprintf(ent, PRINT_HIGH, "This setting takes effect immediately\n");
 			return;
@@ -1088,37 +1086,26 @@ void ACECM_BotDebug(changeState)
 
 void ACECM_BotAdd(char *name, char *skin, char *team, char *skill)
 {
-	float _skill = 1.0f;
-
-#if HYPODEBUG
-	int i;
-	edict_t	*ent;
-	for (i = 1; i<=(int)maxclients->value; i++)
+	if (level.bots_spawned &&(level.modeset == MATCH || level.modeset == PUBLIC))
 	{
-		ent = g_edicts + i;
-		if (!ent->inuse || ent->acebot.is_bot)
-			continue;
+		float _skill = 1.0f;
 
-		safe_centerprintf(ent, "Bot Added");
-	}
-#endif
+		if (skill[0] != '\0')
+			_skill = (float)atof((const char*)skill);
 
-	if (skill[0] != '\0')
-		_skill = (float)atof((const char*)skill);
+		if (_skill < 0.0)
+			_skill = 0.0f;
+		else if (_skill > 2)
+			_skill = 2.0f;
 
-	if (_skill < 0.0)
-		_skill = 0.0f;
-	else if (_skill > 2)
-		_skill = 2.0f;
-
-	/* bots need to be added between game start and end. */
-	if (level.modeset == MATCH || level.modeset == PUBLIC)
-	{
 		if (teamplay->value) // name, skin, team 
 			ACESP_SpawnBot(team, name, skin, NULL, _skill); //sv addbot thugBot "male_thug/009 031 031" dragon 1.0
 		else // name, skin			
 			ACESP_SpawnBot("\0", name, skin, NULL, _skill); //sv addbot thugBot "male_thug/009 031 031" null 1.0
 	}
+	else	//message if bot failed
+		gi.dprintf("Cannot use addbot right now");
+
 }
 //end hypov8
 
@@ -1166,7 +1153,7 @@ void ACECM_SetBotSkill_f(edict_t *ent, char *value) //add hypov8
 		case 10: value = "4.0"; break;
 		}
 
-		sv_botskill = gi.cvar_set("sv_botskill", value);
+		gi.cvar_set("sv_botskill", value);
 		safe_bprintf(PRINT_HIGH, "Bot-Skill set to %d of 10 (sv_botskill %s)\n", ACECM_ReturnBotSkillWeb(), sv_botskill->string);
 		cprintf(ent, PRINT_HIGH, "This setting takes effect immediately\n");
 	}
@@ -1324,7 +1311,6 @@ qboolean ACECM_Commands(edict_t *ent)
 void ACECM_LevelEnd(void)
 {
 	ACEND_SaveNodes();
-	botsRemoved = 0;
 }
 
 ///////////////////////////////////////////////////////////////////////

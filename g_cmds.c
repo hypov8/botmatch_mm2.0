@@ -1016,8 +1016,6 @@ void Cmd_Drop_f (edict_t *ent)
 	if (ent->solid == SOLID_NOT) 
 		return;
 
-	//hypov8 todo: dont dro in spec
-
 	s = gi.args();
 
 	if (!Q_stricmp (s, "cash"))
@@ -1739,7 +1737,6 @@ void Cmd_InvDrop_f (edict_t *ent)
 {
 	gitem_t		*it;
 	int		index;
-	//hypov8 todo: dont drop in spec
 
 	if (ent->solid == SOLID_NOT)
 		return;
@@ -2083,12 +2080,13 @@ void Cmd_CommandList_f (edict_t *ent)
 	else if (!disable_admin_voting)
 		strcat(buf, ", elect");
 
+	strcat(buf, " \n");
 
 	if (ent->client->pers.admin > NOT_ADMIN)
 	{
 		if (teamplay->value)
 			strcat(buf, "matchsetup, matchscore, matchstart, matchend, team1name, team2name\n");
-		strcat(buf, "resetserver, settimelimit, setfraglimit, setcashlimit, setdmflags\nendmap, setidletime, toggle_asc, toggle_bunny, toggle_shadows, toggle_zoom");
+		strcat(buf, "resetserver, settimelimit, setfraglimit, setcashlimit, setdmflags\n" "endmap, setidletime, toggle_asc, toggle_bunny, toggle_shadows, toggle_zoom");
 		if (teamplay->value)
 			strcat(buf, ", toggle_spec");
 		else
@@ -2203,7 +2201,7 @@ void Cmd_Yes_f (edict_t *ent)
 					{
 						char sSkill[16];
 						Com_sprintf(sSkill, sizeof(sSkill), "%1.1f", voteBotSkill);
-						sv_botskill = gi.cvar_set("sv_botskill", sSkill);
+						gi.cvar_set("sv_botskill", sSkill);
 						safe_bprintf(PRINT_HIGH, "Bot-Skill set to %d of 10 (sv_botskill %s)\n", ACECM_ReturnBotSkillWeb(), sv_botskill->string);
 						safe_cprintf(ent, PRINT_HIGH, "This setting takes effect immediately\n");
 					}

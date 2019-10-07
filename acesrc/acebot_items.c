@@ -64,7 +64,6 @@
 int	num_players;
 int num_items;
 int nodeFileComplet =0;
-int botsRemoved = 0;
 int num_bots;
 
 
@@ -96,80 +95,59 @@ qboolean ACEIT_CheckIfItemExists(edict_t *self)
 }
 
 
-void ACEIT_PlayerCheckCount()
-{
-	edict_t	*bot;
-	int i;
-	char botname[16];
-
-	if ((int)sv_bot_max_players->value != 0)
-	{
-		if (num_bots > 0 && num_players > 1)
-		{
-			int total = num_bots + num_players;
-			if (total > (int)sv_bot_max_players->value)
-			{
-				for (i = 1; i <= (int) maxclients->value; i++) //num_players
-				{
-					bot = g_edicts + i;
-					if (!bot->acebot.is_validTarget)
-						continue;
-
-					if (!bot->acebot.is_bot) 
-						continue;
-
-					if (bot->client)
-					{
-						strcpy(botname, bot->client->pers.netname);
-						ACESP_RemoveBot(botname, true);
-						botsRemoved++;
-						return;
-					}
-				}
-			}
-		}
-	}
-}
-
-void ACEIT_PlayerCheckAddCount()
-{
-	int count;
-	// countBot = 0, countPlayer = 0;
-
-	if (botsRemoved > 0)
-	{
-		if (sv_bot_max_players->value > 0)
-		{
-			count = num_bots + num_players;
-
-			if ((int)sv_bot_max_players->value > count)
-			{
-				botsRemoved--;
-				if (botsRemoved < 0) botsRemoved = 0;
-				ACESP_SpawnBot_Random('\0', "\0", "\0", NULL);
-			}
-		}
-	}
-}
 ///////////////////////////////////////////////////////////////////////
-// Add the player to our list
+// Player added
+// Count players/bots and remove if to many
 ///////////////////////////////////////////////////////////////////////
-
 void ACEIT_PlayerAdded(edict_t *ent)
 {
-	if (!ent->acebot.is_bot)
-		ACEIT_PlayerCheckCount();
+	if (!ent->acebot.is_bot && level.bots_spawned && sv_bot_max_players->value)
+	{	
+		edict_t	*bot;
+		int i;
+
+		int total = num_bots + num_players+1; //+1 for new player(g_runframe not called yet)
+		if (total > (int)sv_bot_max_players->value)
+		{
+			for (i = 1; i <= (int) maxclients->value; i++)
+			{
+				bot = g_edicts + i;
+
+				//valid and ingame?
+				if (!bot->inuse
+					|| !bot->solid
+					|| !bot->client	
+					|| !bot->acebot.is_bot
+					|| !bot->client->pers.spectator == PLAYING
+					|| !bot->movetype == MOVETYPE_WALK)
+					continue;
+
+				//delete last added bot
+				ACESP_RemoveBot(bot->client->pers.netname, true);
+				level.botsRemoved++;
+				return;
+			}
+		}
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////
-// Remove player from list
+// Player emoved
+// Re'add a bot if we are below limit
 ///////////////////////////////////////////////////////////////////////
-
 void ACEIT_PlayerRemoved(edict_t *ent)
 {
+	if (!ent->acebot.is_bot && level.bots_spawned && sv_bot_max_players->value && level.botsRemoved)
+	{
+		int count = num_bots + num_players-1;
 
-	if (!ent->acebot.is_bot)
-		ACEIT_PlayerCheckAddCount();
+		if (count < (int)sv_bot_max_players->value && num_bots < sv_bot_max->value)
+		{
+			num_players--; // add b4 g_runframe had a chance to update
+			ACESP_SpawnBot_Random('\0', "\0", "\0", NULL);
+			level.botsRemoved--;
+		}
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////
@@ -178,50 +156,57 @@ void ACEIT_PlayerRemoved(edict_t *ent)
 qboolean ACEIT_IsReachable(edict_t *self, vec3_t goal)
 {
 	trace_t trace;
-	vec3_t goal_move_dn, player_move_up;
+	vec3_t goal_move_up, player_move_up;
 	vec_t jump_height;
 	vec3_t minx, maxx;
 
 	//hypo todo: check/cleanup. SRG. do we need on crouch?
 
-	VectorCopy(goal, goal_move_dn);
-	goal_move_dn[2] += BOTNODE_SHIFT;//hypov8 was minus. "items" are 15 units. ==old(goal move down 8. match player height)
+	VectorCopy(goal, goal_move_up);
+	goal_move_up[2] += BOTNODE_SHIFT+2;//hypov8 move item origin to match player. "items" are 15 units.
+	
+	jump_height = goal_move_up[2] - self->s.origin[2];
+	if (jump_height > 60)
+		return false;
 
 	VectorCopy(self->mins,minx);
 	VectorCopy(self->maxs, maxx);
 	minx[2] += 18;// Stepsize/rough terain. hypov8 note: can get caught trying to goto crouch spots!!!
-	//maxx[2] += 18;
 	minx[0] = minx[1] = -15;//stop it catching on walls
 	maxx[0] = maxx[1] = 15;
 	
 
-	trace = gi.trace(self->s.origin, minx, maxx, goal_move_dn, self, MASK_BOT_SOLID_FENCE); //hypo can we jump up? minus 12, jump to 60 units hypo: todo
+	trace = gi.trace(self->s.origin, minx, maxx, goal_move_up, self, MASK_BOT_SOLID_FENCE);
 	
 	// Yes we can see it
 	if (trace.fraction == 1.0)
 		return true;
-
-	//hypov8 also check ledges for items
-	jump_height = goal_move_dn[2] - self->s.origin[2];
-	if (jump_height >= 16 && jump_height <= 60) /*&& !self->acebot.isJumpToCrate*/
+	else
 	{
-		//match player height to entity
-		VectorCopy(self->s.origin, player_move_up);
-		player_move_up[2] = goal_move_dn[2];
+		float dist = VectorDistanceFlat(goal_move_up, self->s.origin);
 
-		//move player bbox back down
-		minx[2] -= 18;
-		//maxx[2] -= 18;
-		trace = gi.trace(player_move_up, minx, maxx, goal_move_dn, self, MASK_BOT_SOLID_FENCE); //hypo can we jump up? minus 12, jump to 60 units hypo: todo
-
-		if (trace.allsolid == 0 && trace.startsolid == 0 && trace.fraction == 1.0)
+		//hypov8 also check ledges for items
+		if (dist <128) //jump?
 		{
-			self->acebot.isJumpToCrate= true;
-			self->acebot.crate_time = level.framenum + 5;
-			return true;
+			//match player height to entity
+			VectorCopy(self->s.origin, player_move_up);
+			player_move_up[2] = goal_move_up[2];
+
+			//move player bbox back down
+			minx[2] -= 18;
+			//hypo can we jump up?
+			trace = gi.trace(player_move_up, minx, maxx, goal_move_up, self, MASK_BOT_SOLID_FENCE); 
+
+			if (trace.allsolid == 0 && trace.startsolid == 0 && trace.fraction == 1.0)
+			{
+				if (dist <= 64){
+					self->acebot.isJumpToCrate = true;
+					self->acebot.crate_time = level.framenum + 3;
+				}
+				return true;
+			}
 		}
 	}
-
 	return false;
 }
 
@@ -369,7 +354,6 @@ qboolean ACEIT_Needs_Armor(edict_t *bot, char * itemName)
 	}
 	return true;
 }
-
 
 
 ///////////////////////////////////////////////////////////////////////
@@ -607,9 +591,6 @@ float ACEIT_ItemNeedSpawned(edict_t *self, int item, float timestamp, int spawnf
 }
 
 
-
-
-
 ///////////////////////////////////////////////////////////////////////
 // Convert a classname to its index value
 //
@@ -689,7 +670,6 @@ int ACEIT_ClassnameToIndex(char *classname, int style)
 
 	return INVALID;
 }
-
 
 
 ///////////////////////////////////////////////////////////////////////
@@ -829,6 +809,18 @@ void ACEIT_BuildItemNodeTable(qboolean reLinkEnts)
 						v[1] = (v1[1] - v2[1]) / 2 + v2[1];
 						v[2] = items->maxs[2] + items->pos2[2] + BOTNODE_PLATFORM_32;
 					}
+
+					//hypoov8 node moved down in v38..
+					if (nodes[i].type == BOTNODE_TELEPORTER)
+					{
+						if (v[0] == nodes[i].origin[0] &&
+							v[1] == nodes[i].origin[1] &&
+							v[2] == nodes[i].origin[2] - 16)
+						{
+							nodes[i].origin[2] -= 16;
+						}
+					}
+
 
 					if (v[0] == nodes[i].origin[0] &&
 						v[1] == nodes[i].origin[1] &&

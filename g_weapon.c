@@ -106,7 +106,7 @@ static void fire_lead (edict_t *self, vec3_t start, vec3_t aimdir, int damage, i
 	if (self->acebot.is_bot)
 		ACEMV_Attack_CalcRandDir(self, aimdir);
 // ACEBOT_END
-#if HYPODEBUG
+#if 0// HYPODEBUG
 	damage = 2;
 
 #endif

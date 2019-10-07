@@ -1458,7 +1458,7 @@ void PutClientInServer (edict_t *ent)
 		}
 	}
 
-	client->ps.pmove.origin[0] = spawn_origin[0]*8; //hypov8 todo: check this for spec players
+	client->ps.pmove.origin[0] = spawn_origin[0]*8;
 	client->ps.pmove.origin[1] = spawn_origin[1]*8;
 	client->ps.pmove.origin[2] = spawn_origin[2]*8;
 
@@ -1741,7 +1741,7 @@ void ClientBeginDeathmatch (edict_t *ent)
 			else if (teamplay->value && !ent->client->pers.team && ((int)dmflags->value & DF_AUTO_JOIN_TEAM) && !level.intermissiontime && level.modeset != MATCH)
 				Teamplay_AutoJoinTeam( ent );
 		}
-#if 1 //hypov8 todo: check this
+
 // ACEBOT_ADD
 		if (level.modeset == MATCH || level.modeset == PUBLIC
 		|| level.modeset == MATCHSPAWN || level.modeset == PUBLICSPAWN) //free???
@@ -1751,7 +1751,7 @@ void ClientBeginDeathmatch (edict_t *ent)
 					ACEIT_PlayerAdded(ent); //only add to bot list if player can enter game
 		}									//also called in match begin
 // ACEBOT_END
-#endif
+
 		// locate ent at a spawn point
 		PutClientInServer (ent);
 		ent->client->pers.idle = curtime;
@@ -1766,7 +1766,9 @@ void ClientBeginDeathmatch (edict_t *ent)
 		ChangeWeapon (ent);
 	}
 	if (!teamplay->value && ent->client->pers.spectator != SPECTATING && level.modeset != PUBLICSPAWN)
+	{
 		safe_bprintf(PRINT_HIGH, "%s entered the game\n", ent->client->pers.netname);
+	}
 
 	if (save && ent->solid == SOLID_NOT)
 		ent->client->showscores = save;
@@ -1792,9 +1794,19 @@ void ClientBegin (edict_t *ent)
 // Papa - either show rejoin or MOTD scoreboards
 	if (ent->client->showscores != SCORE_REJOIN || !level.player_num)
 		ent->client->showscores = (level.modeset == ENDGAMEVOTE ? SCORE_MAP_VOTE : SCORE_MOTD);
+
 // ACEBOT_ADD //new kpded.exe
 	if (ent->acebot.is_bot)
 		ent->client->showscores = NO_SCOREBOARD;
+	else
+	{
+		if (!ent->client->pers.is_ready){
+			gi.dprintf("new client: %s\n", ent->client->pers.netname);
+			ent->client->pers.is_ready = true;
+		}
+	}
+
+
 // ACEBOT_END
 	if (keep_admin_status)
 	{
@@ -3281,7 +3293,7 @@ void ClientRejoin(edict_t *ent, qboolean rejoin)
 				if (teamplay->value)
 					Teamplay_ValidateJoinTeam(ent,ent->client->pers.team);
 				else
-					ClientBeginDeathmatch(ent); //hypov8 todo?: check this 4 bots add client
+					ClientBeginDeathmatch(ent); //hypov8 todo: use this when bot was auto removed??
 			}
 		}
 		else

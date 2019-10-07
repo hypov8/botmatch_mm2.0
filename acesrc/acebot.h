@@ -109,7 +109,7 @@ vec3_t ACE_look_out; //hypov8 global var
 #define BOTNODE_MOVE_8 8		//player droped entity
 #define BOTNODE_LADDER_8 8		//player droped entity
 #define BOTNODE_PLATFORM_32 32
-#define BOTNODE_TELEPORTER_16 16 //hypov8 todo: use 16??
+#define BOTNODE_TELEPORTER_16 16
 #define BOTNODE_ITEM_16 16
 #define BOTNODE_WATER_8 8		//player droped entity
 #define BOTNODE_GRAPPLE_0 0
@@ -260,6 +260,7 @@ typedef struct //bot->acebot.xxx
 	int	isOnLadder;						//hypov8 add. stop bots aiming when on ladders. added top of latter = 2
 	qboolean	isJumpToCrate;			//hypov8 tryto get bot to jump upto item
 	qboolean	isTrigPush;				//add hypov8 trig push. dont move
+	qboolean	is_Jumping;				//jump node last used
 
 	int			ladder_time;			//server framenum bot was on a ladder
 	int			crate_time; 
@@ -287,8 +288,7 @@ typedef struct //bot->acebot.xxx
 	int			flame_frameNum;			//aim accurecy last's longer
 
 	//hypo new bot skill func
-	int			enemyID_new;			//if new target. dont shoot straight away
-	int			enemyID_old;			//old player target. shoot if more than xx seconds
+	int			enemyID;				//if new target. dont shoot straight away
 	int			enemyAddFrame;			//dont keep old targets in memory for to long? will ignore skill on 2nd sight
 	int			enemyChaseFrame;		//enemy search	
 	vec_t		enemyOriginZoffset;		//look down amount for rl, fence etc..
@@ -354,7 +354,6 @@ typedef struct //bot->acebot.xxx
 
 
 extern int num_players;
-extern int botsRemoved;
 extern int num_bots;
 
 //extern edict_t *players[MAX_CLIENTS];		// pointers to all players in the game
@@ -369,7 +368,7 @@ extern int num_items;
 extern int stopNodeUpdate;		// add hypov8
 
 bot_skin_t randomBotSkins[64];
-char VoteBotRemoveName[8][32]; //hypov8 todo: only 8?
+char VoteBotRemoveName[8][32];
 float menuBotSkill; //hypov8 global skill. for menu
 extern char voteAddBot[32]; //team
 extern char voteRemoveBot[32]; //name
@@ -423,11 +422,18 @@ qboolean ACECM_G_PutAway_f(edict_t *ent);
 qboolean ACECM_G_Use_f(edict_t *ent, char*s);
 qboolean ACECM_G_SelectNextItem(edict_t *ent);
 qboolean ACECM_G_SelectPrevItem(edict_t *ent);
+void	 ACECM_BotScoreboardVote(edict_t *ent);
+void	 ACECM_BotScoreboardAdd(edict_t *ent);
+void	 ACECM_BotScoreboardRemove(edict_t *ent);
+void	 ACECM_BotScoreboardSkill(edict_t *ent);
 
-void ACECM_BotScoreboardVote(edict_t *ent);
-void ACECM_BotScoreboardAdd(edict_t *ent);
-void ACECM_BotScoreboardRemove(edict_t *ent);
-void ACECM_BotScoreboardSkill(edict_t *ent);
+void	 safe_cprintf (edict_t *ent, int printlevel, char *fmt, ...);
+void	 safe_centerprintf (edict_t *ent, char *fmt, ...);
+void	 safe_bprintf (int printlevel, char *fmt, ...);
+void	 debug_printf (char *fmt, ...);
+
+
+
 
 
 /////////////////
@@ -494,11 +500,6 @@ void		ACESP_SpawnBot (char *team, char *name, char *skin, char *userinfom, float
 void		ACESP_SpawnBot_Random(char *team, char *name, char *skin, char *userinfo); //add hypov8
 void		ACESP_ReAddBots();
 void		ACESP_RemoveBot(char *name, qboolean print);
-void		FreeBots(void); //add hypov8
-void		safe_cprintf (edict_t *ent, int printlevel, char *fmt, ...);
-void		safe_centerprintf (edict_t *ent, char *fmt, ...);
-void		safe_bprintf (int printlevel, char *fmt, ...);
-void		debug_printf (char *fmt, ...);
+void		ACESP_FreeBots(void); //add hypov8
 int			ACESP_LoadRandomBotCFG(void);// load custom bot file
-
 #endif

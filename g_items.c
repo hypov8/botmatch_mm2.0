@@ -3099,7 +3099,7 @@ model="models/pu_icon/key/key_c.md2"
 		"",							/* view_model */
 
 		/* client side info */
-		"", 						/* icon */ //todo G()^T
+		"", 						/* icon */
 		"miscmodel",				/* pickup_name */
 		0,							/* count_width */
 		0,							/* quantity */

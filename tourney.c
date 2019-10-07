@@ -25,6 +25,10 @@ int enable_password;
 int keep_admin_status;
 int default_random_map;
 int disable_curse;
+
+// ACEBOT_ADD
+float default_botskill;
+// ACEBOT_END
 // BEGIN HITMEN
 int enable_hitmen;
 // END
@@ -94,7 +98,6 @@ void MatchSetup () // Places the server in prematch mode
 	level.intermissiontime = 0;
 
 // ACEBOT_ADD
-	botsRemoved = 0;
 	ACESP_RemoveBot("all", false);
 	level.bots_spawned = false;
 // ACEBOT_END
@@ -142,6 +145,13 @@ qboolean ResetServer (qboolean ifneeded) // completely resets the server includi
 		setTeamName(1, "Dragons");
 		setTeamName(2, "Nikki's Boyz");
 	}
+// ACEBOT_ADD
+	if (default_botskill != -1 && default_botskill != sv_botskill->value)
+	{
+		gi.cvar_set("sv_botskill", va("%1.1f", default_botskill));
+		gi.dprintf("Bot-Skill set to %d of 10 (sv_botskill %s)\n", ACECM_ReturnBotSkillWeb(), sv_botskill->string);
+	}
+// ACEBOT_END
 
 	// these do
 	if (ifneeded
@@ -185,10 +195,10 @@ void MatchStart()  // start the match
 	int			i;
 	edict_t		*ent;
 
-	// ACEBOT_ADD
-	botsRemoved = 0;
+// ACEBOT_ADD
+	ACESP_RemoveBot("all", false);
 	level.bots_spawned = false;
-	// ACEBOT_END	
+// ACEBOT_END
 		
 	level.intermissiontime = 0;
 	level.player_num = 0;
@@ -204,12 +214,6 @@ void MatchStart()  // start the match
 
 	for_each_player_inc_bot(ent, i)
 	{
-// ACEBOT_ADD
-		if (ent->acebot.is_bot){
-			ACESP_RemoveBot(ent->client->pers.netname, false); //disco
-			continue;
-		}
-// ACEBOT_END
 		ent->client->resp.idle = level.framenum;
 		ent->client->resp.time = 0;
 		ent->client->resp.scoreboard_frame = 0;
@@ -438,11 +442,7 @@ then sets mode dm or bm
 void CheckAllPlayersSpawned () // when starting a match this function is called until all the players are in the game
 {
 	level.startframe = level.framenum; // delay clock until all players have spawned
-// ACEBOT_ADD //HYPOV8 todo?: check this
-	//if (teamplay->value) //hypov8 ToDo: acebot teamplay
-	//	SpawnTeamPlayers();
-	//else
-// ACEBOT_END
+
 	SpawnPlayers ();
 	if (level.is_spawn)
 	{
@@ -465,11 +465,6 @@ void CheckIdleMatchSetup () // restart the server if its empty in matchsetup mod
 	int		i;
 	edict_t	*doot;
 
-// ACEBOT_ADD
-	level.bots_spawned = 0;
-	botsRemoved = 0;
-// ACEBOT_END
-
 	for_each_player_not_bot(doot, i)
 	{ //hypov8 bots count??
 		count++;
@@ -491,11 +486,6 @@ void CheckStartMatch () // 15 countdown before matches
 {
 	int framenum = level.framenum - level.startframe;
 	
-// ACEBOT_ADD //hypov8 todo?: check this
-	level.bots_spawned = 0; //hypov8 
-	botsRemoved = 0;
-// ACEBOT_END
-
 	if (framenum >= 150)
 	{
 		Start_Match ();
@@ -517,17 +507,13 @@ CheckStartDM
 calls Start_DM()
 ->level.modeset = DM_MATCH_SPAWNING;
 
-15 second countdown before server starts
+35 second countdown before server starts
 ================
 */
-void CheckStartPub () // 35 second countdown before server starts // HYPOV8_ADD dm... PRE_MATCH_TIME
+void CheckStartPub () // 35 second countdown before server starts
 {
-// ACEBOT_ADD //hypov8 todo: check this
-		level.bots_spawned = 0; //hypov8 
-		botsRemoved = 0;
-// ACEBOT_END
 
-	if (level.framenum >= level.pregameframes) 	//hypo global match start time PRE_MATCH_TIME
+	if (level.framenum >= level.pregameframes)
 	{
 		Start_Pub ();	
 		return;
@@ -553,7 +539,7 @@ void CheckEndMatch () // check if time,frag,cash limits have been reached in a m
 	if (!manual_tagset && (level.framenum % 100) == 0)
 		getTeamTags();
 
-	for_each_player_inc_bot(doot, i) //hypov8 todo: not inc bots?
+	for_each_player_inc_bot(doot, i)
 		count++;
 		
 // ACEBOT_ADD
