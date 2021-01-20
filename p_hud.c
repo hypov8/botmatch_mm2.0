@@ -825,12 +825,12 @@ void GrabDaLootScoreboardMessage (edict_t *ent)
 		goto skipscores;
 	}
 
-	Com_sprintf (entry, sizeof(entry), "xm -50 yt 5 dmstr 752 \"Map: %s\" ",/* -5*strlen(level.mapname),*/ level.mapname);
+	Com_sprintf (entry, sizeof(entry), "xm -50 yt 5 dmstr 953 \"Map: %s\" ",/* -5*strlen(level.mapname),*/ level.mapname);
 	j = strlen(entry);
 	strcpy (string + stringlength, entry);
 	stringlength += j;
 
-	Com_sprintf(entry, sizeof(entry), "xm -50 yt 25 dmstr 752 \"Skill: %i of 10\" ", ACECM_ReturnBotSkillWeb());
+	Com_sprintf(entry, sizeof(entry), "xm -50 yt 25 dmstr 953 \"Skill: %i of 10\" ", ACECM_ReturnBotSkillWeb());
 	j = strlen(entry);
 	strcpy(string + stringlength, entry);
 	stringlength += j;
@@ -1136,12 +1136,12 @@ void DeathmatchScoreboardMessage (edict_t *ent)
 
 	realtotal = total;
 
-	Com_sprintf (entry, sizeof(entry), "xm -50 yt 5 dmstr 752 \"Map: %s\" ", level.mapname);
+	Com_sprintf (entry, sizeof(entry), "xm -50 yt 5 dmstr 953 \"Map: %s\" ", level.mapname);
 	j = strlen(entry);
 	strcpy (string + stringlength, entry);
 	stringlength += j;
 
-	Com_sprintf(entry, sizeof(entry), "xm -50 yt 25 dmstr 752 \"Skill: %i of 10\" ", ACECM_ReturnBotSkillWeb());
+	Com_sprintf(entry, sizeof(entry), "xm -50 yt 25 dmstr 953 \"Skill: %i of 10\" ", ACECM_ReturnBotSkillWeb());
 	j = strlen(entry);
 	strcpy(string + stringlength, entry);
 	stringlength += j;
@@ -1915,17 +1915,34 @@ void PrintScoreMatchEnd(void)
 	//if (!dedicated)
 	//	return;
 
-	gi.dprintf(
-		" \n"
-		"--== results ==--\n"
-		"map              : %s\n"
-		"botskill(WEB)    : %d\n"
-		"sv_botskill      : %s\n"
-		"num score ping deaths acc  fav   name           address               ver \n"
-		"--- ----- ---- ------ ---- ----- -------------- --------------------- ------\n",
-		level.mapname, 
-		ACECM_ReturnBotSkillWeb(), 
-		sv_botskill->string );
+	if ((int)teamplay->value == 1)
+	{
+		gi.dprintf(
+			" \n"
+			"--== results ==--\n"
+			"map              : %s\n"
+			"botskill(WEB)    : %d\n"
+			"sv_botskill      : %s\n"
+			"num score ping   cash acc  fav   name           address               ver \n"
+			"--- ----- ---- ------ ---- ----- -------------- --------------------- ------\n",
+			level.mapname,
+			ACECM_ReturnBotSkillWeb(),
+			sv_botskill->string);
+	}
+	else
+	{
+				gi.dprintf(
+			" \n"
+			"--== results ==--\n"
+			"map              : %s\n"
+			"botskill(WEB)    : %d\n"
+			"sv_botskill      : %s\n"
+			"num score ping deaths acc  fav   name           address               ver \n"
+			"--- ----- ---- ------ ---- ----- -------------- --------------------- ------\n",
+			level.mapname,
+			ACECM_ReturnBotSkillWeb(),
+			sv_botskill->string);
+	}
 
 	for (i = 1; i <= (int)maxclients->value; i++)
 	{

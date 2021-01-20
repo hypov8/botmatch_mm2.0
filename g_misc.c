@@ -1859,7 +1859,7 @@ void func_explosive_spawn (edict_t *self, edict_t *other, edict_t *activator)
 
 void SP_func_explosive (edict_t *self)
 {
-	if (deathmatch_value && !props->value)
+	if (deathmatch_value && !props->value) //hypov8 disable for bots
 	{	// auto-remove for deathmatch
 		G_FreeEdict (self);
 		return;

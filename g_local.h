@@ -150,7 +150,7 @@ for(INDEX=1;INDEX<=(int)maxclients->value;INDEX++)\
 #define PLAYING				0
 
 // the "gameversion" client command will print this plus compile date
-#define	GAMEVERSION	"Botmatch.v38.M7" //	"MM2.0 +lagless +acebot +hitmen" //hypov8 gamename
+#define	GAMEVERSION	"Botmatch.v39.2" //	"MM2.0 +lagless +acebot +hitmen" //hypov8 gamename
 
 // protocol bytes that can be directly added to messages
 #define	svc_muzzleflash		1
@@ -529,6 +529,10 @@ typedef struct
 	qboolean	scoresCalled; //only show scores once
 	qboolean	aceNodesCurupt;
 	int			botsRemoved;
+	int			bot_debug_mode;
+	int			bot_nodesLoaded;
+	int bot_mapFix; //some maps require special treatment 
+	//qboolean debug_mode_origin_ents; //localnode	
 // ACEBOT_END
 
 } level_locals_t;
@@ -1222,12 +1226,14 @@ qboolean SV_FilterPacket (char *from);
 // ACEBOT_ADD
 //
 //p_weapon
-int	auto_rounds[]; //add hypov8 give ammo
-int QweryClipIndex(gitem_t *item); //add hypov8 give ammo
+extern int	auto_rounds[]; //add hypov8 give ammo
+extern int QweryClipIndex(gitem_t *item); //add hypov8 give ammo
 
 //
 // g_spawn.c
-char *dm_statusbar; //add hypov8
+extern char *dm_statusbar; //add hypov8
+extern char *teamplayDM_statusbar;
+extern char *teamplay_statusbar;
 // ACEBOT_END
 
 

@@ -370,26 +370,29 @@ static void ACEAI_PickShortRangeGoal(edict_t *self)
 	int index;
 	int lookDist = 200;
 
-
-
 	//hypov8 add. stop bots trying to get SRG if on ladder
 	if (self->acebot.isOnLadder)	
 	{
-		self->acebot.SRGoal_frameNum = level.framenum + 10;
+		self->acebot.SRGoal_onLadder = level.framenum + 10;
 		self->movetarget = NULL;
 		return;
 	}
-	if (self->acebot.SRGoal_frameNum > level.framenum)
+	if (self->acebot.SRGoal_onLadder > level.framenum)
 		return;
 
-	if (self->groundentity == NULL)
+	if (self->groundentity == NULL && !self->acebot.isJumpToCrate)
 		return;
+
+	//hypov8 todo: timeout on node to
 
 	//look further if we just spawned or attacking
 	if (!(int)sv_hitmen->value && 
 		(self->acebot.num_weps <= 2|| (self->client->pers.weapon && !strcmp(self->client->pers.weapon->classname, "weapon_pistol"))))
 	{
-		lookDist = 512;
+		if (self->acebot.SRGoal_frameNum < level.framenum)
+			lookDist = 512;
+		if (!(level.framenum % 30))
+			self->acebot.SRGoal_frameNum = level.framenum + 30;
 	}
 
 	// look for a target (should make more efficent later)
@@ -407,7 +410,7 @@ static void ACEAI_PickShortRangeGoal(edict_t *self)
 	
 		// Missle avoidance code
 		// Set our movetarget to be the rocket or grenade fired at us. 
-		if (strcmp(target->classname, "rocket") == 0 )	
+		if (strcmp(target->classname, "rocket") == 0 && target->owner != self)	
 		{
 			if (ACEAI_InfrontBot(self, target))
 			{
@@ -462,7 +465,7 @@ static void ACEAI_PickShortRangeGoal(edict_t *self)
 	{
 		self->movetarget = best;
 
-		if (debug_mode && self->goalentity != self->movetarget && !debug_mode_origin_ents) //add hypo stop console nag when localnode is on )
+		if (level.bot_debug_mode == 1 && self->goalentity != self->movetarget) //add hypo stop console nag when localnode is on )
 			debug_printf("%s selected a %s for SR goal.\n", self->client->pers.netname, self->movetarget->classname);
 		
 		self->goalentity = best;
@@ -518,7 +521,7 @@ qboolean ACEAI_PickShortRangeGoalSpawned(edict_t *self)
 	{
 		self->movetarget = best;
 
-		if (debug_mode && self->goalentity != self->movetarget && !debug_mode_origin_ents) //add hypo stop console nag when localnode is on )
+		if (level.bot_debug_mode == 1 && self->goalentity != self->movetarget) //add hypo stop console nag when localnode is on )
 			debug_printf("%s selected a %s for SR Spawn goal.\n", self->client->pers.netname, self->movetarget->classname);
 
 		self->goalentity = best;
@@ -606,7 +609,8 @@ qboolean ACEAI_PickShortRangeGoal_Player (edict_t *self, qboolean reCheck)
 					|| players->solid == SOLID_NOT
 					|| players->movetype == MOVETYPE_NOCLIP
 					|| players->flags & FL_GODMODE
-					|| players->client->invincible_framenum > level.framenum)
+					|| players->client->invincible_framenum > level.framenum
+					|| (teamplay->value && players->client->pers.team == self->client->pers.team))
 					continue;
 
 				if (i != self->acebot.enemyID)
@@ -638,7 +642,7 @@ qboolean ACEAI_PickShortRangeGoal_Player (edict_t *self, qboolean reCheck)
 				self->acebot.isChasingEnemy = true;
 				self->acebot.node_goal = node;
 
-				if (players != NULL && debug_mode && !debug_mode_origin_ents) //add hypo stop console nag when localnode is on )
+				if (players != NULL && level.bot_debug_mode == 1) //add hypo stop console nag when localnode is on )
 					debug_printf("%s selected a %s at node %d for SRG (Player).\n", self->client->pers.netname, players->classname, node);
 
 				return true;
@@ -735,7 +739,8 @@ void ACEAI_PickLongRangeGoal(edict_t *self)
 			|| players->solid == SOLID_NOT
 			|| players->movetype == MOVETYPE_NOCLIP
 			|| players->flags & FL_GODMODE
-			|| players->client->invincible_framenum > level.framenum)
+			|| players->client->invincible_framenum > level.framenum
+			|| (teamplay->value && players->client->pers.team == self->client->pers.team))
 			continue;
 		//node = ACEND_FindClosestReachableNode(players[i],BOTNODE_DENSITY,BOTNODE_ALL);
 		node = ACEND_FindClosestNode(players,BOTNODE_DENSITY,BOTNODE_ALL);
@@ -787,7 +792,7 @@ void ACEAI_PickLongRangeGoal(edict_t *self)
 	self->acebot.state = BOTSTATE_MOVE;
 	self->acebot.node_tries = 0; // Reset the count of how many times we tried this goal
 	 
-	if (goal_ent != NULL && debug_mode && !debug_mode_origin_ents) //add hypo stop console nag when localnode is on )
+	if (goal_ent != NULL && level.bot_debug_mode == 1) //add hypo stop console nag when localnode is on )
 		if (goal_ent->client)
 			debug_printf("%s selected %s at node %d for LR goal.\n",self->client->pers.netname, goal_ent->client->pers.netname, goal_node);
 		else
@@ -928,10 +933,8 @@ static void ACEAI_CalculatePlayerState()
 		players->acebot.is_validTarget = false;
 		players->acebot.is_hunted = false;
 
-		//make sure they are in game and ready to die
+
 		if (!players->inuse
-			|| players->solid == SOLID_NOT
-			|| players->movetype == MOVETYPE_NOCLIP
 			|| players->flags & FL_GODMODE
 			|| players->client == NULL
 			|| players->client->pers.spectator == SPECTATING)
@@ -939,10 +942,16 @@ static void ACEAI_CalculatePlayerState()
 
 		if (players->acebot.is_bot)
 		{
-			num_bots++;
+			num_bots++; //allow calculation at vote
 			players->acebot.botSkillCalculated = ACEAI_SkillMP(players->acebot.botSkillMultiplier, skill);
 		}
-		else
+
+		//make sure they are in game and ready to die
+		if (players->solid == SOLID_NOT 
+			|| players->movetype == MOVETYPE_NOCLIP)
+			continue;
+
+		if (!players->acebot.is_bot)		
 			num_players++;
 
 
@@ -971,7 +980,7 @@ static void ACEAI_CalculatePlayerState()
 
 	//set hunted
 	count = num_bots + num_players;
-	if (count >1)
+	if (total >1 && count >1)
 	{
 		score = botRankScores[0] - botRankScores[1];
 		if (score > 3 && !g_edicts[botRankPlayerNum[0]].acebot.is_bot)
@@ -987,7 +996,7 @@ static qboolean ACEAI_PickOnBestPlayer(int playerNum)
 		tmpScore = botRankScores[0] - botRankScores[1];
 		if (tmpScore > 3)
 		{
-			if (debug_mode && level.framenum %10 == 0)
+			if (level.bot_debug_mode && level.framenum %10 == 0)
 				debug_printf("    ******Best Player****** Targeted by bots.\n");
 	
 			return true;
@@ -1027,7 +1036,8 @@ void ACEAI_G_RunFrame(void)
 				{
 					if (ACEND_PathMapValidPlayer(ent))
 					{
-						foundFirstPlyr = true;
+						if ((int)teamplay->value != 1) //route all players in teamplay
+							foundFirstPlyr = true;
 						ent->acebot.PM_firstPlayer = true;
 						ACEND_PathMap(ent, false); //run every 100ms. jump is caught in p_client
 					}
@@ -1176,20 +1186,6 @@ static qboolean ACEAI_FindEnemy(edict_t *self)
 			 || ACEAI_Enemy_ToFarHM(self, players)) // BEGIN HITMEN
 			 continue;
 
-#if 0//def HYPODEBUG
-		 if (ACEAI_VisibleEnemy(self, players[i], true))
-		 {
-			vec3_t botsSight, enemySight, enemyLegs;
-			VectorCopy(self->s.origin ,botsSight);
-			VectorCopy(players[i]->s.origin, enemySight);
-			VectorCopy(players[i]->s.origin, enemyLegs);
-			botsSight[2] += self->viewheight;
-			enemySight[2] += players[i]->viewheight;
-			if (!gi.inPVS(botsSight, enemySight)&& !gi.inPVS(botsSight, enemyLegs))
-				gi.dprintf("ERROR: Bot in view but not PVS\n");
-			 
-		 }
-#endif
 		// player is in direct sight. no solid walls
 		 if (!players->deadflag && ACEAI_VisibleEnemyPVS(self, players))
 		{
@@ -1344,8 +1340,9 @@ void ACEAI_Reset_Goal_Node(edict_t *self, float wanderTime, char* eventName)
 		self->acebot.node_goal = INVALID;
 		self->acebot.state = BOTSTATE_WANDER;
 		self->acebot.wander_timeout = level.time + wanderTime;
-		if (eventName[0]){
-			if (debug_mode&& !debug_mode_origin_ents) //add hypo stop console nag when localnode is on )
+		if (eventName[0])
+		{
+			if (level.bot_debug_mode == 1) //add hypo stop console nag when localnode is on )
 				debug_printf("%s Wandering: %s\n", self->client->pers.netname, eventName);
 		}
 	}
@@ -1397,7 +1394,7 @@ void ACEAI_Think(edict_t *self)
 		}
 	}
 	if (self->acebot.isJumpToCrate)	{
-		if (level.framenum > self->acebot.crate_time)
+		if (level.framenum > self->acebot.crate_time || self->groundentity)
 			self->acebot.isJumpToCrate = false;
 	}
 	if (self->acebot.is_Jumping)

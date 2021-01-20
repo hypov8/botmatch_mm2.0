@@ -11,6 +11,8 @@ Global
 		DDebug2|x64 = DDebug2|x64
 		debug lan game|Win32 = debug lan game|Win32
 		debug lan game|x64 = debug lan game|x64
+		ded2+webmin|Win32 = ded2+webmin|Win32
+		ded2+webmin|x64 = ded2+webmin|x64
 		Release|Win32 = Release|Win32
 		Release|x64 = Release|x64
 	EndGlobalSection
@@ -21,6 +23,9 @@ Global
 		{3649168B-B316-48D5-B88F-1B393C0FA349}.debug lan game|Win32.ActiveCfg = debug lan game|Win32
 		{3649168B-B316-48D5-B88F-1B393C0FA349}.debug lan game|Win32.Build.0 = debug lan game|Win32
 		{3649168B-B316-48D5-B88F-1B393C0FA349}.debug lan game|x64.ActiveCfg = debug lan game|Win32
+		{3649168B-B316-48D5-B88F-1B393C0FA349}.ded2+webmin|Win32.ActiveCfg = ded2+webmin|Win32
+		{3649168B-B316-48D5-B88F-1B393C0FA349}.ded2+webmin|Win32.Build.0 = ded2+webmin|Win32
+		{3649168B-B316-48D5-B88F-1B393C0FA349}.ded2+webmin|x64.ActiveCfg = ded2+webmin|Win32
 		{3649168B-B316-48D5-B88F-1B393C0FA349}.Release|Win32.ActiveCfg = Release|Win32
 		{3649168B-B316-48D5-B88F-1B393C0FA349}.Release|Win32.Build.0 = Release|Win32
 		{3649168B-B316-48D5-B88F-1B393C0FA349}.Release|x64.ActiveCfg = Release|Win32

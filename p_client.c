@@ -759,6 +759,12 @@ void InitClientPersistant (gclient_t *client)
 if (!sv_hitmen->value /*enable_hitmen*/)
 // END
 	{
+#if HYPODEBUG
+		item = FindItem("Crowbar");
+		client->pers.selected_item = ITEM_INDEX(item);
+		client->pers.inventory[client->pers.selected_item] = 1;
+		client->pers.weapon = item;
+#else
 		item = FindItem("pistol");
 		client->pers.selected_item = ITEM_INDEX(item);
 		client->pers.inventory[client->pers.selected_item] = 1;
@@ -771,7 +777,11 @@ if (!sv_hitmen->value /*enable_hitmen*/)
 		// Ridah, start with the pistol loaded
 		ammo = FindItem (item->ammo);
 
+#endif
+
+
 		AutoLoadWeapon( client, item, ammo );
+
 	}
 // BEGIN HITMEN
 	else
@@ -1035,8 +1045,18 @@ void	SelectSpawnPoint (edict_t *ent, vec3_t origin, vec3_t angles)
 	{
 		spot = G_Find (spot, FOFS(classname), "info_player_start");
 		if (!spot)
-			gi.error ("Couldn't find spawn point\n");
+		{
+			gi.error("Couldn't find  SP spawn point\n");
+
+//HYPOV8_ADD //fix for testing maps in sp when missing an info_player_start
+			spot = G_Find (spot, FOFS(classname), "info_player_deathmatch");
+			if (!spot)
+				gi.error("Couldn't find DM spawn point\n");
+//HYPOV8_END							
+
+		}
 	}
+
 
 	VectorCopy (spot->s.origin, origin);
 	origin[2] += 9;	//hypov8 ToDo: why is this +9? move spawn up? MH: check needs to add this into account
@@ -1325,6 +1345,7 @@ void PutClientInServer (edict_t *ent)
 	}
 	else //end hypov8
 // ACEBOT_END
+
 	// find a spawn point
 	// do it before setting health back up, so farthest
 	// ranging doesn't count this client
@@ -1800,14 +1821,14 @@ void ClientBegin (edict_t *ent)
 		ent->client->showscores = NO_SCOREBOARD;
 	else
 	{
-		if (!ent->client->pers.is_ready){
-			gi.dprintf("new client: %s\n", ent->client->pers.netname);
-			ent->client->pers.is_ready = true;
+		if (!ent->client->pers.is_ready)
+		{
+			//gi.dprintf("new client: %s\n", ent->client->pers.netname);
+			//ent->client->pers.is_ready = true;
 		}
 	}
-
-
 // ACEBOT_END
+
 	if (keep_admin_status)
 	{
 		edict_t *admin = GetAdmin();
@@ -2362,7 +2383,8 @@ void ClientDisconnect (edict_t *ent)
 
 	if (ent->inuse)
 	{
-		if (ent->solid != SOLID_NOT) DropCash(ent);
+		if (ent->solid != SOLID_NOT) 
+			DropCash(ent);
 		if (ent->client->resp.vote == CALLED_VOTE)
 			level.voteset = NO_VOTES;
 

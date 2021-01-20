@@ -102,10 +102,6 @@ static void fire_lead (edict_t *self, vec3_t start, vec3_t aimdir, int damage, i
 	vec3_t		tempvec;
 	int			conweap = 0;
 
-// ACEBOT_ADD
-	if (self->acebot.is_bot)
-		ACEMV_Attack_CalcRandDir(self, aimdir);
-// ACEBOT_END
 #if 0// HYPODEBUG
 	damage = 2;
 
@@ -164,17 +160,35 @@ static void fire_lead (edict_t *self, vec3_t start, vec3_t aimdir, int damage, i
 		}
 		// END JOSEPH
 
-#if HYPODEBUG //lazerbeam to see weapon
-		if (self->acebot.is_bot)
+// ACEBOT_ADD
+		if (level.bot_debug_mode)
 		{
-			gi.WriteByte(svc_temp_entity);
-			gi.WriteByte(TE_RAILTRAIL);
-			gi.WritePosition(start);
-			gi.WritePosition(tr.endpos);
-			gi.WriteDir(tr.plane.normal);
-			gi.multicast(self->s.origin, MULTICAST_PHS);
+			if (self->acebot.is_bot)
+			{
+				gi.WriteByte(svc_temp_entity);
+				gi.WriteByte(TE_RAILTRAIL);
+				gi.WritePosition(start);
+				gi.WritePosition(tr.endpos);
+				gi.WriteDir(tr.plane.normal);
+				gi.multicast(self->s.origin, MULTICAST_PHS);
+
+				//gi.WriteByte(TE_BFG_LASER);
+				//gi.WritePosition (self->s.origin);
+				//gi.WritePosition (tr.endpos);
+				//gi.multicast (self->s.origin, MULTICAST_PHS);
+
+
+						//	gi.WriteByte (TE_BLUEHYPERBLASTER);
+				//else
+				//gi.WriteByte (TE_BLASTER);
+				//gi.WritePosition (self->s.origin);
+				//gi.WriteDir (self->acebot.move_vector);
+				//gi.multicast (self->s.origin, MULTICAST_PVS);
+
+
+			}
 		}
-#endif
+// ACEBOT_END
 		
 		// JOSEPH 9-APR-99
         if ((tr.surface->flags & SURF_METAL) || (tr.surface->flags & SURF_METAL_L))
@@ -598,7 +612,7 @@ bolt:
 
 	if (hit)
 		self->client->resp.acchit++;
-#if HYPODEBUG
+#if 0 //HYPODEBUG
 	else if (self->acebot.is_bot)
 		safe_bprintf(PRINT_MEDIUM, "BOT %s MISSED!!!\n", self->client->pers.netname);
 #endif
@@ -616,6 +630,11 @@ pistols, rifles, etc....
 void fire_bullet (edict_t *self, vec3_t start, vec3_t aimdir, int damage, int kick, int hspread, int vspread, int mod)
 {
 	G_DoTimeShiftFor(self);
+
+// ACEBOT_ADD
+	if (self->acebot.is_bot)
+		ACEMV_Attack_CalcRandDir(self, aimdir);
+// ACEBOT_END
 
 	fire_lead (self, start, aimdir, damage, kick, TE_GUNSHOT, hspread, vspread, mod);
 
@@ -635,6 +654,11 @@ void fire_shotgun (edict_t *self, vec3_t start, vec3_t aimdir, int damage, int k
 	int		i;
 
 	G_DoTimeShiftFor(self);
+
+// ACEBOT_ADD
+	if (self->acebot.is_bot)
+		ACEMV_Attack_CalcRandDir(self, aimdir);
+// ACEBOT_END
 
 	for (i = 0; i < count; i++)
 		fire_lead (self, start, aimdir, damage, kick, TE_GUNSHOT, hspread, vspread, mod);

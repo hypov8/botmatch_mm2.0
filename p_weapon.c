@@ -439,6 +439,7 @@ void ChangeWeapon (edict_t *ent)
 				ent->client->ps.model_parts[PART_GUN].skinnum[i] = 0;
 
 			ent->client->ps.model_parts[PART_GUN].invisible_objects = (1<<0 | 1<<1);
+
 		}
 		else if (!strcmp (ent->client->pers.weapon->pickup_name , "Pistol"))
 		{
@@ -3135,6 +3136,53 @@ void weapon_rocketlauncher_fire (edict_t *ent)
 		}
 		return;
 	}
+
+// ACEBOT_ADD
+	//make sure we dont shoot a wall after move
+	if (ent->acebot.is_bot)
+	{
+		vec3_t		end, dir;
+		vec3_t		forward, right;
+		vec3_t		offset;
+		trace_t tr;
+		vec3_t minx = { -8, -8 -8};
+		vec3_t  maxx = { 8, 8, 8 };
+		vec3_t enOrig;
+
+		VectorCopy(ent->s.origin, start);
+		start[2] += ent->viewheight;
+
+
+		if (ent->enemy){
+			VectorCopy(ent->enemy->s.origin, enOrig);
+			enOrig[2] += ent->acebot.enemyOriginZoffset ;
+		}
+		else
+			VectorCopy(ent->acebot.enemyOrigin, enOrig);
+
+		VectorSubtract(enOrig, ent->s.origin, dir);
+		vectoangles(dir, dir);
+		AngleVectors (dir, forward, right, NULL);
+		VectorSet(offset, 128, 0, 0);
+		G_ProjectSource (start, offset, forward, right, end);
+
+
+		tr = gi.trace(start, minx, maxx, end, ent, MASK_BOT_SOLID_FENCE);
+		if (tr.fraction !=1.0f)
+		{
+			if (ent->client->weaponstate == WEAPON_FIRING)
+			{
+				ent->client->weaponstate = WEAPON_READY;
+				ent->client->ps.gunframe = 30;
+			}
+#if HYPODEBUG
+			gi.dprintf(" ACE: Rocket Will Hit Wall\n");
+#endif
+			return;
+		}
+	}	
+// ACEBOT_END
+
 
 	damage = 100 + (int)(random() * 20.0);
 	radius_damage = 120;

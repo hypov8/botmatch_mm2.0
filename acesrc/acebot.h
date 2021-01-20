@@ -68,7 +68,7 @@
 #define ACE_Look_Straight(target,player,out) (out[0]=target[0],out[1]=target[1],out[2]=player[2])
 
 vec3_t ACE_look_out; //hypov8 global var
-#define BOT_JUMP_VEL (360) //360
+#define BOT_JUMP_VEL (400) //360
 #define BOT_FORWARD_VEL (160*2) //340 //hypov8 kp default
 #define BOT_SIDE_VEL (160*2) //cl_anglespeedkey->value)	//hypov8 kp default 1.5
 
@@ -102,7 +102,7 @@ vec3_t ACE_look_out; //hypov8 global var
 #define BOTNODE_JUMP 7
 #define BOTNODE_DRAGON_SAFE 8 //hypov8 todo:
 #define BOTNODE_NIKKISAFE 9 //hypov8 todo:
-#define BOTNODE_TRIGPUSH 10 //hypov8 add for trigger_push todo:
+#define BOTNODE_TRIGPUSH 10 //hypov8 add for trigger_push todo:? using jump nodes
 #define BOTNODE_ALL 99 // For selecting all nodes
 
 // Node height adjustment. items are usualy 16 high. we move every item up +8 above player height (32 units)
@@ -234,6 +234,15 @@ typedef struct botnode_s
 
 } botnode_t;
 
+// Node structure
+typedef struct botnode_file_s
+{
+	short origin[3]; // Using Id's representation
+	short type;   // type of node
+
+} botnode_file_t;
+
+
 typedef struct item_table_s
 {
 	int item;
@@ -306,6 +315,7 @@ typedef struct //bot->acebot.xxx
 
 	int			plateWaitTim;			//give up waiting at func_plat
 	int			dodge_time;				// time bot last moved sideways from player
+	int			dodge_dir;
 
 	int			uTurnCount;				//hypov8 count times bot got stuck n turned
 	int			uTurnTime;				//hypov8 get last time bot turned
@@ -330,7 +340,7 @@ typedef struct //bot->acebot.xxx
 	int			trigPushTimer;			// bot will free move with trigger push
 	qboolean	isMovingUpPushed; 
 
-	int			spawnedTime;			//store time just spawned, so they can collect better weps
+	//int			spawnedTime;			//store time just spawned, so they can collect better weps
 
 	int			last_strafeTime;		//frame since strafed. make strafe go for longer
 	int			last_strafeDir;
@@ -346,9 +356,10 @@ typedef struct //bot->acebot.xxx
 	qboolean	PM_firstPlayer;			//use this player to route
 	int			PM_Jumping;				//PathMap jump. 1=jump 2=landing
 
-	float	hookDistLast;
-	float	hookDistCurrent;			//
-	int		SRGoal_frameNum;			//stop bot trying for SR goal so oftern
+	float		hookDistLast;
+	float		hookDistCurrent;			//
+	int			SRGoal_frameNum;			//stop bot trying for SR goal so oftern
+	int			SRGoal_onLadder;
 
 } acebot_t;
 
@@ -361,8 +372,6 @@ extern int num_bots;
 // extern decs
 extern botnode_t nodes[MAX_BOTNODES]; 
 extern item_table_t item_table[MAX_EDICTS];
-extern qboolean debug_mode;
-extern qboolean debug_mode_origin_ents; //add hypov8
 extern short numnodes;
 extern int num_items;
 extern int stopNodeUpdate;		// add hypov8
@@ -473,7 +482,7 @@ void		ACEND_InitNodes(void);
 void		ACEND_ShowNode(short node, int isTmpNode);
 void		ACEND_DrawPath();
 void		ACEND_ShowPath(edict_t *self, short goal_node);
-short		ACEND_AddNode(edict_t *self, short type);
+short		ACEND_AddNode(edict_t *self, short type, qboolean isBuildingTable);
 void		ACEND_UpdateNodeEdge(short from, short to, qboolean stopJumpNodes, qboolean stopTeleNodes, qboolean checkSight, qboolean isTrigPush);
 void		ACEND_RemoveNodeEdge(edict_t *self, short from, short to);
 void		ACEND_RemovePaths(edict_t *self, short from); // add hypov8
@@ -490,6 +499,8 @@ void		ACEND_HookActivate(edict_t *self); //add hypov8
 void		ACEND_HookDeActivate(edict_t *self); //add hypov8
 qboolean	ACEND_PathMapValidPlayer(edict_t *self);
 float		VectorDistanceFlat(vec3_t vec1, vec3_t vec2);
+
+vec_t ACEND_NodeOffset(short type);//hypov8 keep height consistant
 
 /////////////////
 // acebot_spawn.c protos

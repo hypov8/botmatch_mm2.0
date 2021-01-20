@@ -60,16 +60,6 @@
 #include "acebot.h"
 
 
-
-#ifndef bla//  HYPODEBUG
-qboolean debug_mode=false;
-qboolean debug_mode_origin_ents = false; //local node
-#else
-qboolean debug_mode=true;
-qboolean debug_mode_origin_ents = true; //local node
-#endif
-
-
 //===================================================================
 // scoreboard
 //===================================================================
@@ -100,6 +90,23 @@ static const char *menu_str[] ={
 	"11(  )     ",
 	NULL
 };
+
+//new debug statusbar
+	static const char *botStatusbar = " xr -170"
+		" yv 100 string \"  *KEYS REBOUND* \""
+		" yv 110 string \" KEY 0 = ADD MOVE \""
+		" yv 120 string \" KEY 5 = ADD WATER \""
+		" yv 130 string \" KEY 6 = ADD LADDER \""
+		" yv 140 string \" KEY 7 = ADD JUMP  \""
+		" yv 150 string \" KEY 8 = findnode \""
+		" yv 160 string \" KEY 9 = movenode \""
+		" xr -130"
+		" yv 190 string \"sv_botpath\""
+		" yv 200 string \"localnode\""
+		" yv 210 string \"clearnode #\""
+		" yv 220 string \"addlink # #\""
+		" yv 230 string \"removelink # #\""
+		" yv 240 string \"nodeFinal\" "		;
 
 void ACECM_BotScoreboardVote(edict_t *ent) //SCORE_BOT_MENU
 {
@@ -421,17 +428,23 @@ static void Cmd_VoteAddBot_f(edict_t *ent, int teamUse)
 	char *team = '\0';
 
 
-	if (!sv_bot_allow_add->value)
-	{
+	if (!sv_bot_allow_add->value)	{
 		safe_cprintf(ent, PRINT_HIGH, "Clients NOT allowed to add bots\n");
 		return;
 	}
-
-	if (num_bots >= (int)sv_bot_max->value)
-	{
+	if (!(level.modeset == MATCH || level.modeset == PUBLIC))	{
+		safe_cprintf(ent, PRINT_HIGH, "Cannot use addbot at this time\n");
+		return;
+	}
+	if ((int)sv_bot_max->value && num_bots >= (int)sv_bot_max->value )	{
 		safe_cprintf(ent, PRINT_HIGH, "Maximum Bots Reached\n");
 		return;
 	}
+	if (sv_bot_max_players->value && (num_bots +num_players) >= ((int)sv_bot_max_players->value-1))	{
+		safe_cprintf(ent, PRINT_HIGH, "Maximum BotPlayers Reached\n");
+		return;
+	}
+
 
 
 	if (teamplay->value)
@@ -467,9 +480,9 @@ static void Cmd_VoteAddBot_f(edict_t *ent, int teamUse)
 
 		if (count == 1)
 		{
-			//safe_bprintf(PRINT_HIGH, "%s alowed to change map.\n", ent->client->pers.netname);
+			//safe_bprintf(PRINT_HIGH, "%s allowed to change map.\n", ent->client->pers.netname);
 			gi.dprintf("Vote AddBot by: %s accepted.\n", ent->client->pers.netname);
-			safe_cprintf(ent, PRINT_CHAT, "¡­%s alowed to add bot.\n", ent->client->pers.netname);
+			safe_cprintf(ent, PRINT_CHAT, "¡­%s allowed to add bot.\n", ent->client->pers.netname);
 			//ACESP_SpawnBot(team, "\0", "\0", NULL);
 			ACESP_SpawnBot_Random(team, "\0", "\0", NULL);
 			return;
@@ -499,11 +512,25 @@ void Cmd_VoteRemoveBot_f(edict_t *ent, qboolean isMenu, char botnames[32]) //VOT
 	char		*s;
 	char *name = '\0';
 
-	if (!sv_bot_allow_add->value)
-	{
+	if (!sv_bot_allow_add->value)	{
 		safe_cprintf(ent, PRINT_HIGH, "Bot Vote Disabled.\n", ent->client->pers.netname);
 		return;
 	}
+	if (!(level.modeset == MATCH || level.modeset == PUBLIC)){
+		safe_cprintf(ent, PRINT_HIGH, "Cannot use removebot at this time\n");
+		return;
+	}
+		if (!sv_bot_allow_add->value)	{
+		safe_cprintf(ent, PRINT_HIGH, "Clients NOT allowed to add bots\n");
+		return;
+	}
+
+	if (!level.bots_spawned || num_bots <=0)	{
+		safe_cprintf(ent, PRINT_HIGH, "No bots to remove\n");
+		return;
+	}
+
+
 
 	if (!isMenu)
 	{
@@ -558,8 +585,8 @@ void Cmd_VoteRemoveBot_f(edict_t *ent, qboolean isMenu, char botnames[32]) //VOT
 		if (count == 1)
 		{
 			gi.dprintf("Vote BotRemove accepted. by: %s\n", ent->client->pers.netname);
-			//safe_bprintf(PRINT_HIGH, "%s alowed to change map.\n", ent->client->pers.netname);
-			safe_cprintf(ent, PRINT_CHAT, "%s alowed to remove bot.\n", ent->client->pers.netname);
+			//safe_bprintf(PRINT_HIGH, "%s allowed to change map.\n", ent->client->pers.netname);
+			safe_cprintf(ent, PRINT_CHAT, "%s allowed to remove bot.\n", ent->client->pers.netname);
 			ACESP_RemoveBot(s, true);
 			return;
 		}						//¡¢£¤¥¦§¨©ª«¬­­
@@ -1028,37 +1055,23 @@ void ACECM_BotDebug(changeState)
 {
 	int		i;
 	edict_t	*doot;
-	//char string[10];
-	//dm_statusbar
-	char str[1024];
-	char *newstatusbar = " xr -170"
-		" yv 100 string \"  *KEYS REBOUND* \""
-		" yv 110 string \" KEY 0 = ADD MOVE \""
-		" yv 120 string \" KEY 5 = ADD WATER \""
-		" yv 130 string \" KEY 6 = ADD LADDER \""
-		" yv 140 string \" KEY 7 = ADD JUMP  \""
-		" yv 150 string \" KEY 8 = findnode \""
-		" yv 160 string \" KEY 9 = movenode \""
-		" xr -130"
-		" yv 190 string \"sv_botpath\""
-		" yv 200 string \"localnode\""
-		" yv 210 string \"clearnode #\""
-		" yv 220 string \"addlink # #\""
-		" yv 230 string \"removelink # #\""
-		" yv 240 string \"nodeFinal\" "		;
+
+	//if (changeState) //toggle mode
+		level.bot_debug_mode = level.bot_debug_mode?  0 : 1;
 
 
-	if (changeState) //toggle mode
-		debug_mode = debug_mode ? false : true;
-
-
-	if (debug_mode)
+	if (level.bot_debug_mode)
 	{
-		safe_bprintf(PRINT_MEDIUM, "ACE: Debug Mode On\n");
-
-		strcpy(str, dm_statusbar);
-		strcat(str, newstatusbar);
-		gi.configstring(CS_STATUSBAR, str);
+		safe_bprintf(PRINT_MEDIUM, " ACE: Debug Mode On\n");
+		if (teamplay->value)
+		{
+			gi.configstring (CS_STATUSBAR, va("%s%s",
+				teamplay->value == 4 ? teamplayDM_statusbar : teamplay_statusbar, botStatusbar));
+		}
+		else
+		{
+			gi.configstring(CS_STATUSBAR,va("%s%s",dm_statusbar,botStatusbar));
+		}
 
 		for_each_player_not_bot(doot, i)
 		{
@@ -1066,21 +1079,50 @@ void ACECM_BotDebug(changeState)
 			//safe_cprintf(doot, PRINT_MEDIUM, "0=MOVE 1=LADDER 2=PLATFORM 3=TELEPORTER 4=ITEM 5=WATER 7=JUMP\n");
 			//=======================================================
 			/*	safe_cprintf(doot, PRINT_MEDIUM, " \n");*/
-			safe_cprintf(doot, PRINT_MEDIUM, "ƒ†====================\n");
-			safe_cprintf(doot, PRINT_MEDIUM, "ƒ† findnode gets closes #node\n");
-			safe_cprintf(doot, PRINT_MEDIUM, "ƒ†   then copys # to movenode\n");
-			safe_cprintf(doot, PRINT_MEDIUM, "ƒ† movenode copys #node to player origin\n");
-			safe_cprintf(doot, PRINT_MEDIUM, "ƒ†====================\n\n");
+			safe_cprintf(doot, PRINT_MEDIUM,
+				"ƒ†====================\n"
+				"ƒ† findnode gets closes #node\n"
+				"ƒ†   then copys # to movenode\n"
+				"ƒ† movenode copys #node to player origin\n"
+				"ƒ†====================\n\n");
 
 			gi.WriteByte(13);
-			gi.WriteString("bind 0 addnode 0;bind 5 addnode 5;bind 6 addnode 1; bind 7 addnode 7; bind 8 findnode; bind 9 movenode 999\n");
+			gi.WriteString(	
+				"bind 5 \"addnode 5\";"
+				"bind 6 \"addnode 1\";"
+				"bind 7 \"addnode 7\";"
+				"bind 8 \"findnode\";"
+				"bind 9 \"movenode 999\";"
+				"bind 0 \"addnode 0\"\n");
 			gi.unicast(doot, true);
 		}
 	}
-	else if (changeState)
+	else //if (changeState)
 	{
-		debug_mode_origin_ents = false;
-		safe_bprintf(PRINT_MEDIUM, "ACE: Debug Mode Off\n");
+		for_each_player_not_bot(doot, i)
+		{
+			gi.WriteByte(13);
+			gi.WriteString(
+				"bind 5 \"use heavy machinegun\";"
+				"bind 6 \"use grenade launcher\";"
+				"bind 7 \"use bazooka\";"
+				"bind 8 \"use flamethrower\";"
+				"bind 9 \"\";"
+				"bind 0 \"\"");
+			gi.unicast(doot, true);
+		}
+
+		if (teamplay->value)
+		{
+			gi.configstring (CS_STATUSBAR, va("%s%s%s%s%s%s",
+				teamplay->value == 4 ? teamplayDM_statusbar : teamplay_statusbar,"\"",team_names[1],"\" \"",team_names[2],"\" "));
+		}
+		else
+		{
+			gi.configstring(CS_STATUSBAR,dm_statusbar);
+		}
+
+		safe_bprintf(PRINT_MEDIUM, " ACE: Debug Mode Off\n");
 	}
 }
 
@@ -1191,14 +1233,22 @@ qboolean ACECM_Commands(edict_t *ent)
 	//else if (Q_stricmp(cmd, "votebotcount") == 0)		//hypo todo:
 	//	Cmd_VoteBotCount_f(ent); 
 
-	else if (!debug_mode)
+	else if (!level.bot_debug_mode)
 		return false;
 
 
 	//dev commands
 	else if (Q_stricmp(cmd, "addnode") == 0)
 	{
-		ent->acebot.pm_last_node = ACEND_AddNode(ent, atoi(gi.argv(1)));
+		if (ent->client == NULL
+			|| ent->client->pers.spectator == SPECTATING
+			|| ent->solid == SOLID_NOT
+			|| ent->movetype == MOVETYPE_NOCLIP)
+		{
+			gi.cprintf(ent, PRINT_LOW, "Cant use addnode in current state\n");
+			return true;
+		}
+		ent->acebot.pm_last_node = ACEND_AddNode(ent, atoi(gi.argv(1)), false);
 		if (!sv_botpath->value)
 			ent->acebot.pm_last_node = INVALID; //prevent bug when re'enable sv_botpath
 	}
@@ -1212,16 +1262,15 @@ qboolean ACECM_Commands(edict_t *ent)
     	ACEND_ShowPath(ent,atoi(gi.argv(1)));
 	else if (Q_stricmp(cmd, "localnode") == 0) //hypov8 add. show nodes close by
 	{
-		if (!dedicated->value)
-		{
-			if (debug_mode_origin_ents == 0){
-				safe_cprintf(ent, PRINT_MEDIUM, "findlocalnode ON\n");
-				debug_mode_origin_ents = 1;
-			}
-			else{
-				safe_cprintf(ent, PRINT_MEDIUM, "findlocalnode OFF\n");
-				debug_mode_origin_ents = 0;
-			}
+		if (level.bot_debug_mode != 2){
+			gi.dprintf("%s enabled localnode\n", ent->client->pers.netname);
+			safe_cprintf(ent, PRINT_MEDIUM, "findlocalnode ON\n");
+			level.bot_debug_mode = 2;
+		}
+		else{
+			gi.dprintf("%s disabled localnode\n", ent->client->pers.netname);
+			safe_cprintf(ent, PRINT_MEDIUM, "findlocalnode OFF\n");
+			level.bot_debug_mode = 1;
 		}
 	}
 	else if(Q_stricmp (cmd, "findnode") == 0)

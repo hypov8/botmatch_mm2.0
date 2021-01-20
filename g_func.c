@@ -1764,28 +1764,28 @@ void door_touch (edict_t *self, edict_t *other, cplane_t *plane, csurface_t *sur
 	// END JOSEPH
 }
 
-void SP_func_door (edict_t *ent)
+void SP_func_door(edict_t *ent)
 {
 	vec3_t	abs_movedir;
 
 	// JOSEPH 1-OCT-98
 	if (ent->sounds != 1)
 	{
-		func_door_sound (ent, ent->sounds);
+		func_door_sound(ent, ent->sounds);
 	}
 	// END JOSEPH
 
-	G_SetMovedir (ent->s.angles, ent->movedir);
+	G_SetMovedir(ent->s.angles, ent->movedir);
 	ent->movetype = MOVETYPE_PUSH;
 	ent->solid = SOLID_BSP;
-	gi.setmodel (ent, ent->model);
+	gi.setmodel(ent, ent->model);
 
 	ent->blocked = door_blocked;
 	ent->use = door_use;
-	
+
 	if (!ent->speed)
 		ent->speed = 100;
-	
+
 	if (!ent->accel)
 		ent->accel = ent->speed;
 	if (!ent->decel)
@@ -1799,19 +1799,19 @@ void SP_func_door (edict_t *ent)
 		ent->dmg = 2;
 
 	// calculate second position
-	VectorCopy (ent->s.origin, ent->pos1);
+	VectorCopy(ent->s.origin, ent->pos1);
 	abs_movedir[0] = fabs(ent->movedir[0]);
 	abs_movedir[1] = fabs(ent->movedir[1]);
 	abs_movedir[2] = fabs(ent->movedir[2]);
 	ent->moveinfo.distance = abs_movedir[0] * ent->size[0] + abs_movedir[1] * ent->size[1] + abs_movedir[2] * ent->size[2] - st.lip;
-	VectorMA (ent->pos1, ent->moveinfo.distance, ent->movedir, ent->pos2);
+	VectorMA(ent->pos1, ent->moveinfo.distance, ent->movedir, ent->pos2);
 
 	// if it starts open, switch the positions
 	if (ent->spawnflags & DOOR_START_OPEN)
 	{
-		VectorCopy (ent->pos2, ent->s.origin);
-		VectorCopy (ent->pos1, ent->pos2);
-		VectorCopy (ent->s.origin, ent->pos1);
+		VectorCopy(ent->pos2, ent->s.origin);
+		VectorCopy(ent->pos1, ent->pos2);
+		VectorCopy(ent->s.origin, ent->pos1);
 	}
 
 	ent->moveinfo.state = STATE_BOTTOM;
@@ -1824,18 +1824,18 @@ void SP_func_door (edict_t *ent)
 	}
 	else if (ent->targetname && ent->message)
 	{
-		gi.soundindex ("misc/talk.wav");
+		gi.soundindex("misc/talk.wav");
 		ent->touch = door_touch;
 	}
-	
+
 	ent->moveinfo.speed = ent->speed;
 	ent->moveinfo.accel = ent->accel;
 	ent->moveinfo.decel = ent->decel;
 	ent->moveinfo.wait = ent->wait;
-	VectorCopy (ent->pos1, ent->moveinfo.start_origin);
-	VectorCopy (ent->s.angles, ent->moveinfo.start_angles);
-	VectorCopy (ent->pos2, ent->moveinfo.end_origin);
-	VectorCopy (ent->s.angles, ent->moveinfo.end_angles);
+	VectorCopy(ent->pos1, ent->moveinfo.start_origin);
+	VectorCopy(ent->s.angles, ent->moveinfo.start_angles);
+	VectorCopy(ent->pos2, ent->moveinfo.end_origin);
+	VectorCopy(ent->s.angles, ent->moveinfo.end_angles);
 
 	if (ent->spawnflags & 16)
 		ent->s.effects |= EF_ANIM_ALL;
@@ -1846,7 +1846,7 @@ void SP_func_door (edict_t *ent)
 	if (!ent->team)
 		ent->teammaster = ent;
 
-	gi.linkentity (ent);
+	gi.linkentity(ent);
 
 	ent->nextthink = level.time + FRAMETIME;
 	if (ent->health || ent->targetname)
@@ -1856,10 +1856,15 @@ void SP_func_door (edict_t *ent)
 
 	if (ent->spawnflags & 128)
 		ent->s.renderfx2 |= RF2_SURF_ALPHA;
-	//ACEBOT_ADD
+//ACEBOT_ADD
 	if (1)//enable_bots
 		ent->spawnflags |= 2;
-	//ACEBOT_END
+	if (ent->targetname && ent->targetname[0])
+	{
+		//ent->targetname = "";
+		ent->think = Think_SpawnDoorTrigger;
+	}	
+//ACEBOT_END
 
 	// RAFAEL
 	if (!(ent->spawnflags & 2))

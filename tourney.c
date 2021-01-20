@@ -443,6 +443,14 @@ void CheckAllPlayersSpawned () // when starting a match this function is called 
 {
 	level.startframe = level.framenum; // delay clock until all players have spawned
 
+	//fix bug where a player can land on entities at spawn and make item invalid
+	if (!level.bot_nodesLoaded)
+	{
+		ACEND_InitNodes();
+		ACEND_LoadNodes();
+		level.bot_nodesLoaded = true;
+	}
+
 	SpawnPlayers ();
 	if (level.is_spawn)
 	{
@@ -545,8 +553,8 @@ void CheckEndMatch () // check if time,frag,cash limits have been reached in a m
 // ACEBOT_ADD
 	if (count && !level.bots_spawned)
 	{
-		ACEND_InitNodes();
-		ACEND_LoadNodes();
+		//ACEND_InitNodes();
+		//ACEND_LoadNodes();
 		ACESP_LoadBots();
 		level.bots_spawned = true;
 	}
@@ -607,7 +615,6 @@ void CheckEndMatch () // check if time,frag,cash limits have been reached in a m
 void CheckEndVoteTime () // check the timelimit for voting next level/start next map
 {
 	int		i, count = 0, votes[9];
-	edict_t *player;
 
 	if (level.vote_winner)
 	{
@@ -618,10 +625,15 @@ void CheckEndVoteTime () // check the timelimit for voting next level/start next
 
 	memset (&votes, 0, sizeof(votes));
 
-	for_each_player_not_bot(player,i)// ACEBOT_ADD
+	for (i = 1; i <= (int)maxclients->value; i++) //hypov8 was macro. would reset on newly connected clients
 	{
-		count++;
-		votes[player->client->mapvote]++;
+		edict_t	*ent = g_edicts + i;
+		if (ent->client->pers.connected && !ent->acebot.is_bot)
+		{
+			count++;
+			if (ent->inuse)
+				votes[ent->client->mapvote]++;
+		}
 	}
 	if (!count && level.framenum > (level.lastactive + 30))
 	{
@@ -630,14 +642,14 @@ void CheckEndVoteTime () // check the timelimit for voting next level/start next
 		if (wait_for_players)
 		{
 			level.startframe = level.framenum;
-			level.player_num = 0;
+			level.player_num = 0; //hypov8 check this?
 			if (team_cash[1] || team_cash[2])
 			{
 				team_cash[2] = team_cash[1] = 0;
 				UpdateScore();
 			}
 			level.lastactive = -1;
-			gi.dprintf("Waiting for players\n");
+			gi.dprintf("Waiting for players (at vote screen)\n");
 			UpdateTime();
 			if (kpded2) // enable kpded2's idle mode for reduced CPU usage while waiting for players (automatically disabled when players join)
 				gi.cvar_forceset("g_idle", "1");

@@ -252,7 +252,8 @@ static  void ACESP_PutClientInServer(edict_t *bot, qboolean respawn, int team)
 	bot->acebot.lastDamageTimer = 0;  //hypo add
 	bot->acebot.enemyAddFrame = 0;	//hypov8 add
 	bot->acebot.tauntTime = level.framenum + (random() * 100);
-	bot->acebot.spawnedTime = level.framenum + 30; //hypo add 3 seconds to look for weps?
+	//bot->acebot.spawnedTime = level.framenum + 30; //hypo add 3 seconds to look for weps?
+	bot->acebot.SRGoal_frameNum = 0;
 	bot->client->pers.team = team;
 	bot->client->pers.noantilag = true;
 	bot->client->ps.fov = 90;
@@ -399,7 +400,7 @@ static  void ACESP_PutClientInServer(edict_t *bot, qboolean respawn, int team)
 	bot->acebot.lastDamageTimer = 0;  //hypo add
 	bot->acebot.enemyAddFrame = 0;	//hypov8 add
 	bot->acebot.tauntTime = level.framenum + (random() * 100);
-	bot->acebot.spawnedTime = level.framenum + 30; //hypo add 3 seconds to look for weps?
+	//bot->acebot.spawnedTime = level.framenum + 30; //hypo add 3 seconds to look for weps?
 	client->pers.team = team;
 	bot->client->pers.noantilag = true;
 	//end
@@ -722,7 +723,8 @@ void ACESP_Respawn (edict_t *ent)
 		ent->acebot.lastDamageTimer = 0;  //hypo add
 		ent->acebot.enemyAddFrame = 0;	//hypov8 add
 		ent->acebot.tauntTime = level.framenum + (random() * 100);
-		ent->acebot.spawnedTime = level.framenum + 10; 
+		//ent->acebot.spawnedTime = level.framenum + 10; 
+		ent->acebot.SRGoal_frameNum = 0;
 		ent->enemy = NULL;
 		ent->movetarget = NULL;
 		ent->acebot.state = BOTSTATE_MOVE;
@@ -1221,7 +1223,7 @@ void ACESP_RemoveBot(char *name, qboolean print)
 	edict_t *bot;
 
 
-	if (!level.bots_spawned /*|| !(level.modeset == MATCH || level.modeset == PUBLIC)*/)
+	if (!level.bots_spawned || num_bots <= 0) /*|| !(level.modeset == MATCH || level.modeset == PUBLIC)*/
 	{
 		//gi.dprintf("Cannot use removebot right now\n");
 		return;
@@ -1236,15 +1238,13 @@ void ACESP_RemoveBot(char *name, qboolean print)
 			{
 				freed = true;
 				if (print)
-					safe_bprintf (PRINT_MEDIUM, "%s removed\n", bot->client->pers.netname);
+					safe_bprintf (PRINT_MEDIUM, "%s (bot) removed\n", bot->client->pers.netname);
 
 				ClientDisconnect(bot);//add hypov8
 				bot->svflags |= SVF_NOCLIENT;
 
-
 				if (game.clients[i-1].pers.is_bot)
 					memset(&game.clients[i-1], 0, sizeof(gclient_t)) ;
-
 
 				if (Q_stricmp(name, "single") == 0) //hypov8 remove 1 bot then exit
 					break;
@@ -1253,7 +1253,7 @@ void ACESP_RemoveBot(char *name, qboolean print)
 	}
 
 	if(!freed)	
-		gi.dprintf("%s not found\n", name);
+		gi.dprintf("%s (bot) not found\n", name);
 		//safe_bprintf (PRINT_MEDIUM, "%s not found\n", name);
 }
 
@@ -1268,7 +1268,7 @@ void ACESP_KillBot(edict_t *self)
 	meansOfDeath = MOD_BOT_SUICIDE;		//hypov8 added. shown as player killed them selves now
 	VectorSet(self->velocity, 0, 0, 0);	//hypo stop movement
 #if HYPODEBUG
-	gi.dprintf("Bot %s Died at XYZ:(%f, %f, %f)\n", self->client->pers.netname, self->s.origin[0], self->s.origin[1], self->s.origin[2]);
+	gi.dprintf(" ACE: Bot %s Died at XYZ:(%f, %f, %f)\n", self->client->pers.netname, self->s.origin[0], self->s.origin[1], self->s.origin[2]);
 #endif
 	player_die(self, self, self, 100000, vec3_origin, 0, 0); //hypov8 add null
 }

@@ -434,8 +434,8 @@ void CheckDMRules (void)
 
 		if (count)		
 		{
-			ACEND_InitNodes();
-			ACEND_LoadNodes();
+			//ACEND_InitNodes();
+			//ACEND_LoadNodes();
 			ACESP_LoadBots();
 			level.bots_spawned = true;
 		}
@@ -451,7 +451,7 @@ void CheckDMRules (void)
 		if (wait_for_players && !(int)timelimit->value)
 		{
 			level.lastactive = -1;
-			gi.dprintf("Waiting for players\n");
+			gi.dprintf("Waiting for players (game active, no timelimit)\n");
 			UpdateTime();
 			if (kpded2) // enable kpded2's idle mode for reduced CPU usage while waiting for players (automatically disabled when players join)
 				gi.cvar_forceset("g_idle", "1");
@@ -514,7 +514,6 @@ void CheckDMRules (void)
 ExitLevel
 =============
 */
-
 void ExitLevel (void)
 {
 	int		i;
@@ -539,7 +538,7 @@ void ExitLevel (void)
 // ACEBOT_ADD
 	ACECM_LevelEnd();
 	PrintScoreMatchEnd();
-	ACESP_RemoveBot("all", false);
+	//ACESP_RemoveBot("all", false);
 
 	if (teamplay->latched_string || dm_realmode->latched_string|| sv_hitmen->latched_string)
 		Com_sprintf (command, sizeof(command), "map \"%s\"\n", level.mapname);
@@ -570,7 +569,7 @@ void G_RunFrame (void)
 	if (level.framenum == 50 && wait_for_players && !level.num_vote_set && !level.lastactive)
 	{
 		level.lastactive = -1;
-		gi.dprintf("Waiting for players\n");
+		gi.dprintf("Waiting for players (noVote set, no activity\n");
 		UpdateTime();
 		if (kpded2) // enable kpded2's idle mode for reduced CPU usage while waiting for players (automatically disabled when players join)
 			gi.cvar_forceset("g_idle", "1");
@@ -836,13 +835,10 @@ void G_RunFrame (void)
 // ACEBOT_ADD
 			ACECM_LevelEnd();
 			PrintScoreMatchEnd();
-			ACESP_RemoveBot("all", false);
-
-			if (teamplay->latched_string || dm_realmode->latched_string|| sv_hitmen->latched_string)
-				Com_sprintf (command, sizeof(command), "map \"%s\"\n", level.mapname);
-			else
+			//ACESP_RemoveBot("all", false);
 // ACEBOT_END
-				Com_sprintf (command, sizeof(command), "gamemap \"%s\"\n", level.mapname);
+
+			Com_sprintf (command, sizeof(command), "gamemap \"%s\"\n", level.mapname);
 			gi.AddCommandString (command);
 			return;
 		}

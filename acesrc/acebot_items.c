@@ -166,7 +166,7 @@ qboolean ACEIT_IsReachable(edict_t *self, vec3_t goal)
 	goal_move_up[2] += BOTNODE_SHIFT+2;//hypov8 move item origin to match player. "items" are 15 units.
 	
 	jump_height = goal_move_up[2] - self->s.origin[2];
-	if (jump_height > 60)
+	if (jump_height > 60||jump_height< -16.0f)
 		return false;
 
 	VectorCopy(self->mins,minx);
@@ -200,8 +200,10 @@ qboolean ACEIT_IsReachable(edict_t *self, vec3_t goal)
 			if (trace.allsolid == 0 && trace.startsolid == 0 && trace.fraction == 1.0)
 			{
 				if (dist <= 64){
-					self->acebot.isJumpToCrate = true;
-					self->acebot.crate_time = level.framenum + 3;
+					;//hypov8 should we check this later..
+					//self->acebot.canJump_itemID= 
+					//self->acebot.isJumpToCrate = true;
+					//self->acebot.crate_time = level.framenum + 3;
 				}
 				return true;
 			}
@@ -375,6 +377,7 @@ float ACEIT_ItemNeed(edict_t *self, int item, float timestamp, int spawnflags)
 
 	//hypov8 make bot ignore all items if they have cash
 	if (teamplay->value == 1)
+	{
 		if ((self->client->pers.currentcash >= MAX_CASH_PLAYER || self->client->pers.bagcash >= 100))
 		{
 			if (item != ITEMLIST_SAFEBAG1 && self->client->pers.team == TEAM_1)
@@ -382,6 +385,7 @@ float ACEIT_ItemNeed(edict_t *self, int item, float timestamp, int spawnflags)
 			if (item != ITEMLIST_SAFEBAG2 && self->client->pers.team == TEAM_2)
 				return 0.0;
 		}
+	}
 
 // BEGIN HITMEN
 	if (sv_hitmen->value /*enable_hitmen*/)
@@ -614,6 +618,7 @@ int ACEIT_ClassnameToIndex(char *classname, int style)
 			if (strcmp(classname, "item_armor_helmet_heavy") == 0) 	return ITEMLIST_ARMORHELMETHEAVY;
 			if (strcmp(classname, "item_armor_jacket_heavy") == 0)	return ITEMLIST_ARMORJACKETHEAVY;
 			if (strcmp(classname, "item_armor_legs_heavy") == 0)	return ITEMLIST_ARMORLEGSHEAVY;
+			if (strcmp(classname, "item_adrenaline") == 0)			return ITEMLIST_ADRENALINE;
 		}
 		else
 		{//misc
@@ -664,8 +669,12 @@ int ACEIT_ClassnameToIndex(char *classname, int style)
 		if (strcmp(classname, "trigger_push") == 0)			return ITEMLIST_TRIG_PUSH;
 		if (strcmp(classname, "misc_teleporter") == 0)		return ITEMLIST_TELEPORTER;
 		if (strcmp(classname, "dm_safebag") == 0)
-			if (style && style == 1)	return ITEMLIST_SAFEBAG1;	else return ITEMLIST_SAFEBAG2;
-
+		{
+			if (style && style == 1)
+				return ITEMLIST_SAFEBAG1;
+			else
+				return ITEMLIST_SAFEBAG2;
+		}
 	}
 
 	return INVALID;
@@ -709,6 +718,7 @@ void ACEIT_BuildItemNodeTable(qboolean reLinkEnts)
 	// Add game items
 	for (items = g_edicts; items < &g_edicts[globals.num_edicts]; items++)
 	{
+		qboolean XY_Match = false;
 		// filter out crap
 		if (items->solid == SOLID_NOT)
 			continue;
@@ -729,7 +739,7 @@ void ACEIT_BuildItemNodeTable(qboolean reLinkEnts)
 		{
 			if (!reLinkEnts)
 			{
-				item_table[num_items].node = ACEND_AddNode(items, BOTNODE_PLATFORM);
+				item_table[num_items].node = ACEND_AddNode(items, BOTNODE_PLATFORM, true);
 				item_table[num_items].ent = items;
 				item_table[num_items].item = 99;
 				num_items++;
@@ -743,7 +753,7 @@ void ACEIT_BuildItemNodeTable(qboolean reLinkEnts)
 		{
 			if (!reLinkEnts)
 			{
-				item_table[num_items].node = ACEND_AddNode(items, BOTNODE_TELEPORTER);
+				item_table[num_items].node = ACEND_AddNode(items, BOTNODE_TELEPORTER, true);
 				item_table[num_items].item = 99;
 				num_items++;
 				continue; //add hypov8
@@ -755,17 +765,18 @@ void ACEIT_BuildItemNodeTable(qboolean reLinkEnts)
 		if (strcmp(items->classname, "trigger_push") == 0)
 		{
 			if (!reLinkEnts)
-				ACEND_AddNode(items, BOTNODE_TRIGPUSH);
+				ACEND_AddNode(items, BOTNODE_TRIGPUSH, true);
 			continue; //just drop a node. not linked to an entity
 		}
 
 
-
 #ifdef DEBUG_ACE
 		if (item_index == INVALID)
-			fprintf(pOut, "Rejected item: %s node: %d pos: %f %f %f\n", items->classname, item_table[num_items].node, items->s.origin[0], items->s.origin[1], items->s.origin[2]);
+			fprintf(pOut, "Rejected item: %s node: %d pos: %f %f %f\n", 
+			items->classname, item_table[num_items].node, items->s.origin[0], items->s.origin[1], items->s.origin[2]);
 		else
-			fprintf(pOut, "item: %s node: %d pos: %f %f %f\n", items->classname, item_table[num_items].node, items->s.origin[0], items->s.origin[1], items->s.origin[2]);
+			fprintf(pOut, "item: %s node: %d pos: %f %f %f\n", 
+			items->classname, item_table[num_items].node, items->s.origin[0], items->s.origin[1], items->s.origin[2]);
 #endif		
 
 		if (item_index == INVALID)
@@ -779,80 +790,84 @@ void ACEIT_BuildItemNodeTable(qboolean reLinkEnts)
 		if (!reLinkEnts)
 		{
 			// Add a new node at the item's location.
-			item_table[num_items].node = ACEND_AddNode(items, BOTNODE_ITEM);
+			item_table[num_items].node = ACEND_AddNode(items, BOTNODE_ITEM, true);
 			num_items++;
 		}
 		else // Now if rebuilding, just relink ent structures 
 		{
-			// Find stored location
+			///////////////////////
+			// Find matching node to map iteam
 			for (i = 0; i < numnodes; i++)
 			{
-				if (nodes[i].type == BOTNODE_ITEM || nodes[i].type == BOTNODE_TELEPORTER ||
-					nodes[i].type == BOTNODE_DRAGON_SAFE || nodes[i].type == BOTNODE_NIKKISAFE ||
-					nodes[i].type == BOTNODE_PLATFORM) // valid types
+				if (nodes[i].type == BOTNODE_ITEM  // valid types
+					|| nodes[i].type == BOTNODE_TELEPORTER 
+					|| nodes[i].type == BOTNODE_DRAGON_SAFE 
+					|| nodes[i].type == BOTNODE_NIKKISAFE 
+					|| nodes[i].type == BOTNODE_PLATFORM)
 				{
+					///////////////////////////////////////////////////
+					//get items location, shift up to match route table
 					VectorCopy(items->s.origin, v);
-
-					// shift nodes up to match PathMap creation height of 24 units
-					if (nodes[i].type == BOTNODE_ITEM)			v[2] += BOTNODE_ITEM_16;
-					if (nodes[i].type == BOTNODE_TELEPORTER)	v[2] += BOTNODE_TELEPORTER_16;
-					if (nodes[i].type == BOTNODE_DRAGON_SAFE)	v[2] += BOTNODE_DRAGON_SAFE_8;
-					if (nodes[i].type == BOTNODE_NIKKISAFE)		v[2] += BOTNODE_NIKKISAFE_8;
-
 					if (nodes[i].type == BOTNODE_PLATFORM)
 					{
 						VectorCopy(items->maxs, v1);
 						VectorCopy(items->mins, v2);
-
+						//hypov8 snap items to short!!!
 						// To get the center
 						v[0] = (v1[0] - v2[0]) / 2 + v2[0];
 						v[1] = (v1[1] - v2[1]) / 2 + v2[1];
-						v[2] = items->maxs[2] + items->pos2[2] + BOTNODE_PLATFORM_32;
+						v[2] = items->maxs[2] + items->pos2[2]; //+ BOTNODE_PLATFORM_32;
 					}
+					// shift nodes up to match PathMap creation height of 24 units
+					v[2] += ACEND_NodeOffset(nodes[i].type);
 
-					//hypoov8 node moved down in v38..
-					if (nodes[i].type == BOTNODE_TELEPORTER)
-					{
-						if (v[0] == nodes[i].origin[0] &&
-							v[1] == nodes[i].origin[1] &&
-							v[2] == nodes[i].origin[2] - 16)
-						{
+					///////////////////////////////
+					//do we have a matching node XY
+					if (v[0] == nodes[i].origin[0] && v[1] == nodes[i].origin[1])
+						XY_Match = true;
+
+					///////////////////////////////
+					//old format fixes
+					//node moved down in v38..
+					if (nodes[i].type == BOTNODE_TELEPORTER && XY_Match){
+						if (v[2] == nodes[i].origin[2] - 16)
 							nodes[i].origin[2] -= 16;
-						}
 					}
 
-
-					if (v[0] == nodes[i].origin[0] &&
-						v[1] == nodes[i].origin[1] &&
-						v[2] == nodes[i].origin[2])
-					{
-						// found a match now link to facts
+					//////////////////////////////////
+					// found a match now link to facts
+					if (XY_Match &&	v[2] == nodes[i].origin[2])
+					{					
 						item_table[num_items].node = i;
 #ifdef DEBUG_ACE
-						fprintf(pOut, "Relink item: %s node: %d pos: %f %f %f\n", items->classname, item_table[num_items].node, items->s.origin[0], items->s.origin[1], items->s.origin[2]);
+						fprintf(pOut, "Relink item: %s node: %d pos: %f %f %f\n", 
+							items->classname, item_table[num_items].node, items->s.origin[0], items->s.origin[1], items->s.origin[2]);
 #endif							
 						num_items++;
 						break; //add hypov8. stop it serching for new items. will get stuck if item is at same origin
 					}
 				}
 			}
+
+			//cant find a match.
 			if (i == numnodes)
-			{	//cant find a match. try rebild
-				if (!level.aceNodesCurupt)
-				{
-					level.aceNodesCurupt = true;
+			{
+				level.aceNodesCurupt = true;
 #ifdef DEBUG_ACE
-					fclose(pOut);
+				fprintf(pOut, "Relink item FAILED: %s pos: %f %f %f (matching XY:%s)\n",
+					items->classname, items->s.origin[0], items->s.origin[1], items->s.origin[2], XY_Match? "true": "false" );
 #endif
-					return;
+				if (XY_Match == false && numnodes < MAX_BOTNODES && num_items < 2048 && item_index != 99)
+				{	
+					item_table[num_items].node = ACEND_AddNode(items, BOTNODE_ITEM, true);//hypov8 todo: should we add a node
+					num_items++;
 				}
-				//this should not happen anymore.. but who knows!!!
-				//fprintf(pOut, "ERROR Relink item: %s node: %d pos: %f %f %f\n", items->classname, item_table[num_items].node, items->s.origin[0], items->s.origin[1], items->s.origin[2]);
-				if (debug_mode)	
-					gi.dprintf("ERROR Relink item: %s node: %d pos: %f %f %f\n",items->classname, item_table[num_items].node, items->s.origin[0], items->s.origin[1], items->s.origin[2]);
+#if HYPODEBUG //allways show in my debug ver
+				gi.dprintf(" ACE: WARNING: Relink item:%s pos:(%1.0f %1.0f %1.0f) match_XY:%s\n",
+					items->classname, items->s.origin[1], items->s.origin[2], XY_Match? "true": "false" );
+#endif
 			}
 		}
-
 	}
 
 #ifdef DEBUG_ACE

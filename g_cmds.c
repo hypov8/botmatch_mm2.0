@@ -836,6 +836,14 @@ void Cmd_Noclip_f (edict_t *ent)
 	if 	(ent->client->pers.spectator == SPECTATING)
 		return;
 // HYPOV8_END
+
+// ACEBOT_ADD
+	ent->acebot.PM_Jumping = 0;
+	ent->acebot.pm_last_node = INVALID;
+	ent->acebot.pm_jumpPadMove = false;
+// ACEBOT_END
+
+
 	if (ent->movetype == MOVETYPE_NOCLIP)
 	{
 		ent->movetype = MOVETYPE_WALK;
@@ -1824,7 +1832,8 @@ void Cmd_Players_f (edict_t *ent)
 
 	count = 0;
 
-	safe_cprintf(ent, PRINT_HIGH, "num score ping name            lastmsg country\n"
+	safe_cprintf(ent, PRINT_HIGH, 
+		"num score ping name            lastmsg country\\skill\n"
 		"--- ----- ---- --------------- ------- ---------------------\n");
 	for (a=1; a<=(int)maxclients->value; a++)
 	{
@@ -1833,8 +1842,15 @@ void Cmd_Players_f (edict_t *ent)
 		{
 			char buf[16];
 			Com_sprintf(buf,sizeof(buf), "%s", g_edicts[a].inuse ? va("%i",c->ping) : "CNCT");
-			safe_cprintf(ent, PRINT_HIGH, "%3d %5d %4s %-15s %7d %s\n",
-				a-1, c->resp.score, buf, c->pers.netname, curtime-c->pers.lastpacket, c->pers.country ? c->pers.country : "");
+// ACEBOT_ADD
+			if (g_edicts[a].acebot.is_bot)
+				safe_cprintf(ent, PRINT_HIGH, "%3d %5d %4s %-15s %7d %s\n",
+					a-1, c->resp.score, buf, c->pers.netname, curtime-c->pers.lastpacket, va("(bot) %1.1fx", g_edicts[a].acebot.botSkillMultiplier) );
+			else
+// ACEBOT_END
+				safe_cprintf(ent, PRINT_HIGH, "%3d %5d %4s %-15s %7d %s\n",
+					a-1, c->resp.score, buf, c->pers.netname, curtime-c->pers.lastpacket, c->pers.country ? c->pers.country : "");
+
 			count++;
 		}
 	}
@@ -2163,7 +2179,7 @@ void Cmd_Yes_f (edict_t *ent)
 // ACEBOT_ADD
 					ACECM_LevelEnd();
 					PrintScoreMatchEnd();
-					ACESP_RemoveBot("all", false);
+					//ACESP_RemoveBot("all", false);
 // ACEBOT_END
 					safe_bprintf (PRINT_HIGH, "The map change vote has passed\n");
 					if (teamplay->latched_string || dm_realmode->latched_string|| sv_hitmen->latched_string)
@@ -2430,7 +2446,7 @@ void Cmd_ChangeMap_f (edict_t *ent, qboolean vote)
 // ACEBOT_ADD
 	ACECM_LevelEnd();
 	PrintScoreMatchEnd();
-	ACESP_RemoveBot("all", false);
+	//ACESP_RemoveBot("all", false);
 // ACEBOT_END
 
 	if (teamplay->latched_string || dm_realmode->latched_string|| sv_hitmen->latched_string)
@@ -2832,7 +2848,8 @@ void Cmd_AntiLag_f(edict_t *ent, char *value)
 {
 	if (!value[0])
 	{
-		safe_cprintf(ent, PRINT_HIGH, "Usage: antilag <0/1>\n0 = off, 1 = on (if enabled by server)\n");
+		safe_cprintf(ent, PRINT_HIGH,	"Usage: antilag <0/1>\n"
+										"0 = off, 1 = on (if enabled by server)\n");
 		return;
 	}
 	ent->client->pers.noantilag = !atoi(value);
@@ -3252,7 +3269,7 @@ void Cmd_Rcon_f (edict_t *ent)
 		Cmd_ListBans_f(ent);
 		return;
 	}
-// ACEBOT_ADD //hypov8 todo: this is never called
+// ACEBOT_ADD //hypov8 todo: test this
 	else if (!Q_stricmp(cmd, "gamemap") || !Q_stricmp(cmd, "map"))
 	{
 		ACECM_LevelEnd();

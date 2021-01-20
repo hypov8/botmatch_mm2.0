@@ -153,10 +153,13 @@ short ACEND_FindClosestReachableNode(edict_t *self, int range, short type)
 	float closest = 99999;
 	float dist;
 	short node=INVALID;
-	vec3_t v;
+	vec3_t v, nodeShiftDn;
 	trace_t tr;
 	float rng;
 	vec3_t maxs,mins;
+
+	//VectorCopy(self->s.origin, nodeShiftDn);
+	//plyrShiftUp[2] += 8;
 
 	VectorCopy(self->mins,mins);
 	VectorCopy(self->maxs,maxs);
@@ -165,13 +168,12 @@ short ACEND_FindClosestReachableNode(edict_t *self, int range, short type)
 
 	
 	// For Ladders, do not worry so much about reachability
-	if(type == BOTNODE_LADDER || type == BOTNODE_GRAPPLE)
-	{
+	if(type == BOTNODE_LADDER || type == BOTNODE_GRAPPLE) {
 		VectorCopy(vec3_origin,maxs);
 		VectorCopy(vec3_origin,mins);
 	}
 	else
-		mins[2] += 18; // Stepsize
+		mins[2] += 18; //Stepsize.
 
 	rng = (float)(range * range); // square range for distance comparison (eliminate sqrt)	
 	
@@ -179,14 +181,17 @@ short ACEND_FindClosestReachableNode(edict_t *self, int range, short type)
 	{		
 		if(type == BOTNODE_ALL || type == nodes[i].type) // check node type
 		{
-			VectorSubtract(nodes[i].origin, self->s.origin,v); // subtract first
+			VectorCopy(nodes[i].origin, nodeShiftDn);
+			nodeShiftDn[2] -= BOTNODE_SHIFT;
+
+			VectorSubtract(nodeShiftDn, self->s.origin, v); // subtract first
 
 			dist = v[0]*v[0] + v[1]*v[1] + v[2]*v[2];
 		
-			if(dist < closest && dist < rng) 
+			if (dist < closest && dist < rng)
 			{
 				// make sure it is visible
-				tr = gi.trace(self->s.origin, mins, maxs, nodes[i].origin, self, /*MASK_OPAQUE*/ MASK_BOT_SOLID_FENCE);
+				tr = gi.trace(self->s.origin, mins, maxs, nodeShiftDn, self, /*MASK_OPAQUE*/ MASK_BOT_SOLID_FENCE);
 				if(tr.fraction == 1.0)
 				{
 					node = i;
@@ -194,32 +199,26 @@ short ACEND_FindClosestReachableNode(edict_t *self, int range, short type)
 				}
 				else //hypov8 crouch? simple check. flat ground.
 				{
-					vec3_t maxs_c, mins_c;
-					vec3_t movedDown;
-					VectorCopy(self->maxs, maxs_c);
-					VectorCopy(self->mins, mins_c);
-					maxs_c[2] = 24; //crouch //-24
-
-					VectorCopy(nodes[i].origin, movedDown);
-					movedDown[2] -= BOTNODE_SHIFT;
-					//ACEND_MoveToPLayerHeight(i, movedDown); 
+					VectorCopy(self->maxs, maxs);
+					VectorCopy(self->mins, mins);
+					maxs[2] = 24; //crouch //-24
 
 					// visible crouching?
-					tr = gi.trace(self->s.origin, mins_c, maxs_c, movedDown, self, /*MASK_OPAQUE*/ MASK_BOT_SOLID_FENCE);
+					tr = gi.trace(self->s.origin, mins, maxs, nodeShiftDn, self, /*MASK_OPAQUE*/ MASK_BOT_SOLID_FENCE);
 					if (tr.fraction == 1.0)
 					{
 						node = i;
 						closest = dist;
 					}
 					else if (self->groundentity && self->groundentity->use != Use_Plat
-						&& nodes[i].origin[2] + 18 > self->s.origin[0]) //hypov8 jump?
+						&& (nodeShiftDn[2] + 18) > self->s.origin[0]) //hypov8 jump?
 					{
-						vec3_t  headHeight;
-						VectorCopy(self->s.origin, headHeight);
-						headHeight[2] += 60; //jump		
+						vec3_t  jumpHeight;
+						VectorCopy(self->s.origin, jumpHeight);
+						jumpHeight[2] += 60; //jump
 
 						// make sure it is visible
-						tr = gi.trace(headHeight, self->mins, self->maxs, movedDown, self, /*MASK_OPAQUE*/ MASK_BOT_SOLID_FENCE);
+						tr = gi.trace(jumpHeight, self->mins, self->maxs, nodeShiftDn, self, /*MASK_OPAQUE*/ MASK_BOT_SOLID_FENCE);
 						if (tr.fraction == 1.0)
 						{
 							node = i;
@@ -286,7 +285,7 @@ void ACEND_SetGoal(edict_t *self, short goal_node, edict_t *goal_ent)
 	if(node == INVALID)
 		return;
 	
-	if (debug_mode && !debug_mode_origin_ents) //add hypo stop console nag when localnode is on )
+	if (level.bot_debug_mode == 1) //add hypo stop console nag when localnode is on )
 		debug_printf("%s new start node selected %d\n",self->client->pers.netname,node);
 	
 	self->acebot.node_ent = goal_ent;//ahh hypov8 
@@ -302,18 +301,23 @@ void ACEND_SetGoal(edict_t *self, short goal_node, edict_t *goal_ent)
 ///////////////////////////////////////////////////////////////////////
 qboolean ACEND_FollowPath(edict_t *self)
 {
-	vec3_t playerOrg, nextNodeOrig;
+	vec3_t playerOrg, nextNodeOrig, currNodeOrig;
 	float vLen, vFlat;
 	int nodeTimeOut = 30;
 	qboolean isPlatTop = false;
 	qboolean isAtNode = false;
 	short nextNodeType = nodes[self->acebot.node_next].type;
+	short currNodeType = nodes[self->acebot.node_current].type;
+
 	VectorCopy(nodes[self->acebot.node_next].origin, nextNodeOrig);
+	VectorCopy(nodes[self->acebot.node_next].origin, currNodeOrig);
+
+
 
 #if 1 //def HYPODEBUG //defined in project DEBUG
 	//////////////////////////////////////////
 	// Show the path (uncomment for debugging)
-	if (debug_mode && !debug_mode_origin_ents) //hypov8 disable path lines, tomany overflows
+	if (level.bot_debug_mode == 1) //hypov8 disable path lines, to many overflows
 	{
 		show_path_from = self->acebot.node_current;
 		show_path_to = self->acebot.node_goal;
@@ -390,7 +394,7 @@ qboolean ACEND_FollowPath(edict_t *self)
 
 		if (self->acebot.node_next == self->acebot.node_goal)
 		{
-			if (debug_mode && !debug_mode_origin_ents) //add hypo stop console nag when localnode is on 
+			if (level.bot_debug_mode == 1) //add hypo stop console nag when localnode is on 
 				debug_printf("%s reached goal!\n", self->client->pers.netname);
 			if (self->acebot.isChasingEnemy)
 			{
@@ -404,6 +408,7 @@ qboolean ACEND_FollowPath(edict_t *self)
 		{
 			self->acebot.node_current = self->acebot.node_next;
 			self->acebot.node_next = path_table[self->acebot.node_current][self->acebot.node_goal];
+
 		}
 	}
 
@@ -462,7 +467,7 @@ void ACEND_GrapFired(edict_t *self) //hypo todo: hitmen
 		closest_node = ACEND_FindClosestReachableNode(self,BOTNODE_DENSITY, BOTNODE_GRAPPLE);
 		if(closest_node == INVALID && numnodesHook < NODE_HOOK_MAXCOUNT) // we need to drop a node
 		{	
-			closest_node = ACEND_AddNode(self,BOTNODE_GRAPPLE);
+			closest_node = ACEND_AddNode(self,BOTNODE_GRAPPLE, false);
 			 
 			// Add an edge
 			ACEND_UpdateNodeEdge(self->owner->acebot.pm_last_node, closest_node, false, false, false, false);
@@ -536,7 +541,7 @@ void ACEND_HookDeActivate(edict_t *self)
 			{
 				closest_node = ACEND_FindClosestReachableNode(hook, BOTNODE_DENSITY, BOTNODE_GRAPPLE);
 				if(closest_node == INVALID && numnodesHook < NODE_HOOK_MAXCOUNT) // we need to drop a node
-					closest_node = ACEND_AddNode(hook, BOTNODE_GRAPPLE);
+					closest_node = ACEND_AddNode(hook, BOTNODE_GRAPPLE, false);
 
 				ACEND_UpdateNodeEdge(self->acebot.pm_last_node, closest_node, false, false, true, false);
 				self->acebot.pm_last_node = closest_node;
@@ -587,7 +592,7 @@ static qboolean ACEND_PM_CheckForLadder(edict_t *self)
 		{
 			closest_node = ACEND_FindClosestReachableNode(self, BOTNODE_DENSITY_HALVE, BOTNODE_LADDER);
 			if (closest_node == INVALID)
-				closest_node = ACEND_AddNode(self, BOTNODE_LADDER);
+				closest_node = ACEND_AddNode(self, BOTNODE_LADDER, false);
 
 			if (self->acebot.pm_last_node != INVALID && nodes[self->acebot.pm_last_node].origin[2] < nodes[closest_node].origin[2]) //make sure its above us
 				ACEND_UpdateNodeEdge(self->acebot.pm_last_node, closest_node, true, true, true, false);
@@ -610,7 +615,7 @@ static qboolean ACEND_PM_CheckForLadder(edict_t *self)
 			//closest_node = ACEND_FindClosestNode(self, BOTNODE_DENSITY, BOTNODE_LADDER); //hypov8. why did i add this?? move nodes goat top
 			closest_node = ACEND_FindClosestReachableNode(self, BOTNODE_DENSITY_HALVE, BOTNODE_MOVE);// BOTNODE_ALL);
 			if (closest_node == INVALID)
-				closest_node = ACEND_AddNode(self, BOTNODE_MOVE);//BOTNODE_LADDER
+				closest_node = ACEND_AddNode(self, BOTNODE_MOVE, false);//BOTNODE_LADDER
 
 			ACEND_UpdateNodeEdge(self->acebot.pm_last_node, closest_node, true, true, false, false);
 			self->acebot.pm_last_node = closest_node; // set visited to last
@@ -752,8 +757,15 @@ void ACEND_PathMap(edict_t *self, qboolean check_jump)
 						)
 					{
 						ACEND_UpdateNodeEdge(self->acebot.pm_last_node, closest_node, false, true, true, false);
+						self->acebot.pm_last_node = closest_node;
 					}
-					self->acebot.pm_last_node = closest_node;
+					else
+					{
+						if (closest_node != self->acebot.pm_last_node && nodes[closest_node].origin[2] <= (nodes[self->acebot.pm_last_node].origin[2] + 60))
+							self->acebot.pm_last_node = closest_node;
+						else
+							self->acebot.pm_last_node = INVALID;
+					}
 				}
 			}
 			else //jump failed, set last node.
@@ -783,12 +795,12 @@ void ACEND_PathMap(edict_t *self, qboolean check_jump)
 		{
 			closest_node = ACEND_FindClosestReachableNode(self, BOTNODE_DENSITY, BOTNODE_ALL);
 			if (closest_node == INVALID)
-				closest_node = ACEND_AddNode(self, BOTNODE_MOVE);
+				closest_node = ACEND_AddNode(self, BOTNODE_MOVE, false);
 
 			distToItem = VectorDistanceFlat(self->s.origin, nodes[closest_node].origin);
 
 			if (distToItem >= 48)
-				closest_node = ACEND_AddNode(self, BOTNODE_MOVE);
+				closest_node = ACEND_AddNode(self, BOTNODE_MOVE, false);
 
 			//connect to node directly below grappel
 			ACEND_UpdateNodeEdge(self->acebot.pm_last_node, closest_node, false, false, true, false);
@@ -843,13 +855,13 @@ void ACEND_PathMap(edict_t *self, qboolean check_jump)
 	 {
 		// Add nodes in the water as needed
 		 if (self->waterlevel)
-			closest_node = ACEND_AddNode(self, BOTNODE_WATER);
+			closest_node = ACEND_AddNode(self, BOTNODE_WATER, false);
 		 else
 		 {	//double check water
 			 if (gi.pointcontents(self->s.origin) & MASK_WATER) //add hypov8 is 24 deep??
-				 closest_node = ACEND_AddNode(self, BOTNODE_WATER);
+				 closest_node = ACEND_AddNode(self, BOTNODE_WATER, false);
 			 else
-				closest_node = ACEND_AddNode(self, BOTNODE_MOVE);
+				closest_node = ACEND_AddNode(self, BOTNODE_MOVE, false);
 		 }	
 		 ACEND_UpdateNodeEdge(self->acebot.pm_last_node, closest_node, true, true, true, false);
 		 self->acebot.pm_last_node = closest_node;
@@ -874,9 +886,9 @@ void ACEND_PathMap(edict_t *self, qboolean check_jump)
 					if (distToItem > 48)
 					{
 						if (gi.pointcontents(self->s.origin) & MASK_WATER) //add hypov8 todo: is 24 deep??
-							closest_node = ACEND_AddNode(self, BOTNODE_WATER);
+							closest_node = ACEND_AddNode(self, BOTNODE_WATER, false);
 						else
-							closest_node = ACEND_AddNode(self, BOTNODE_MOVE);
+							closest_node = ACEND_AddNode(self, BOTNODE_MOVE, false);
 					}
 				}
 				if(self->acebot.pm_last_node != closest_node )
@@ -884,8 +896,6 @@ void ACEND_PathMap(edict_t *self, qboolean check_jump)
 			 }
 			 self->acebot.pm_last_node = closest_node;
 		 }
-
-
 	 }
 	 if (self->acebot.pm_last_node == INVALID)
 		 self->acebot.is_bot = false;
@@ -912,26 +922,19 @@ void ACEND_ShowNode(short node, int isTmpNode)
 {
 	edict_t *ent;
 
-#ifndef HYPODEBUG //defined in project DEBUG
-	if (dedicated->value)
-		return;
-#endif
-
-	if (!debug_mode)
+	if (!level.bot_debug_mode)
 		return;
 	if (node == INVALID)
 		return;
 
 
 	//stop showing other nodes if in "localnode" mode
-	if (debug_mode_origin_ents && isTmpNode != 2)
+	if (level.bot_debug_mode == 2 && isTmpNode != 2)
 		return;
 
 	ent = G_Spawn();
-
 	ent->movetype = MOVETYPE_NONE;
 	ent->solid = SOLID_NOT;
-
 	ent->s.effects = (EF_COLOR_SHELL||EF_ROTATE);
 	ent->s.renderfx2 = RF2_NOSHADOW;
 	ent->s.renderfx = RF_FULLBRIGHT;
@@ -1012,11 +1015,52 @@ void ACEND_ShowPath(edict_t *self, short goal_node)
 	show_path_to = goal_node;
 }
 
+//hypov8 all nodes should be at 32 units high. 8 above player height?
+//todo: move safe up
+vec_t ACEND_NodeOffset(short type)
+{
+	vec_t out = 0.0f;
+	switch (type)
+	{
+		case BOTNODE_MOVE: //0			
+			out = BOTNODE_MOVE_8; 
+			break;
+		case BOTNODE_LADDER: //1
+			out = BOTNODE_LADDER_8; 
+			break;
+		case BOTNODE_PLATFORM: //2
+			out = BOTNODE_PLATFORM_32;
+			break;
+		case BOTNODE_TELEPORTER: //3
+			out = BOTNODE_TELEPORTER_16;
+			break;
+		case BOTNODE_ITEM:	//4
+			out = BOTNODE_ITEM_16; 
+			break;
+		case BOTNODE_WATER:	//5
+			out = BOTNODE_WATER_8; 
+			break;
+		case BOTNODE_JUMP://7
+			out = BOTNODE_JUMP_8; 
+			break;
+		case BOTNODE_DRAGON_SAFE: //8
+			out= BOTNODE_DRAGON_SAFE_8;
+			break;
+		case BOTNODE_NIKKISAFE: //9
+			out = BOTNODE_NIKKISAFE_8;
+			break;
+	}
+	if (out == 0.0)
+		out = 0.0; //hypov8 bug!!!
+
+	return out;
+}
+
 ///////////////////////////////////////////////////////////////////////
 // Add a node of type ?
 // note hypov8 nodes initialised with 1. should be [0]. but may be used else where? (fixed to node 0)
 ///////////////////////////////////////////////////////////////////////
-short ACEND_AddNode(edict_t *self, short type)
+short ACEND_AddNode(edict_t *self, short type, qboolean isBuildingTable)
 {
 	vec3_t v1,v2;
 	
@@ -1027,7 +1071,10 @@ short ACEND_AddNode(edict_t *self, short type)
 	if (stopNodeUpdate) //hypov8 todo: check this. invalid?
 		return INVALID;// self->acebot.pm_last_node;
 
-	if (debug_mode) // add hypov8
+	if (!level.bot_nodesLoaded && !isBuildingTable)
+		return INVALID;
+
+	if (level.bot_debug_mode) // add hypov8
 		gi.sound(self, CHAN_AUTO, gi.soundindex("world/switches/pushbutton.wav"), 1, ATTN_NORM, 0);
 
 	// Set location
@@ -1039,14 +1086,7 @@ short ACEND_AddNode(edict_t *self, short type)
 	/////////////////////////////////////////////////////
 	// ITEMS
 	// Move the z location up just a bit.
-	switch (type)
-	{
-		case BOTNODE_MOVE:			nodes[numnodes].origin[2] += BOTNODE_MOVE_8; break;
-		case BOTNODE_JUMP: 			nodes[numnodes].origin[2] += BOTNODE_JUMP_8; break;
-		case BOTNODE_LADDER:		nodes[numnodes].origin[2] += BOTNODE_LADDER_8; break;
-		case BOTNODE_ITEM:			nodes[numnodes].origin[2] += BOTNODE_ITEM_16; break;
-		case BOTNODE_TELEPORTER:	nodes[numnodes].origin[2] += BOTNODE_TELEPORTER_16; break;	
-	}
+	nodes[numnodes].origin[2] += ACEND_NodeOffset(type);
 
 
 	// Teleporters
@@ -1054,7 +1094,7 @@ short ACEND_AddNode(edict_t *self, short type)
 	{
 		edict_t		*dest;
 
-		if(debug_mode)
+		if(level.bot_debug_mode)
 			debug_printf("Node added %d type: Teleporter\n",numnodes);
 
 		dest = G_Find(NULL, FOFS(targetname), self->target);
@@ -1062,11 +1102,11 @@ short ACEND_AddNode(edict_t *self, short type)
 		{
 			numnodes++;
 			VectorCopy(dest->s.origin, nodes[numnodes].origin);
-			nodes[numnodes].origin[2] += BOTNODE_TELEPORTER_16;
+			nodes[numnodes].origin[2] += ACEND_NodeOffset(type); // BOTNODE_TELEPORTER_16;
 			nodes[numnodes].type = BOTNODE_MOVE;
 			ACEND_ShowNode(numnodes, 0);
 			ACEND_UpdateNodeEdge(numnodes - (short)1,numnodes,  true, false, false, false);
-			if (debug_mode)	
+			if (level.bot_debug_mode)	
 				debug_printf("Node added %d type: Teleporter Dest\n", numnodes);
 		}
 		else
@@ -1097,9 +1137,9 @@ short ACEND_AddNode(edict_t *self, short type)
 		// To get the center
 		nodes[numnodes].origin[0] = (v1[0] - v2[0]) / 2 + v2[0];
 		nodes[numnodes].origin[1] = (v1[1] - v2[1]) / 2 + v2[1];
-		nodes[numnodes].origin[2] = self->maxs[2] + BOTNODE_PLATFORM_32; //hypov8 add +32
+		nodes[numnodes].origin[2] = self->maxs[2] + ACEND_NodeOffset(type);// BOTNODE_PLATFORM_32; //hypov8 add +32
 			
-		if(debug_mode)	
+		if(level.bot_debug_mode)	
 			ACEND_ShowNode(numnodes, 0);
 		
 		numnodes++;
@@ -1107,14 +1147,14 @@ short ACEND_AddNode(edict_t *self, short type)
 		//bottom node
 		nodes[numnodes].origin[0] = nodes[numnodes - (short)1].origin[0];
 		nodes[numnodes].origin[1] = nodes[numnodes - (short)1].origin[1];
-		nodes[numnodes].origin[2] = self->maxs[2] + self->pos2[2] + BOTNODE_PLATFORM_32;  //hypov8 was +64. match items height's
+		nodes[numnodes].origin[2] = self->maxs[2] + self->pos2[2] + ACEND_NodeOffset(type);// BOTNODE_PLATFORM_32;  //hypov8 was +64. match items height's
 		
 		nodes[numnodes].type = BOTNODE_PLATFORM;
 
 		// Add a link
 		ACEND_UpdateNodeEdge(numnodes, numnodes - (short)1, true, true, false, false);
 		
-		if(debug_mode)
+		if(level.bot_debug_mode)
 		{
 			debug_printf("Node added %d type: Platform\n", numnodes);
 			ACEND_ShowNode(numnodes, 0);
@@ -1124,7 +1164,7 @@ short ACEND_AddNode(edict_t *self, short type)
 		return numnodes - (short)1;
 	}
 		
-	if(debug_mode)
+	if(level.bot_debug_mode)
 	{
 		if (nodes[numnodes].type == BOTNODE_MOVE)
 			debug_printf("Node added %d type: Move\n",numnodes);
@@ -1158,11 +1198,15 @@ void ACEND_UpdateNodeEdge(short from, short to, qboolean stopJumpNodes, qboolean
 	if (stopNodeUpdate)	// map final	
 		return;
 	if (from <= INVALID || to <= INVALID || from == to || from > 999 || to > 999)	{
-		if (debug_mode)	debug_printf(" ****ERROR**** Update: from:%d to:%d\n", from, to);
-		return;	}
+		if (level.bot_debug_mode && from != to)	
+			debug_printf(" ****ERROR**** Update: from:%d to:%d\n", from, to);
+		return;	
+	}
 	if (stopJumpNodes && nodes[to].type == BOTNODE_JUMP){  //add hypov8 dont rout to jump nodes.
-		if (debug_mode)	debug_printf(" *REJECTED* To jump node. Link %d -> %d\n", from, to);
-		return;	}
+		if (level.bot_debug_mode)	
+			debug_printf(" *REJECTED* To jump node. Link %d -> %d\n", from, to);
+		return;	
+	}
 	if (stopTeleNodes && nodes[from].type == BOTNODE_TELEPORTER)  //add hypov8 dont rout from teleporter nodes.
 		return;
 	if (nodes[from].type == BOTNODE_LADDER && nodes[from].origin[2] > nodes[to].origin[2] + 32) //add hypov8 dont allow down on ladders
@@ -1211,7 +1255,8 @@ void ACEND_UpdateNodeEdge(short from, short to, qboolean stopJumpNodes, qboolean
 
 				if (distToTarget > BOTNODE_DENSITY_STAIR || pitch > 50)
 				{
-					if (debug_mode)	debug_printf(" *REJECTED* To High. Link %d -> %d\n", from, to);
+					if (level.bot_debug_mode)	
+						debug_printf(" *REJECTED* To High. Link %d -> %d\n", from, to);
 					return;
 				}
 			}
@@ -1235,7 +1280,7 @@ void ACEND_UpdateNodeEdge(short from, short to, qboolean stopJumpNodes, qboolean
 			tr = gi.trace(from2, vec3_origin, vec3_origin, to2, NULL, MASK_BOT_SOLID_FENCE | CONTENTS_LADDER);
 			if (!(tr.fraction == 1.0)) //1.0 = nothing in the way
 			{
-				if (debug_mode)
+				if (level.bot_debug_mode)
 					debug_printf(" *REJECTED* Not in sight. Link %d -> %d\n", from, to);
 
 				return; //add hypov8. node link not added because its to far from edge and way above our head
@@ -1246,7 +1291,7 @@ void ACEND_UpdateNodeEdge(short from, short to, qboolean stopJumpNodes, qboolean
 #endif
 
 #if 0
-	if (debug_mode)
+	if (level.bot_debug_mode)
 	{
 		if (!(path_table[from][to] == to)) //hypov8 dont write created link if it existed
 			debug_printf(" *CREATED* Link %d -> %d *was-> %d\n", from, to, path_table[from][to]);
@@ -1276,7 +1321,7 @@ void ACEND_RemoveNodeEdge(edict_t *self, short from, short to)
 	if (stopNodeUpdate)
 		return;
 
-	if(debug_mode) 
+	if(level.bot_debug_mode) 
 		debug_printf("%s: Removing Edge %d -> %d\n", self->client->pers.netname, from, to);
 		
 	path_table[from][to] = INVALID; // set to invalid			
@@ -1300,9 +1345,7 @@ void ACEND_RemovePaths(edict_t *self, short from)
 	if (stopNodeUpdate)
 		return;
 
-	//return; //hypov8 causing issues
-
-	if(debug_mode) 
+	if(level.bot_debug_mode) 
 		debug_printf("%s: Removing paths %d\n", self->client->pers.netname, from);
 		
 	//path_table[from][to] = INVALID; // set to invalid			
@@ -1315,6 +1358,7 @@ void ACEND_RemovePaths(edict_t *self, short from)
 				path_table[i][j] = INVALID;
 		}
 	}
+	//hypov8 todo: resolve all paths now??
 }
 
 
@@ -1329,7 +1373,7 @@ void ACEND_RemoveallPaths(edict_t *self)
 	if (stopNodeUpdate)
 		return;
 
-	if(debug_mode) 
+	if(level.bot_debug_mode) 
 		debug_printf("%s: Removing ALL paths\n", self->client->pers.netname);
 
 	for (i = NODE0; i<MAX_BOTNODES; i++)
@@ -1347,16 +1391,13 @@ static void ACEND_ResolveAllPaths()
 	short i, from, to;
 	int num=0;
 
-	gi.dprintf("Resolving all paths...");
-	//safe_bprintf(PRINT_HIGH, "Resolving all paths...");
-
 	for (from = NODE0; from < numnodes; from++)
 	{
 		for (to = NODE0; to < numnodes; to++)
 		{
 #ifdef HYPODEBUG
 			if (path_table[from][to] < INVALID)
-				debug_printf(" ****ERROR**** resolve: from:%d to:%d\n", from, to);
+				debug_printf("\n ACE: ****ERROR**** resolve: from:%d to:%d\n", from, to);
 #endif
 			// update unresolved paths
 			// Not equal to itself, not equal to -1 and equal to the last link
@@ -1375,10 +1416,27 @@ static void ACEND_ResolveAllPaths()
 			}
 		}
 	}
-	gi.dprintf("done (%d updated)\n",num);
-	//safe_bprintf(PRINT_MEDIUM,"done (%d updated)\n",num);
+	gi.dprintf(" ACE: Resolving all paths done. (%d updated)\n",num);
 }
 
+int ACEND_CountDupeNodes(void)
+{
+	short i, j;
+	int Count = 0;
+	for (i = NODE0; i < numnodes; i++)
+	{
+		for (j = i + 1; j < numnodes; j++)
+			if (VectorCompare(nodes[i].origin, nodes[j].origin))
+			{
+#if HYPODEBUG
+				gi.dprintf(" ACE: Node placed ontop of another node ( %1.1f %1.1f %1.1f)\n",
+					nodes[i].origin[0], nodes[i].origin[1], nodes[i].origin[2]);
+#endif
+				Count++;
+			}
+	}
+	return Count;
+}
 
 ///////////////////////////////////////////////////////////////////////
 // Save to disk file
@@ -1395,19 +1453,16 @@ void ACEND_SaveNodes()
 	short i,j;
 	int version = 4; //file version 3 now has nodefinal. 4 fixes ladders
 	cvar_t	*game_dir;
-	int nodefinal = 0;
+	int nodefinal = 0, dupeNodeCount = 0;
 	
 	if (!(level.modeset == MATCH || level.modeset == PUBLIC))
 		return;
 
-	if (!level.bots_spawned) //hypov8. no nodes loaded. so dont save, it will be blank
+	if (!level.bot_nodesLoaded) //hypov8. no nodes loaded. so dont save, it will be blank
 		return;
 
 	// Resolve paths
 	ACEND_ResolveAllPaths();
-
-	gi.dprintf("Saving node table...");
-	//safe_bprintf(PRINT_MEDIUM,"Saving node table...");
 
 	//hypo mod folder for bots dir
 	game_dir = gi.cvar("game", "", 0);
@@ -1418,15 +1473,18 @@ void ACEND_SaveNodes()
 	if (stopNodeUpdate == 1)
 	{
 		nodefinal = 1;
-		gi.dprintf("ACE: Node table *WRITE PROTECTED*\n ");
+		gi.dprintf(" ACE: Node table *WRITE PROTECTED*\n");
 	}
 
-	if((pOut = fopen(filename, "wb" )) == NULL)
+	if ((pOut = fopen(filename, "wb")) == NULL)
+	{
+		gi.dprintf(" ACE: ERROR Can not save node file.\n");
 		return; // bail
+	}
 	
 	fwrite(&version,sizeof(int),1,pOut); // write version
 	fwrite(&nodefinal, sizeof(int), 1, pOut); //hypo if 1. will never get updated
-	fwrite(&numnodes,sizeof(short),1,pOut); // write count
+	fwrite(&numnodes,sizeof(short),1,pOut); // write count. in short??
 	fwrite(&num_items,sizeof(int),1,pOut); // write facts count
 	
 	fwrite(nodes,sizeof(botnode_t),numnodes,pOut); // write nodes
@@ -1434,14 +1492,13 @@ void ACEND_SaveNodes()
 	for (i = NODE0; i<numnodes; i++)
 		for (j = NODE0; j<numnodes; j++)
 			fwrite(&path_table[i][j],sizeof(short),1,pOut); // write count
-		
-	fwrite(item_table,sizeof(item_table_t),num_items,pOut); 		// write out the fact table
+	
+	//hypov8 we dont really need this. rebuilt every map load
+	//fwrite(item_table,sizeof(item_table_t),num_items,pOut); 		// write out the fact table
 
 	fclose(pOut);
 
-	gi.dprintf(" <nodes=%i items=%i Version=%i> ", numnodes, num_items, version);
-	gi.dprintf("done.\n");
-	//safe_bprintf(PRINT_MEDIUM,"done.\n");
+	gi.dprintf(" ACE: Save nodes done. (Nodes:%i Items:%i Ver:%i Dupes:%i)\n", numnodes, num_items, version, ACEND_CountDupeNodes());
 }
 
 ///////////////////////////////////////////////////////////////////////
@@ -1466,10 +1523,10 @@ void ACEND_LoadNodes(void)
 
 	if((pIn = fopen(filename, "rb" )) == NULL)
     {
-		// Create item table
-		gi.dprintf("ACE: No node file found, creating new one...");
+		// Create new node/item tables
+		gi.dprintf(" ACE: No node file found, creating new nodes...\n");
 		ACEIT_BuildItemNodeTable(false);
-		gi.dprintf("done.\n");
+		gi.dprintf(" ACE: Create nodes done. (Nodes:%i Items:%i Dupes:%i)\n", numnodes, num_items, ACEND_CountDupeNodes());
 		return; 
 	}
 
@@ -1478,64 +1535,45 @@ void ACEND_LoadNodes(void)
 
 	if (version == 4)
 	{
+		//gi.dprintf(" ACE: Loading node table...\n");
+
 		bytes = fread(&nodefinal, sizeof(int), 1, pIn);
-		if (nodefinal == 1)
-		{
+		if (nodefinal == 1)	{
 			gi.dprintf(" ACE: Node table *WRITE PROTECTED*\n");
 			stopNodeUpdate = 1;
 		}
 
-		gi.dprintf(" ACE: Loading node table...");
-
 		bytes = fread(&numnodes, sizeof(short), 1, pIn); // read count
 		bytes = fread(&num_items, sizeof(int), 1, pIn); // read facts count
+		bytes = fread(&nodes, sizeof(botnode_t), numnodes, pIn);
 
-		for(i=0;i<numnodes;i++)
-			bytes = fread(&nodes[i], sizeof(botnode_t), 1, pIn);
+		//hypov8 todo compress XYZ to short
+		//pm.s.origin[i] = ent->s.origin[i]*8;
 
-		for (i = NODE0; i < numnodes; i++)
-		{
-			if (nodes[i].type == BOTNODE_GRAPPLE)
-				numnodesHook++; //add hypov8
+		for (i = NODE0; i < numnodes; i++){
+			if (nodes[i].type == BOTNODE_GRAPPLE) numnodesHook++; //add hypov8
 
 			for (j = NODE0; j < numnodes; j++)
 				bytes = fread(&path_table[i][j], sizeof(short), 1, pIn); // write count
 		}
 
-		for(i=0;i<num_items;i++)
-			bytes = fread(&item_table[i], sizeof(item_table_t), 1, pIn);
+		//File loaded ok. now rebuild entity link
+		gi.dprintf(" ACE: Load node file done. (Nodes:%i Items:%i Ver:%i Dupes:%i)\n", numnodes, num_items, version, ACEND_CountDupeNodes());
+		ACEIT_BuildItemNodeTable(true); //relink
+		//gi.dprintf(" ACE: Relinked items done. (Nodes:%i Items:%i Ver:%i Dupes:%i)\n", numnodes, num_items, version, ACEND_CountDupeNodes());
 
-		fclose(pIn);
+		if (level.aceNodesCurupt)
+			gi.dprintf(" ACE: WARNING: Nodes corrupt. Tried to add nodes for new items...\n");		
 	}
 	else
 	{
 		// Create new item table
-		gi.dprintf("ACE: No/old node file found, creating new one...");
+		gi.dprintf(" ACE: old node file found, creating new nodes...\n");
 		ACEIT_BuildItemNodeTable(false);
-		gi.dprintf("done.\n");
-		return; // bail
+		gi.dprintf(" ACE: Create nodes done. (Nodes:%i Items:%i Dupes:%i)\n", numnodes, num_items, ACEND_CountDupeNodes());
 	}
-
-#if HYPODEBUG
-	for (i = NODE0; i < numnodes; i++)
-	{
-		for (j = i+1; j < numnodes; j++)
-			if (VectorCompare(nodes[i].origin, nodes[j].origin))
-				gi.dprintf("ACE: Node placed ontop of another Node");
-
-	}
-#endif
-
-	//update new versions
-	gi.dprintf(" <nodes=%i items=%i Version=%i> ", numnodes, num_items, version);
-	ACEIT_BuildItemNodeTable(true); //relink
-	if (level.aceNodesCurupt)
-	{
-		ACEND_InitNodes();
-		gi.dprintf("\nERROR: Ace Nodes Currupt. Rebuilding...");		
-		ACEIT_BuildItemNodeTable(false); //rebuild
-	}
-	gi.dprintf("done.\n");
+	
+	fclose(pIn);
 
 }
 
@@ -1609,10 +1647,10 @@ void ACEND_PathToTrigPushDest(edict_t *player)
 
 
 //////////////////////////////////////////////////////////////////////
-//ACEND_DebugNodesLocal
+// ACEND_DebugNodesLocal
 // Draws local path (utility function) 
-//hypo
-//will draw a path from closest nodes to there routable paths
+// hypov8
+// will draw a path from closest nodes to there routable paths
 ///////////////////////////////////////////////////////////////////////
 void ACEND_DebugNodesLocal(void)
 {
@@ -1623,20 +1661,20 @@ void ACEND_DebugNodesLocal(void)
 	short current_node, next_node, i2, n;
 	static short count[NODECOUNT];
 
-	if (debug_mode&& debug_mode_origin_ents) //"sv botdebug" "localnode"
+	if (level.bot_debug_mode == 2) //"sv botdebug" "localnode"
 	{
 		memset(count, INVALID, sizeof(count));
 		//only used first player
 		for_each_player_not_bot(firstPlayer, iPlyr)
 		{
-			if (!firstPlayer->acebot.PM_firstPlayer)
+			if (!firstPlayer->acebot.PM_firstPlayer)	//if (debug_mode_origin_ents != iPlyr)
 				continue;
 
 			//hypov8 show all close nodes
 			for (j = NODE0; j < numnodes; j++)
 			{
 				distToTarget = VectorDistance(firstPlayer->s.origin, nodes[j].origin);
-				if (distToTarget <= 192)
+				if (distToTarget < 160)
 				{
 					ACEND_ShowNode(j, 2); //hypov8 show closest node
 					k++;

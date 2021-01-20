@@ -279,14 +279,13 @@ void InitGame (void)
 	// change anytime vars
 	dmflags = gi.cvar ("dmflags", "0", CVAR_SERVERINFO|CVAR_ARCHIVE);
 
-
 	fraglimit = gi.cvar ("fraglimit", "0", CVAR_SERVERINFO);
 	timelimit = gi.cvar ("timelimit", "0", CVAR_SERVERINFO);
 	password = gi.cvar ("password", "", CVAR_USERINFO);
 	filterban = gi.cvar ("filterban", "1", 0);
 
 	antilag = gi.cvar("antilag", "1", CVAR_SERVERINFO);
-	props = gi.cvar("props", "0", 0);
+	props = gi.cvar("props", "0", CVAR_NOSET); //hypov8 force disable.. later can enable some features. props=2?
 	shadows = gi.cvar("shadows", "1", 0);
 
 // BEGIN HITMEN
@@ -395,6 +394,9 @@ void InitGame (void)
 	// if cvar does not exist in the exe or configs it will fail setting the flags.
 	// missing CVAR_LATCH is causing crashes.
 	/////////////////////////////////////////////////////////////////////////////////////////////////////
+	props				= gi.cvar("props", "0", CVAR_NOSET);
+						  gi.cvar_forceset("props", "0");
+
 	sv_botskill			= gi.cvar("sv_botskill", "", CVAR_SERVERINFO);
 	sv_hitmen			= gi.cvar("hitmen", "", CVAR_LATCH|CVAR_SERVERINFO);
 
@@ -402,7 +404,6 @@ void InitGame (void)
 	antilag				= gi.cvar("antilag", "", CVAR_SERVERINFO);
 	kick_flamehack		= gi.cvar ("kick_flamehack", "", CVAR_SERVERINFO);
 	g_select_empty		= gi.cvar ("g_select_empty", "", CVAR_ARCHIVE);
-
 
 	teamplay			= gi.cvar("teamplay", "0.0", CVAR_LATCH|CVAR_SERVERINFO);
 

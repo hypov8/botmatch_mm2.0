@@ -771,13 +771,15 @@ void ED_CallSpawn (edict_t *ent)
 		ent->classname = "hmg_mod_cooling";
 
 
-#if 0//  HYPODEBUG //test bot aim per weapon
+#if  HYPODEBUG //test bot aim per weapon
 	if (strncmp(ent->classname, "weapon_", 7) == 0)
-		ent->classname = "weapon_bazooka"; 
+		ent->classname = "weapon_crowbar"; 
+	//weapon_bazooka
 	//"weapon_flamethrower"
 	//"weapon_heavymachinegun"
 	//"weapon_spistol"
 	//"weapon_shotgun"
+	//"weapon_crowbar"
 #endif
 
 
@@ -1241,17 +1243,27 @@ void SpawnEntities (char *mapname, char *entities, char *spawnpoint)
 				if (!strcmp(ent->classname, "trigger_hurt"))
 					ent->dmg = 9999;
 			}
-			else if (!Q_stricmp(level.mapname, "dm_mm")) //add hypov8
+			else if (!Q_stricmp(level.mapname, "dm_mm") ||!Q_stricmp(level.mapname, "dm_mm_bot") ) //add hypov8
 			{
 				if (!strcmp(ent->classname, "func_door_secret")){
 					ent->classname = "func_door";
-					ent->s.angles[1] = 90.0f;
+					ent->s.angles[1] = 89.0f;
 					ent->message = "";
 					ent->health = 0;
 					st.lip = 8;
 				}
 			}
-			//end bot fix
+			else if (!Q_stricmp(level.mapname, "kp_doom2m1")) //add hypov8
+			{
+				if (!strcmp(ent->classname, "func_door_secret")){
+					ent->classname = "func_door";
+					//ent->s.angles[1] = 90.0f;
+					ent->message = "";
+					ent->health = 0;
+					//st.lip = 8;
+				}
+			}
+			//end bot map fixes
 
 			//davs_room
 			else if (!Q_stricmp(level.mapname, "davs_room")) //add hypov8
@@ -1269,6 +1281,12 @@ void SpawnEntities (char *mapname, char *entities, char *spawnpoint)
 					ent->light_level+= 500;
 				}
 			}
+			else if (! level.bot_mapFix && (!Q_stricmp(level.mapname, "kpdm3")||!Q_stricmp(level.mapname, "kpdm4"))) //add hypov8
+			{
+				level.bot_mapFix = 1;
+			}
+
+
 // ACEBOT_END
 
 			if (!strcmp(ent->classname, "info_player_deathmatch"))
@@ -1841,22 +1859,25 @@ void SP_worldspawn (edict_t *ent)
 	// status bar program
 	if (teamplay->value)
 	{
-		char str[1024];
+		//char str[1024];
 
 		// add the team names
-		strcpy( str, teamplay->value == 4 ? teamplayDM_statusbar : teamplay_statusbar );
+		gi.configstring (CS_STATUSBAR, va("%s%s%s%s%s%s",
+			teamplay->value == 4 ? teamplayDM_statusbar : teamplay_statusbar,"\"",team_names[1],"\" \"",team_names[2],"\" "));
+
+		/*strcpy( str, teamplay->value == 4 ? teamplayDM_statusbar : teamplay_statusbar );
 		strcat( str, "\"" );
 		strcat( str, team_names[1] );
 		strcat( str, "\" \"" );
 		strcat( str, team_names[2] );
 		strcat( str, "\" " );
-		gi.configstring (CS_STATUSBAR, str);
+		gi.configstring (CS_STATUSBAR, str);*/
 	}
 	else
 	{
 		gi.configstring (CS_STATUSBAR, dm_statusbar);
 // ACEBOT_ADD
-		ACECM_BotDebug(false);
+		//ACECM_BotDebug(false);
 // ACEBOT_END
 	}
 
