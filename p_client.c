@@ -720,7 +720,7 @@ extern void AutoLoadWeapon( gclient_t *client, gitem_t *weapon, gitem_t *ammo );
 
 void InitClientPersistant (gclient_t *client)
 {
-	gitem_t		*item, *ammo;
+	gitem_t		*item, *ammo= NULL;
 
 	memset(&client->pers, 0, offsetof(client_persistant_t, version));
 

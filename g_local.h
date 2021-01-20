@@ -2099,7 +2099,7 @@ extern int num_rconx_pass;
 
 extern char cmd_check[8];
 
-void cprintf(edict_t *ent, int printlevel, char *fmt, ...);
+//void cprintf(edict_t *ent, int printlevel, char *fmt, ...); hypov8 disabled mm2.0
 
 #define KICKENT(ent,mess) {if (!ent->client->resp.kickdelay) {ent->client->resp.kickmess=mess;ent->client->resp.kickdelay=2;}}
 

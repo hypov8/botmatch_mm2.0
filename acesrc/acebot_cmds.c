@@ -628,7 +628,7 @@ void Cmd_VoteSkill_f(edict_t *ent, qboolean usedMenu) //VOTE_BOTSKILL;
 
 		if (s[0] == '\0' || skill < 0 || skill > 10)
 		{
-			cprintf(ent, PRINT_HIGH, "INVALID BOT SKILL. VALUE= 0 to 10.(current: %d)\n",
+			gi.cprintf(ent, PRINT_HIGH, "INVALID BOT SKILL. VALUE= 0 to 10.(current: %d)\n",
 				ent->client->pers.netname, ACECM_ReturnBotSkillWeb());
 			return;
 		}
@@ -653,7 +653,7 @@ void Cmd_VoteSkill_f(edict_t *ent, qboolean usedMenu) //VOTE_BOTSKILL;
 			Com_sprintf(sSkill, sizeof(sSkill), "%1.1f", skill_f);
 			gi.cvar_set("sv_botskill", sSkill);
 			safe_bprintf(PRINT_HIGH, "Bot-Skill set to %d of 10 (sv_botskill %s)\n", ACECM_ReturnBotSkillWeb(), sv_botskill->string);
-			cprintf(ent, PRINT_HIGH, "This setting takes effect immediately\n");
+			gi.cprintf(ent, PRINT_HIGH, "This setting takes effect immediately\n");
 			return;
 		}						//¡¢£¤¥¦§¨©ª«¬­­
 
@@ -670,7 +670,7 @@ void Cmd_VoteSkill_f(edict_t *ent, qboolean usedMenu) //VOTE_BOTSKILL;
 		gi.multicast(vec3_origin, MULTICAST_ALL);
 	}
 	else if (level.voteset != NO_VOTES)
-		cprintf(ent, PRINT_HIGH, "Vote is allready in progress.\n");
+		gi.cprintf(ent, PRINT_HIGH, "Vote is allready in progress.\n");
 
 }
 
@@ -1176,7 +1176,7 @@ void ACECM_SetBotSkill_f(edict_t *ent, char *value) //add hypov8
 	{
 		int skill = atoi(value);
 		if (Q_stricmp(value, "") == 0){
-			cprintf(ent, PRINT_HIGH, "Invalid value. Current botskill is %d of 10 (sv_botskill %s)\n", ACECM_ReturnBotSkillWeb(), sv_botskill->string);
+			gi.cprintf(ent, PRINT_HIGH, "Invalid value. Current botskill is %d of 10 (sv_botskill %s)\n", ACECM_ReturnBotSkillWeb(), sv_botskill->string);
 			return;
 		}
 		switch (skill)
@@ -1197,10 +1197,10 @@ void ACECM_SetBotSkill_f(edict_t *ent, char *value) //add hypov8
 
 		gi.cvar_set("sv_botskill", value);
 		safe_bprintf(PRINT_HIGH, "Bot-Skill set to %d of 10 (sv_botskill %s)\n", ACECM_ReturnBotSkillWeb(), sv_botskill->string);
-		cprintf(ent, PRINT_HIGH, "This setting takes effect immediately\n");
+		gi.cprintf(ent, PRINT_HIGH, "This setting takes effect immediately\n");
 	}
 	else
-		cprintf(ent, PRINT_HIGH, "You do not have admin, but botskill is %d of 10 (sv_botskill %s)\n", ACECM_ReturnBotSkillWeb(), sv_botskill->string);
+		gi.cprintf(ent, PRINT_HIGH, "You do not have admin, but botskill is %d of 10 (sv_botskill %s)\n", ACECM_ReturnBotSkillWeb(), sv_botskill->string);
 }
 // ACEBOT_END
 
