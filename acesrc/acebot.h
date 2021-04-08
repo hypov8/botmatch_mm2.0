@@ -69,8 +69,8 @@
 
 vec3_t ACE_look_out; //hypov8 global var
 #define BOT_JUMP_VEL (400) //360
-#define BOT_FORWARD_VEL (160*2) //340 //hypov8 kp default
-#define BOT_SIDE_VEL (160*2) //cl_anglespeedkey->value)	//hypov8 kp default 1.5
+#define BOT_FORWARD_VEL (160*1.5) //340 //hypov8 kp default
+#define BOT_SIDE_VEL (160*1.5) //cl_anglespeedkey->value)	//hypov8 kp default 1.5
 
 //bot time. allow some errors in float. only run every 0.1 seconds anyway
 #define BOTFRAMETIME 0.098
@@ -341,7 +341,8 @@ typedef struct //bot->acebot.xxx
 	qboolean	isMovingUpPushed; 
 
 	//int			spawnedTime;			//store time just spawned, so they can collect better weps
-
+	int			last_forwardDir;
+	int			last_forwardTime;
 	int			last_strafeTime;		//frame since strafed. make strafe go for longer
 	int			last_strafeDir;
 	int			last_moveFwdTime;

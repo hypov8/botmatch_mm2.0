@@ -835,7 +835,7 @@ static qboolean ACEAI_VisibleEnemy(edict_t *self, edict_t *other, qboolean isBes
 	vec3_t	bbmin = { -8, -8, 0 }; //allow for rocket thickness
 	vec3_t	bbmax = { 8, 8, 0 };
 	int mask = MASK_BOT_ATTACK_NONLEAD;
-	qboolean isBooz=false,isBullet=true;
+	qboolean isBooz=false,isBullet=true, isCrowbar= false;
 
 	self->acebot.aimLegs = 0;
 	self->acebot.enemyOriginZoffset = 0;
@@ -847,13 +847,16 @@ static qboolean ACEAI_VisibleEnemy(edict_t *self, edict_t *other, qboolean isBes
 			isBooz = true;
 			isBullet = false;
 		}
-		else if (Q_stricmp(self->client->pers.weapon->classname, "weapon_grenadelauncher") == 0 //hypov8 todo: flammer ok?
-		|| Q_stricmp(self->client->pers.weapon->classname, "weapon_crowbar") == 0
-		|| Q_stricmp(self->client->pers.weapon->classname, "Pipe") == 0)
+		else if (Q_stricmp(self->client->pers.weapon->classname, "weapon_grenadelauncher") == 0) //hypov8 todo: flammer ok?
 		{
 			isBullet = false;
 		}
-
+		else if (Q_stricmp(self->client->pers.weapon->classname, "weapon_crowbar") == 0
+				|| Q_stricmp(self->client->pers.weapon->classname, "Pipe") == 0)
+		{
+			isBullet = false;
+			isCrowbar = true;
+		}
 	}
 
 	//used for top player using bullets. more accurate between gaps
@@ -861,16 +864,39 @@ static qboolean ACEAI_VisibleEnemy(edict_t *self, edict_t *other, qboolean isBes
 	if (isBullet)
 	{
 		mask = MASK_BOT_ATTACK_LEAD;
-		if (isBestplayer){
+		if (isBestplayer)
+		{
 			VectorCopy(vec3_origin, bbmin);
 			VectorCopy(vec3_origin, bbmax);
 		}
-		else if (self->acebot.botSkillCalculated < 3){
+		else if (self->acebot.botSkillCalculated < 3)
+		{
 			VectorSet(bbmin, -16, -16, 0);
 			VectorSet(bbmax, 16, 16, 0);
 		}
 	}
-
+	else if (isCrowbar)//only target close players	
+	{
+		vec3_t v;
+		float leng;
+		VectorSubtract(self->s.origin, other->s.origin, v);
+		leng = VectorLength(v);
+		//to far
+		if (leng > 256)
+			return false;
+		else
+			leng = 0;
+	}
+	else if (!isBooz)
+	{	//rl
+		vec3_t v;
+		float leng;
+		VectorSubtract(self->s.origin, other->s.origin, v);
+		leng = VectorLength(v);
+		//to far
+		if (leng > 850)
+			return false; 
+	}
 
 	VectorCopy(self->s.origin, eyes);	// bots eyes
 	eyes[2] += self->viewheight;

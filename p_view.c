@@ -1915,7 +1915,7 @@ updatescore:
 	if (level.intermissiontime)
 	return;
 
-#ifndef HYPODEBUG
+#ifndef HYPODEBUG //disable mm kick
 	// ACEBOT_ADD
 	if (!ent->acebot.is_bot)
 	{

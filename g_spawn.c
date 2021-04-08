@@ -771,9 +771,16 @@ void ED_CallSpawn (edict_t *ent)
 		ent->classname = "hmg_mod_cooling";
 
 
-#if  HYPODEBUG //test bot aim per weapon
+#if  HYPODEBUG_CROWBAR //test bot aim per weapon
 	if (strncmp(ent->classname, "weapon_", 7) == 0)
 		ent->classname = "weapon_crowbar"; 
+#elif HYPODEBUG_PISTOL
+	if (strncmp(ent->classname, "weapon_", 7) == 0)
+		ent->classname = "weapon_pistol"; 
+#elif HYPODEBUG_RL
+	if (strncmp(ent->classname, "weapon_", 7) == 0)
+		ent->classname = "weapon_bazooka"; 
+
 	//weapon_bazooka
 	//"weapon_flamethrower"
 	//"weapon_heavymachinegun"
@@ -1947,7 +1954,7 @@ void SP_worldspawn (edict_t *ent)
 	gi.modelindex ("#w_pipe.mdx");				// CLIP_NONE
 	gi.modelindex ("#w_pistol.mdx");			// CLIP_PISTOL
 	gi.modelindex ("#w_shotgun.mdx");			// CLIP_SHOTGUN
-	gi.modelindex ("#w_tommygun.mdx");			// CLIP_TOMMGUN
+	gi.modelindex ("#w_tommygun.mdx");			// CLIP_TOMMYGUN
 	gi.modelindex ("#w_heavy machinegun.mdx");	// CLIP_SLUGS
 	gi.modelindex ("#w_grenade launcher.mdx");	// CLIP_GRENADES
 	gi.modelindex ("#w_bazooka.mdx");			// CLIP_ROCKETS

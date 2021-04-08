@@ -150,7 +150,7 @@ for(INDEX=1;INDEX<=(int)maxclients->value;INDEX++)\
 #define PLAYING				0
 
 // the "gameversion" client command will print this plus compile date
-#define	GAMEVERSION	"Botmatch.v39.2" //	"MM2.0 +lagless +acebot +hitmen" //hypov8 gamename
+#define	GAMEVERSION	"Botmatch.v39.3" //	"MM2.0 +lagless +acebot +hitmen" //hypov8 gamename
 
 // protocol bytes that can be directly added to messages
 #define	svc_muzzleflash		1

@@ -1023,7 +1023,7 @@ void ACESP_SpawnBot (char *team, char *name, char *skin, char *userinfo, float s
 	bot->health = 0;
 	meansOfDeath = MOD_UNKNOWN;
 	bot->acebot.enemyID = -1;
-	bot->yaw_speed = 100; // yaw speed
+	bot->yaw_speed = 100; // yaw speed //hypov8 bots turn speed
 	bot->inuse = true;
 	bot->acebot.is_bot = true;
 	bot->acebot.botSkillMultiplier = skill;

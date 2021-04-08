@@ -365,7 +365,8 @@ qboolean ACEND_FollowPath(edict_t *self)
 	if (nextNodeType != BOTNODE_GRAPPLE)
 	{
 		vFlat = VectorDistanceFlat(playerOrg, nextNodeOrig);
-		if ((vFlat < 32 && nextNodeType != BOTNODE_TELEPORTER) 
+		if ((vFlat < 40 && nextNodeType != BOTNODE_TELEPORTER && nextNodeType != BOTNODE_JUMP) //hypov8 was 32
+			||(vFlat < 32 && nextNodeType != BOTNODE_TELEPORTER)
 			||(vFlat < 28 && nextNodeType == BOTNODE_TELEPORTER)) //hypov8 added for BOTNODE_TELEPORTER 28 to fix issue
 		{
 			float height = nextNodeOrig[2]-playerOrg[2];

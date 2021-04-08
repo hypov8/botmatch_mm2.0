@@ -720,7 +720,8 @@ extern void AutoLoadWeapon( gclient_t *client, gitem_t *weapon, gitem_t *ammo );
 
 void InitClientPersistant (gclient_t *client)
 {
-	gitem_t		*item, *ammo= NULL;
+	gitem_t		*item;
+	gitem_t		*ammo = NULL;
 
 	memset(&client->pers, 0, offsetof(client_persistant_t, version));
 
@@ -759,7 +760,7 @@ void InitClientPersistant (gclient_t *client)
 if (!sv_hitmen->value /*enable_hitmen*/)
 // END
 	{
-#if HYPODEBUG
+#ifdef HYPODEBUG_CROWBAR
 		item = FindItem("Crowbar");
 		client->pers.selected_item = ITEM_INDEX(item);
 		client->pers.inventory[client->pers.selected_item] = 1;

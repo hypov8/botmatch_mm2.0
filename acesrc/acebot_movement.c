@@ -180,7 +180,7 @@ static qboolean ACEMV_SpecialMove(edict_t *self, usercmd_t *ucmd)
 
 
 	//vec3_t ladderMin = { -16, -16, -32 };
-	//vec3_t ladderMax = { 16, 16, 48 }; //thin ladder cods?
+	//vec3_t ladderMax = { 16, 16, 48 }; //thin ladder code?
 	
 	if (self->acebot.dodge_time >= level.framenum)
 	{
@@ -463,6 +463,27 @@ static void ACEMV_ChangeBotAngle(edict_t *ent)
 	float	move;
 	float	speed;
 	vec3_t  ideal_angle;
+	float turnSpeedMultiplyer = 1.0f; //slow down turn speed if far from node
+
+	//slow down bot turn speed if node is far away
+	if (ent->acebot.node_next != INVALID && nodes[ent->acebot.node_next].type == NODE_NORMAL)
+	{
+		float v = VectorDistanceFlat(ent->acebot.move_vector, vec3_origin);
+		if (v <= 48) 
+			turnSpeedMultiplyer = 1.0;
+		else if (v > 88)
+			turnSpeedMultiplyer = 0.40f;
+		else
+		{
+			v = ( v - 48 ) / ( 88 - 48 );
+			turnSpeedMultiplyer = 1.0f - (v * 0.40f); //0.4 to 1.0
+		}
+	}
+	else if (ent->acebot.node_next == INVALID && ent->enemy && ent->acebot.enemyID < 1)
+	{
+		float skill = ent->acebot.botSkillCalculated * 0.5; //0 to 2.0
+		turnSpeedMultiplyer = skill + .15;
+	}
 
 	// Normalize the move angle first
 	VectorNormalize(ent->acebot.move_vector);
@@ -479,7 +500,7 @@ static void ACEMV_ChangeBotAngle(edict_t *ent)
 	if (current_yaw != ideal_yaw)
 	{
 		move = ideal_yaw - current_yaw;
-		speed = ent->yaw_speed;
+		speed = ent->yaw_speed * turnSpeedMultiplyer; //add hypov8
 		if (ideal_yaw > current_yaw)
 		{
 			if (move >= 180)
@@ -1494,8 +1515,6 @@ void ACEMV_Move(edict_t *self, usercmd_t *ucmd)
 	if (self->s.origin[0]==794.125000 && self->s.origin[1] > -1500 &&self->s.origin[2]> 64)
 		gi.dprintf("ladder\n" );
 #endif
-
-
 	if (next_node_type == BOTNODE_LADDER && nodes[self->acebot.node_next].origin[2] > self->s.origin[2])
 	{
 		if (current_node_type == BOTNODE_LADDER)
@@ -1599,10 +1618,11 @@ void ACEMV_Move(edict_t *self, usercmd_t *ucmd)
 
 	}
 	
-	// Falling off ledge? //hypov8 or on ladder //or landing from jump node
+	////////////////////////////////////////////////////////
+	// Falling off ledge? on ladder? or landing from jump node?
+	///////////////////////////////////////////////////////
 	if (!self->groundentity && !self->acebot.isMovingUpPushed)
 	{
-
 		if (!ACEMV_CheckLadder(self, ucmd, false, false))
 		{
 			if (self->acebot.node_next != INVALID)
@@ -2136,8 +2156,13 @@ static void ACEMV_Attack_AimRandom(edict_t *self)
 		if (self->onfiretime > 0)
 			disAcc *= 2;
 
-		if (self->client->pers.weapon && Q_stricmp(self->client->pers.weapon->classname, "weapon_flamethrower") == 0)
-			disAcc *= 1.5;//less skill for flammer
+		if (self->client->pers.weapon)
+		{
+			if ( Q_stricmp(self->client->pers.weapon->classname, "weapon_flamethrower") == 0)
+				disAcc *= 1.5;//less skill for flammer and RL
+			else if (Q_stricmp(self->client->pers.weapon->classname, "weapon_bazooka") == 0 ) //hypov8 todo: change bodyWidth
+				disAcc *= 2;//less skill for and RL
+		}
 
 		self->acebot.bot_accuracy = rand_y * disAcc;
 	}
@@ -2189,17 +2214,19 @@ void ACEMV_Attack_CalcRandDir(edict_t *self, vec3_t aimdir)
 }
 
 
-static void ACEMV_Attack_Dodge(edict_t *self, usercmd_t *ucmd)
+static void ACEMV_Attack_Dodge(edict_t *self, usercmd_t *ucmd, qboolean isCrowbar )
 {
-	float c;
+	float c = random();
 	qboolean moveResolved = false;
-	qboolean strafe = false;
-	qboolean strafeDir;
-	static const int frames = 5;
-	float skill = self->acebot.botSkillCalculated;
+	qboolean forward = true, strafe = false;
+	qboolean forwardDir = -1, strafeDir = -1;
+	static const int frames = 7;
+	static const int framesFwd = 2;
+	float skill = self->acebot.botSkillCalculated * .25; //0 to 1;
+	float speed = self->acebot.botSkillCalculated * .125 + 0.5; //0 to 1;
 	qboolean is_hunted = self->enemy->acebot.is_hunted;
 	
-	// must still have pistol
+#if 1 //must still have pistol. force bot to get a close weapon
 	if (!(int)sv_hitmen->value && 
 		(self->acebot.num_weps <= 2 || (self->client->pers.weapon && !strcmp(self->client->pers.weapon->classname, "weapon_pistol"))) )
 	{
@@ -2301,43 +2328,68 @@ static void ACEMV_Attack_Dodge(edict_t *self, usercmd_t *ucmd)
 			return;
 		}
 	}
-
+#endif
+	// pmove->pm_flags PMF_NO_PREDICTION 64
 	//stop strafe with low skill
-	if (skill <= 3 && ! is_hunted)	
+	if (isCrowbar || ((/*skill <= 3 && */!is_hunted)))	
 	{
-		float c;
-		skill *= .25; //0 to 1
-		c = random();
-
-		if (c > .2 && skill < c)
+		float skillLow = isCrowbar?  (skill * 0.3f) + 0.1f : (skill * 0.2f) + 0.1f ;
+		float skillHigh = 1 - skillLow;
+		if (c > skillLow && c < skillHigh) /*self->acebot.last_forwardTime >level.framenum */ 
 		{
 			if (self->enemy)
 			{
 				vec3_t v;
 				float dist;
+
+				/*if (self->acebot.last_strafeTime < level.framenum)
+					return;
+				else 
+					goto temp_jump;*/
+
 				VectorSubtract(self->s.origin, self->enemy->s.origin, v);
 				dist = VectorLength(v);
-				if (dist <180 || self->acebot.last_moveFwdTime > level.framenum)
+				//if we are close. try to move backwards
+				if ((isCrowbar && dist < 32) ||
+					(! isCrowbar && ( dist <180 || self->acebot.last_moveFwdTime > level.framenum)))
 				{
-					if (ACEMV_CanMove_Simple(self, MOVE_BACK))
-						ucmd->forwardmove -= BOT_FORWARD_VEL;
-					else if (ACEMV_CanMove_Simple(self, MOVE_FORWARD))
-						ucmd->forwardmove += BOT_FORWARD_VEL;
-					if ((self->acebot.last_moveFwdTime + 25) < level.framenum)
-					self->acebot.last_moveFwdTime = level.framenum + 25;
+					if (ACEMV_CanMove_Simple(self, MOVE_BACK)){
+						self->acebot.last_forwardTime = level.framenum + framesFwd;
+						self->acebot.last_forwardDir = MOVE_BACK;
+						ucmd->forwardmove -= BOT_FORWARD_VEL * speed;
+					}
+					else if (ACEMV_CanMove_Simple(self, MOVE_FORWARD)){
+						self->acebot.last_forwardTime = level.framenum + framesFwd;
+						self->acebot.last_forwardDir = MOVE_FORWARD;
+						ucmd->forwardmove += BOT_FORWARD_VEL* speed;
+					}
+					else
+						self->acebot.last_forwardDir = -1;
+
+					if (dist <180 ||(isCrowbar && dist < 32))
+						self->acebot.last_moveFwdTime = level.framenum + 25;
 				}
 				else
 				{
 					if (ACEMV_CanMove_Simple(self, MOVE_FORWARD))
-						ucmd->forwardmove += BOT_FORWARD_VEL;
+					{
+						self->acebot.last_forwardTime = level.framenum + framesFwd;
+						self->acebot.last_forwardDir = MOVE_FORWARD;
+						ucmd->forwardmove += BOT_FORWARD_VEL* speed;
+					}
+					else
+						self->acebot.last_forwardDir = -1;
+
 					self->acebot.last_moveFwdTime = 0;
 				}
 			}
-			return;
+			if (self->acebot.last_forwardDir != -1)
+				return; //can move simple
 		}
 	}
 
-#if 1
+
+#if 1 //dodge rockets/nads
 	if (self->movetarget && self->movetarget->owner == self->enemy && ( is_hunted|| ACEMV_Attack_Dodge_bySkill(self)))
 	{
 		if (strcmp(self->movetarget->classname, "rocket") == 0)
@@ -2358,14 +2410,16 @@ static void ACEMV_Attack_Dodge(edict_t *self, usercmd_t *ucmd)
 	if (self->acebot.last_strafeTime > level.framenum)
 	{
 		strafe = true;
-		if (self->acebot.last_strafeDir == MOVE_LEFT)
-			strafeDir = MOVE_LEFT;
-		else if (self->acebot.last_strafeDir == MOVE_RIGHT)
-			strafeDir = MOVE_RIGHT;
+		strafeDir= self->acebot.last_strafeDir;
 	}
-
+	//hypo make player move forward/back in 1 dir longer
+	if (self->acebot.last_forwardTime > level.framenum)
+	{
+		forward = true;
+		forwardDir = self->acebot.last_forwardDir;
+	}
 	// Randomly choose a movement direction
-	c = random();
+	
 
 #if 1 //ndef HYPODEBUG
 
@@ -2377,7 +2431,7 @@ static void ACEMV_Attack_Dodge(edict_t *self, usercmd_t *ucmd)
 
 		if (((c < 0.500f && !strafe) || (strafe && strafeDir == MOVE_LEFT))
 			&& ACEMV_CanMove(self, MOVE_LEFT) && ACEMV_CanMove_Simple(self, MOVE_LEFT)){
-			ucmd->sidemove -= BOT_SIDE_VEL;
+			ucmd->sidemove -= BOT_SIDE_VEL* speed;
 			moveResolved = true;
 			if (!strafe){
 				self->acebot.last_strafeTime = level.framenum + frames;
@@ -2386,7 +2440,7 @@ static void ACEMV_Attack_Dodge(edict_t *self, usercmd_t *ucmd)
 		}
 		else if (((c >= 0.500f && !strafe) || (strafe && strafeDir == MOVE_RIGHT))
 			&& ACEMV_CanMove(self, MOVE_RIGHT) && ACEMV_CanMove_Simple(self, MOVE_RIGHT)){
-			ucmd->sidemove += BOT_SIDE_VEL;
+			ucmd->sidemove += BOT_SIDE_VEL* speed;
 			moveResolved = true;
 			if (!strafe){
 				self->acebot.last_strafeTime = level.framenum + frames;
@@ -2395,11 +2449,11 @@ static void ACEMV_Attack_Dodge(edict_t *self, usercmd_t *ucmd)
 		}
 
 		if (c < 0.3 && ACEMV_CanMove(self, MOVE_FORWARD) && ACEMV_CanMove_Simple(self, MOVE_FORWARD)){
-			ucmd->forwardmove += BOT_FORWARD_VEL;
+			ucmd->forwardmove += BOT_FORWARD_VEL* speed;
 			moveResolved = true;
 		}
 		else if (c > 0.7 && ACEMV_CanMove(self, MOVE_BACK) && ACEMV_CanMove_Simple(self, MOVE_BACK)){ //was forward??
-			ucmd->forwardmove -= BOT_FORWARD_VEL;
+			ucmd->forwardmove -= BOT_FORWARD_VEL* speed;
 			moveResolved = true;
 		}
 	}
@@ -2409,22 +2463,22 @@ static void ACEMV_Attack_Dodge(edict_t *self, usercmd_t *ucmd)
 		if (c < 0.500f)
 		{
 			if (ACEMV_CanMove_Simple(self, MOVE_LEFT)){
-				ucmd->sidemove -= BOT_SIDE_VEL;
+				ucmd->sidemove -= BOT_SIDE_VEL* speed;
 				moveResolved = true;
 			}
 			else if (ACEMV_CanMove_Simple(self, MOVE_RIGHT)){
-				ucmd->sidemove += BOT_SIDE_VEL;
+				ucmd->sidemove += BOT_SIDE_VEL* speed;
 				moveResolved = true;
 			}
 		}
 		else
 		{
 			if (ACEMV_CanMove_Simple(self, MOVE_RIGHT))	{
-				ucmd->sidemove += BOT_SIDE_VEL;
+				ucmd->sidemove += BOT_SIDE_VEL* speed;
 				moveResolved = true;
 			}
 			else if (ACEMV_CanMove_Simple(self, MOVE_LEFT))	{
-				ucmd->sidemove -= BOT_SIDE_VEL;
+				ucmd->sidemove -= BOT_SIDE_VEL* speed;
 				moveResolved = true;
 			}
 		}
@@ -2432,9 +2486,9 @@ static void ACEMV_Attack_Dodge(edict_t *self, usercmd_t *ucmd)
 	if (!moveResolved)
 	{
 		if (ACEMV_CanMove_Simple(self, MOVE_FORWARD))
-			ucmd->forwardmove += BOT_FORWARD_VEL;
+			ucmd->forwardmove += BOT_FORWARD_VEL* speed;
 		else if (ACEMV_CanMove_Simple(self, MOVE_BACK))
-			ucmd->forwardmove -= BOT_FORWARD_VEL;
+			ucmd->forwardmove -= BOT_FORWARD_VEL* speed;
 	}
 #endif
 
@@ -2449,15 +2503,15 @@ static void ACEMV_Attack_Dodge(edict_t *self, usercmd_t *ucmd)
 ///////////////////////////////////////////////////////////////////////
 void ACEMV_Attack (edict_t *self, usercmd_t *ucmd)
 {
-	vec3_t  target, angles;
+	vec3_t  target;
 	vec3_t player_origin;
 	float range;
 	qboolean boozooka = false;
 	qboolean grenad = false;
 	qboolean flameGun = false;
+	qboolean crowbar = false;
 
-
-	//hypov8 taunt
+	// bot taunt timer expired?
 	if (self->acebot.tauntTime < level.framenum)
 	{
 		float c = random();
@@ -2465,7 +2519,6 @@ void ACEMV_Attack (edict_t *self, usercmd_t *ucmd)
 		ACEMV_BotTaunt(self, self->enemy);
 		self->acebot.tauntTime = level.framenum + (100+ (c *skill * 300)); 
 	}
-
 
 	//on hook while attacking
 	if (self->client->hookstate != 0 &&
@@ -2484,11 +2537,27 @@ void ACEMV_Attack (edict_t *self, usercmd_t *ucmd)
 			self->client->hookstate = 0;
 		}
 	}
-	
 
-	// Set the attack 
+
+
+	// Set the attack
 	ucmd->buttons = BUTTON_ATTACK;
-	
+
+#if 1
+	//hypov8 bots now turn slowly towards enemy(*skill). 
+	//make them wait untill crosshair is near target before shooting
+	{
+		float ang;
+		vec3_t enmy, enemy_ang;
+
+		VectorSubtract(self->enemy->s.origin, self->s.origin, enmy);
+		vectoangles(enmy, enemy_ang);
+		ang = AngleDiff(enemy_ang[YAW], self->s.angles[YAW]);
+		if (ang < -40 || ang > 40)
+			ucmd->buttons = 0;
+	}
+#endif
+
 	// Location to Aim at
 	VectorCopy(self->enemy->s.origin, target);
 	//target[2] -= 8; //move down some for recoil?
@@ -2550,7 +2619,7 @@ void ACEMV_Attack (edict_t *self, usercmd_t *ucmd)
 			vec3_t offset2, start2, end2;
 			vec3_t angles2;
 			trace_t tr2;
-
+			crowbar = true;
 			//hypov8 todo: lava and sky. ignore enemy if so
 			//ucmd->forwardmove = BOT_FORWARD_VEL; //hypov8 todo: jump.. to void?
 
@@ -2629,12 +2698,13 @@ void ACEMV_Attack (edict_t *self, usercmd_t *ucmd)
 	{
 		// Set viewport Aim direction
 		VectorSubtract(target, self->s.origin, self->acebot.move_vector);
-		vectoangles(self->acebot.move_vector, angles);
-		VectorCopy(angles, self->s.angles);
+		ACEMV_ChangeBotAngle(self);
+		//vectoangles(self->acebot.move_vector, angles); //hypov8 todo: change to timmer/ACEMV_ChangeBotAngle
+		//VectorCopy(angles, self->s.angles);
 	}
 
 	//setup dodge
-	ACEMV_Attack_Dodge(self, ucmd); //hypov8 moved down here
+	ACEMV_Attack_Dodge(self, ucmd, crowbar); //hypov8 moved down here
 
 
 	//hypov8 move player up if it has a target in water
