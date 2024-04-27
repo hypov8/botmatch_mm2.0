@@ -472,7 +472,7 @@ static void Cmd_VoteAddBot_f(edict_t *ent, int teamUse)
 	if (level.voteset == NO_VOTES)
 	{
 		count = 0;
-		for_each_player_not_bot(dude, i)
+		for_each_player_not_bot(dude, i)// ACEBOT_ADD
 		{
 			dude->client->resp.vote = 0;
 			count++;
@@ -576,7 +576,7 @@ void Cmd_VoteRemoveBot_f(edict_t *ent, qboolean isMenu, char botnames[32]) //VOT
 	if (level.voteset == NO_VOTES)
 	{
 		count = 0;
-		for_each_player_not_bot(dude, i)
+		for_each_player_not_bot(dude, i)// ACEBOT_ADD
 		{
 			dude->client->resp.vote = 0;
 			count++;
@@ -641,7 +641,7 @@ void Cmd_VoteSkill_f(edict_t *ent, qboolean usedMenu) //VOTE_BOTSKILL;
 	if (level.voteset == NO_VOTES)
 	{
 		count = 0;
-		for_each_player_not_bot(dude, i)
+		for_each_player_not_bot(dude, i)// ACEBOT_ADD
 		{
 			dude->client->resp.vote = 0;
 			count++;
@@ -1073,7 +1073,7 @@ void ACECM_BotDebug(changeState)
 			gi.configstring(CS_STATUSBAR,va("%s%s",dm_statusbar,botStatusbar));
 		}
 
-		for_each_player_not_bot(doot, i)
+		for_each_player_not_bot(doot, i)// ACEBOT_ADD
 		{
 			//sv botdebug on
 			//safe_cprintf(doot, PRINT_MEDIUM, "0=MOVE 1=LADDER 2=PLATFORM 3=TELEPORTER 4=ITEM 5=WATER 7=JUMP\n");
@@ -1099,7 +1099,7 @@ void ACECM_BotDebug(changeState)
 	}
 	else //if (changeState)
 	{
-		for_each_player_not_bot(doot, i)
+		for_each_player_not_bot(doot, i)// ACEBOT_ADD
 		{
 			gi.WriteByte(13);
 			gi.WriteString(

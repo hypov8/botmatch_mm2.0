@@ -1850,6 +1850,7 @@ void ClientBegin (edict_t *ent)
 	}
 	else
 		ent->client->pers.admin = NOT_ADMIN;
+
 	a = gi.cvar("rconx", "", 0)->string;
 	if (a[0])
 	{
@@ -3141,10 +3142,20 @@ void ClientBeginServerFrame (edict_t *ent)
 	if (level.intermissiontime)
 		return;
 
+// ACEBOT_ADD
+	if (ent->acebot.is_bot)
+	{
+		client->pers.lastpacket = curtime;
+		client->pers.idle = curtime;
+	}
+// ACEBOT_END
+	else
+	{
 #if HYPODEBUG
-	client->pers.lastpacket = curtime;
-	client->pers.idle = curtime;
+		client->pers.lastpacket = curtime;
+		client->pers.idle = curtime;
 #endif
+	}
 
 
 	if (client->pers.spectator != SPECTATING && curtime-client->pers.lastpacket >= 5000)

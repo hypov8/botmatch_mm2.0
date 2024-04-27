@@ -1901,7 +1901,7 @@ void G_SetStats (edict_t *ent)
 }
 // JOSEPH 16-DEC-98
 
-// HYPOV8_ADD
+// ACEBOT_ADD
 void PrintScoreMatchEnd(void)
 {
 	int i, j;
@@ -1974,5 +1974,5 @@ void PrintScoreMatchEnd(void)
 	gi.dprintf("--==   end   ==--\n \n");
 
 }
-// HYPOV8_END
+// ACEBOT_END
 

@@ -73,12 +73,12 @@ typedef struct
 for(INDEX=1;INDEX<=(int)maxclients->value;INDEX++ )\
 	if((JOE_BLOGGS=&g_edicts[INDEX])!=0 &&JOE_BLOGGS->inuse &&\
 	JOE_BLOGGS->client && JOE_BLOGGS->client->pers.connected)
-
+// ACEBOT_ADD
 #define for_each_player_not_bot(JOE_BLOGGS,INDEX)\
 for(INDEX=1;INDEX<=(int)maxclients->value;INDEX++)\
 	if((JOE_BLOGGS=&g_edicts[INDEX])!=0 && JOE_BLOGGS->inuse && JOE_BLOGGS->client &&\
 	JOE_BLOGGS->client->pers.connected && !JOE_BLOGGS->acebot.is_bot)
-
+// ACEBOT_END
 
 #endif
 

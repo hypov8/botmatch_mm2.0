@@ -2154,7 +2154,7 @@ void Cmd_Yes_f (edict_t *ent)
 		nop=0;
 		novy=0;
 		idle = 0;
-		for_each_player_not_bot(dude, i)
+		for_each_player_not_bot(dude, i)// ACEBOT_ADD
 		{
 			if ((dude->client->resp.vote == YES) || (dude->client->resp.vote == CALLED_VOTE))
 				novy ++;
@@ -2167,7 +2167,7 @@ void Cmd_Yes_f (edict_t *ent)
 			switch (level.voteset) // Papa - if you wanted to add different types of votes, you could do it here
 			{
 				case VOTE_ON_ADMIN:
-					for_each_player_not_bot(dude, i)
+					for_each_player_not_bot(dude, i)// ACEBOT_ADD
 					{
 						if (dude->client->resp.vote == CALLED_VOTE)	
 						{
@@ -2229,7 +2229,7 @@ void Cmd_Yes_f (edict_t *ent)
 // ACEBOT_END
 			}
 
-			/*for_each_player_not_bot(dude, i)
+			/*for_each_player_not_bot(dude, i)// ACEBOT_ADD
 			{
 				if (dude->client->resp.vote == CALLED_VOTE)
 					dude->client->resp.vote = HASNT_VOTED;
@@ -2257,7 +2257,7 @@ void Cmd_No_f (edict_t *ent)
 		ent->client->resp.vote = NO;
 		nop = 0;
 		novn = 0;
-		for_each_player_not_bot(dude, i)
+		for_each_player_not_bot(dude, i)// ACEBOT_ADD
 		{
 			if (dude->client->resp.vote == NO)
 				novn ++;
@@ -2285,7 +2285,7 @@ void Cmd_No_f (edict_t *ent)
 					break;
 // ACEBOT_END
 			}
-			/*for_each_player_not_bot(dude, i)
+			/*for_each_player_not_bot(dude, i)// ACEBOT_ADD
 			{
 				if (dude->client->resp.vote == CALLED_VOTE)
 					dude->client->resp.vote = HASNT_VOTED;
@@ -2330,7 +2330,7 @@ void Cmd_Elect_f (edict_t *ent)
 
 	if (level.voteset == NO_VOTES)
 	{
-		for_each_player_not_bot(dude, i)
+		for_each_player_not_bot(dude, i)// ACEBOT_ADD
 		{
 			dude->client->resp.vote = 0;
 			count++;
@@ -2425,7 +2425,7 @@ void Cmd_ChangeMap_f (edict_t *ent, qboolean vote)
 			int			count=0;
 			int			i;
 
-			for_each_player_not_bot(dude, i)
+			for_each_player_not_bot(dude, i)// ACEBOT_ADD
 			{
 				dude->client->resp.vote = 0;
 				count++;
@@ -2794,7 +2794,7 @@ void Cmd_Toggle_Spec_f(edict_t *ent)
 			{
 				int		i;
 				edict_t	*dood;
-				for_each_player_not_bot(dood, i)
+				for_each_player_not_bot(dood, i)// ACEBOT_ADD
 				{
 					if (dood->client->pers.spectator == SPECTATING && !dood->client->pers.admin && !dood->client->pers.rconx[0])
 					{

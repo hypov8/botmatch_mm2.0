@@ -104,7 +104,6 @@ static void fire_lead (edict_t *self, vec3_t start, vec3_t aimdir, int damage, i
 
 #ifdef HYPODEBUG_BULLET
 	damage = 2;
-
 #endif
 
 	self->client->resp.accshot++;

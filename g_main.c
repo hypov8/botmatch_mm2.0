@@ -521,7 +521,8 @@ void ExitLevel (void)
 	char	command [256];
 	int		count = 0;
 
-	for_each_player_not_bot(ent, i) {
+	for_each_player_not_bot(ent, i) // ACEBOT_ADD
+	{
 		count++;
 	}
 
@@ -825,7 +826,7 @@ void G_RunFrame (void)
 		int		i, count = 0;
 		edict_t *player;
 
-		for_each_player_not_bot(player, i)
+		for_each_player_not_bot(player, i)// ACEBOT_ADD
 			count++;
 
 

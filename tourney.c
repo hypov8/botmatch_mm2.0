@@ -105,7 +105,7 @@ void MatchSetup () // Places the server in prematch mode
 	level.modeset = MATCHSETUP;
 	level.startframe = level.framenum;
 
-	for_each_player_not_bot(self, i)
+	for_each_player_not_bot(self, i)// ACEBOT_ADD
 	{
 		self->client->showscores = SCOREBOARD;
 		self->client->resp.scoreboard_frame = 0;
@@ -309,7 +309,7 @@ void Start_Match () // Starts the match
 	level.modeset = MATCHSPAWN;
 	level.startframe = level.framenum;
 	level.is_spawn = false;
-	for_each_player_not_bot(self, i)
+	for_each_player_not_bot(self, i)// ACEBOT_ADD
 	{
 		safe_centerprintf(self, "The match has begun!");
 		self->client->resp.is_spawn = false;
@@ -337,7 +337,7 @@ void Start_Pub () // Starts a public game
 	level.modeset = PUBLICSPAWN;
 	level.startframe = level.framenum;
 	level.is_spawn = false;
-	for_each_player_not_bot(self, i)
+	for_each_player_not_bot(self, i)// ACEBOT_ADD
 	{
 		safe_centerprintf(self, "Let the fun begin!");
 		self->client->resp.is_spawn = false;
@@ -473,7 +473,7 @@ void CheckIdleMatchSetup () // restart the server if its empty in matchsetup mod
 	int		i;
 	edict_t	*doot;
 
-	for_each_player_not_bot(doot, i)
+	for_each_player_not_bot(doot, i)// ACEBOT_ADD
 	{ //hypov8 bots count??
 		count++;
 	}
@@ -688,6 +688,19 @@ void CheckVote() // check the timelimit for an admin or map vote
 			case VOTE_ON_MAP:
 				safe_bprintf(PRINT_HIGH, "The request for a map change has failed\n");
 				break;
+// ACEBOT_ADD
+			case VOTE_ADDBOT:
+				safe_bprintf(PRINT_HIGH, "The request for adding a bot has failed\n");
+				break;
+			case VOTE_REMOVEBOT:
+				safe_bprintf(PRINT_HIGH, "The request for removing a bot has failed\n");
+				break;
+			case VOTE_BOTSKILL:
+				safe_bprintf(PRINT_HIGH, "The request for bot skill change has failed\n");
+				break;
+// ACEBOT_END
+
+
 		}
 		level.voteset = NO_VOTES;
 	}

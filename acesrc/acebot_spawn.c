@@ -987,7 +987,7 @@ void ACESP_SetName(edict_t *bot, char *name, char *skin/*, char *team*/)
 		// send joined info if bot was added during gameplay
 		gi.dprintf("ACE: bot (%s) connected\n", bot_name);
 
-		for_each_player_not_bot(doot, j)
+		for_each_player_not_bot(doot, j)// ACEBOT_ADD
 			safe_cprintf(doot, PRINT_CHAT, "%s connected from %s\n", bot_name, bot->client->pers.country);
 	}
 #endif	

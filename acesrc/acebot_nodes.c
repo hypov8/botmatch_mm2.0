@@ -1024,31 +1024,31 @@ vec_t ACEND_NodeOffset(short type)
 	switch (type)
 	{
 		case BOTNODE_MOVE: //0			
-			out = BOTNODE_MOVE_8; 
+			out = (vec_t)BOTNODE_MOVE_8; 
 			break;
 		case BOTNODE_LADDER: //1
-			out = BOTNODE_LADDER_8; 
+			out = (vec_t)BOTNODE_LADDER_8; 
 			break;
 		case BOTNODE_PLATFORM: //2
-			out = BOTNODE_PLATFORM_32;
+			out = (vec_t)BOTNODE_PLATFORM_32;
 			break;
 		case BOTNODE_TELEPORTER: //3
-			out = BOTNODE_TELEPORTER_16;
+			out = (vec_t)BOTNODE_TELEPORTER_16;
 			break;
 		case BOTNODE_ITEM:	//4
-			out = BOTNODE_ITEM_16; 
+			out = (vec_t)BOTNODE_ITEM_16; 
 			break;
 		case BOTNODE_WATER:	//5
-			out = BOTNODE_WATER_8; 
+			out = (vec_t)BOTNODE_WATER_8; 
 			break;
 		case BOTNODE_JUMP://7
-			out = BOTNODE_JUMP_8; 
+			out = (vec_t)BOTNODE_JUMP_8; 
 			break;
 		case BOTNODE_DRAGON_SAFE: //8
-			out= BOTNODE_DRAGON_SAFE_8;
+			out= (vec_t)BOTNODE_DRAGON_SAFE_8;
 			break;
 		case BOTNODE_NIKKISAFE: //9
-			out = BOTNODE_NIKKISAFE_8;
+			out = (vec_t)BOTNODE_NIKKISAFE_8;
 			break;
 	}
 	if (out == 0.0)
@@ -1666,7 +1666,7 @@ void ACEND_DebugNodesLocal(void)
 	{
 		memset(count, INVALID, sizeof(count));
 		//only used first player
-		for_each_player_not_bot(firstPlayer, iPlyr)
+		for_each_player_not_bot(firstPlayer, iPlyr)// ACEBOT_ADD
 		{
 			if (!firstPlayer->acebot.PM_firstPlayer)	//if (debug_mode_origin_ents != iPlyr)
 				continue;
